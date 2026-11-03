@@ -1,6 +1,6 @@
 // Read view-scoped instances, relations and hidden-neighbour counts; adapted from Catenary packages/rdf/src/scoped-doc.ts.
 import { shapeTargetMatches } from './shacl-targets';
-import type { NamedNode, Quad, Term } from '@rdfjs/types';
+import type { NamedNode, Term } from '@rdfjs/types';
 import { Doc, View, boxes, emptyDoc } from '../model/doc';
 import { NS } from '../model/terms';
 import { ShapesModel } from '../model/shapes-doc';
@@ -87,7 +87,7 @@ export function scopedDoc(ctx: ViewReadContext, scope: DocScope): Doc {
 
 /** The instances with a statement to or from one of `subjects` (model graph and shapes graphs). */
 function neighbors(g: ModelGraph, subjects: string[]): string[] {
-    const graphs = [...new Set([...g.dataGraphs(), ...g.shapesGraphs()].map(t => iri(t.value)))].join(', ');
+    const graphs = [...g.dataGraphs(), ...g.shapesGraphs()].map(t => iri(t.value)).join(', ');
     const found = select(g, `${PREFIXES} SELECT DISTINCT ?x WHERE {
         VALUES ?s { ${subjects.map(iri).join(' ')} }
         { GRAPH ?g { ?s ?p ?x } } UNION { GRAPH ?g { ?x ?p ?s } }
@@ -104,7 +104,6 @@ function neighbors(g: ModelGraph, subjects: string[]): string[] {
 function records(g: ModelGraph, doc: Doc, iris: string[]): void {
     const statements = new Map<string, Statements>();
     for (const r of select(g, `SELECT ?s ?p ?o WHERE { VALUES ?s { ${iris.map(iri).join(' ')} } GRAPH ${iri(g.union.value)} { ?s ?p ?o } }`)) {
-        if (!g.isDataTriple(r.s.term, r.p.term, r.o.term)) continue;
         let e = statements.get(key(r.s));
         if (!e) statements.set(key(r.s), e = { s: r.s, rows: [] });
         e.rows.push(r);
@@ -192,12 +191,12 @@ export function hiddenNeighborCounts(g: ModelGraph, shapes: ShapesModel, view: V
     const counts = new Map<string, { in: number; out: number }>();
     const others = new Map<string, { in: Set<string>; out: Set<string> }>();
     const placedEdges = new Set(view.edges.filter(e => !e.hidden).map(e => e.relation));
-    const found: { s: Term; x: Term; p: Term; g: Term; q: Quad; dir: { value: 'in' | 'out' } }[] = [];
+    const found: { s: Term; x: Term; p: Term; g: Term; dir: { value: 'in' | 'out' } }[] = [];
     const reading = new Set(read);
-    for (const graph of new Map([...g.dataGraphs(), ...g.shapesGraphs()].map(t => [t.value, t])).values()) for (const q of g.match(null, null, null, graph)) {
+    for (const graph of [...g.dataGraphs(), ...g.shapesGraphs()]) for (const q of g.match(null, null, null, graph)) {
         if (q.predicate.value === NS.rdf + 'type' || q.predicate.value === NS.rdfs + 'label') continue;
-        if (reading.has(q.subject.value) && q.object.termType === 'NamedNode') found.push({ s: q.subject, x: q.object, p: q.predicate, g: graph, q, dir: { value: 'out' } });
-        if (reading.has(q.object.value) && q.subject.termType === 'NamedNode') found.push({ s: q.object, x: q.subject, p: q.predicate, g: graph, q, dir: { value: 'in' } });
+        if (reading.has(q.subject.value) && q.object.termType === 'NamedNode') found.push({ s: q.subject, x: q.object, p: q.predicate, g: graph, dir: { value: 'out' } });
+        if (reading.has(q.object.value) && q.subject.termType === 'NamedNode') found.push({ s: q.object, x: q.subject, p: q.predicate, g: graph, dir: { value: 'in' } });
     }
     // The homes and the instance test of all neighbors in one request each, not one store read per row.
     const homes = homesAmong(g, found.flatMap(r => [r.s.value, r.x.value]));
@@ -211,7 +210,7 @@ export function hiddenNeighborCounts(g: ModelGraph, shapes: ShapesModel, view: V
         const dir = r.dir.value as 'in' | 'out';
         // A relation is a statement of the graph of its subject (the model graph, or the shapes graph of a SKOS subject).
         const owner = homes.get(dir === 'out' ? r.s.value : r.x.value);
-        if (owner === g.union.value ? !g.isDataQuad(r.q) : r.g.value !== owner) continue;
+        if (owner === g.union.value ? !g.isDataGraph(r.g) : r.g.value !== owner) continue;
         const [subject, object] = dir === 'out' ? [r.s, r.x] : [r.x, r.s];
         if (shown(r.x.value) && placedEdges.has(relationId(subject as NamedNode, r.p as NamedNode, object as NamedNode))) continue;
         add(r.s.value, dir, r.x.value);

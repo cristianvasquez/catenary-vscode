@@ -39,7 +39,7 @@ const PLACEMENT_PROPS = ['element', 'x', 'y', 'width', 'height', 'color', 'displ
 function showsShapes(g: ModelGraph, view: NamedNode): boolean {
     const valueSetTypes = SKOS_TYPES.filter(t => !t.value.endsWith('#Concept'));
     return g.match(null, rdf.namedNode(NS.view + 'element'), null, view)
-        .some(q => q.object.termType === 'NamedNode' && (g.match(q.object).some(x => g.isShapesQuad(x))
+        .some(q => q.object.termType === 'NamedNode' && (g.match(q.object).some(x => g.isShapesGraph(x.graph))
             || valueSetTypes.some(t => g.match(q.object as NamedNode, P.type, t, g.union).length > 0)));
 }
 
@@ -187,7 +187,6 @@ function viewRead(ctx: ViewReadContext, view: NamedNode, warnings: string[] = []
     }`);
     const statements = new Map<string, Statements>();
     for (const r of rows) {
-        if (!g.isDataTriple(r.s.term, r.p.term, r.o.term)) continue;
         let e = statements.get(key(r.s));
         if (!e) statements.set(key(r.s), e = { s: r.s, rows: [] });
         e.rows.push({ s: r.s, p: r.p, o: r.o });
@@ -238,7 +237,7 @@ function viewRead(ctx: ViewReadContext, view: NamedNode, warnings: string[] = []
     const placementScope = (variable: string) => elements ? `VALUES ?${variable} { ${values(placementIds)} }` : '';
 
     // Views that the part names: this view, the targets of its view references, the graphs of the marks and arrows it places.
-    const excluded = [...new Set([...g.dataGraphs(), ...g.shapesGraphs(), rdf.namedNode(REPORT_GRAPH)].map(t => `<${t.value}>`))].join(', ');
+    const excluded = [...g.dataGraphs(), ...g.shapesGraphs(), rdf.namedNode(REPORT_GRAPH)].map(t => `<${t.value}>`).join(', ');
     const viewRows = select(g, `${PREFIXES}
         SELECT DISTINCT ?g ?v ?l WHERE {
             { BIND(${V} AS ?g) }
@@ -311,7 +310,7 @@ function viewRead(ctx: ViewReadContext, view: NamedNode, warnings: string[] = []
 
 /** Label of every view (view id → label): the first view:View subject of the graph; rdfs:label, else from the IRI. */
 export function viewLabels(g: ModelGraph): Record<string, string> {
-    const excluded = [...new Set([...g.dataGraphs(), ...g.shapesGraphs(), rdf.namedNode(REPORT_GRAPH)].map(t => `<${t.value}>`))].join(', ');
+    const excluded = [...g.dataGraphs(), ...g.shapesGraphs(), rdf.namedNode(REPORT_GRAPH)].map(t => `<${t.value}>`).join(', ');
     const subjects = new Map<string, Map<string, { v: string; labels: Term[] }>>();
     for (const r of select(g, `${PREFIXES}
         SELECT ?g ?v ?l WHERE { GRAPH ?g { ?v a view:View OPTIONAL { ?v rdfs:label ?l FILTER (isLiteral(?l)) } } FILTER (isIRI(?g) && ?g NOT IN (${excluded})) }`)) {

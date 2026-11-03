@@ -53,9 +53,6 @@ export function viewProblem(quads: Quad[]): string | undefined {
 
 const SH_TYPES = new Set(['NodeShape', 'PropertyShape', 'Shape'].map(t => NS.sh + t));
 
-/** A statement that makes its subject a shape: a predicate in the sh: namespace, or rdf:type sh:NodeShape, sh:PropertyShape or sh:Shape. */
-export const isShapeStatement = (q: Quad): boolean => q.predicate.value.startsWith(NS.sh) || (q.predicate.equals(P.type) && SH_TYPES.has(q.object.value));
-
 
 /**
  * The subjects of the shapes of a file (termKey): subjects with a statement in the sh: namespace (a predicate, or rdf:type sh:…), and
@@ -76,7 +73,7 @@ export function shapePart(quads: Quad[]): Set<string> {
         }
     };
     for (const [k, qs] of bySubject) {
-        if (qs.some(isShapeStatement)) visit(k);
+        if (qs.some(q => q.predicate.value.startsWith(NS.sh) || (q.predicate.equals(P.type) && SH_TYPES.has(q.object.value)))) visit(k);
     }
     // A list cell that no shape refers to (left by earlier saves) whose item or next cell is shape content: shape content too.
     for (let changed = true; changed;) {

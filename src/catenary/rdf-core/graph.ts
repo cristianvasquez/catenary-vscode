@@ -1,20 +1,22 @@
 // Transactional quad graph with undo history and cache invalidation; adapted from Catenary packages/rdf-core/src/graph.ts.
 import type { NamedNode, Quad, Quad_Graph, Quad_Object, Quad_Predicate, Quad_Subject, Term } from '@rdfjs/types';
+import type { TermSet } from 'rdf-ext';
 import type { QuadStore } from '../rdf-files/store';
-import { termKey, tripleKey } from '../rdf-files/terms';
+import { tripleKey } from '../rdf-files/terms';
 import { rdf } from './terms';
 
 
 /**
  * The graph names of the host. The core owns no IRI value: the caller gives the names to the constructor.
  * `union`: the logical union of the data graphs. `report`: the graph of the validation report (not saved).
- * `file`: the store graph of a model file (its store path). It holds the data and the shapes of the file.
- * `fileOf`: the store path of a file graph, or undefined for another graph.
+ * `data`, `shapes`: the store graph of the data and of the shapes of a file (its store path).
+ * `fileOf`: the store path of a data or shapes graph, or undefined for another graph.
  */
 export interface GraphNames {
     union: string;
     report: string;
-    file(file: string): string;
+    data(file: string): string;
+    shapes(file: string): string;
     fileOf(graph: string): string | undefined;
 }
 
@@ -24,8 +26,6 @@ export interface GraphRules {
     isView(g: ModelGraph, t: Term | undefined): boolean;
     views(g: ModelGraph): NamedNode[];
     metamodelQuad(g: ModelGraph, q: Quad): boolean;
-    /** A statement that makes its subject a shape subject when it is added to a file graph. */
-    shapeStatement(q: Quad): boolean;
     /** The cache inputs that one added or removed quad invalidates. */
     dependencies(g: ModelGraph, q: Quad): Dependencies;
     /** True when a committed patch changes placement geometry and style only (GraphChange.layout). */
@@ -62,12 +62,9 @@ export class ModelGraph<P = unknown> {
     /** Logical union of file data graphs; temporary additions use it until transaction placement. */
     union: NamedNode;
 
-    /** The store graphs of the model files, sorted. Undefined: no file is registered, the union graph holds the data. */
-    protected files?: NamedNode[];
-    /** The IRIs of `files`. */
-    protected fileIris: Set<string> = new Set();
-    /** The termKeys of the subjects whose statements in a file graph are shapes statements. */
-    protected shapeSubjects: Set<string> = new Set();
+    /** The shapes graphs: the store graphs of the shapes files. */
+    protected shapes: TermSet<NamedNode> = rdf.termSet<NamedNode>();
+    protected data?: NamedNode[];
     protected log?: Patch;
 
     /** Preferred language tag of the labels that the reads give, set by the host. A plain preference: the host gives the rule. Undefined: none. */
@@ -130,69 +127,43 @@ export class ModelGraph<P = unknown> {
         this.union = rdf.namedNode(names.union);
     }
 
-    setFileGraphs(graphs: Iterable<NamedNode>): void {
-        const next = sorted(new Map([...graphs].map(g => [g.value, g])).values());
-        if (this.files && next.length === this.files.length && next.every(g => this.fileIris.has(g.value))) return;
-        this.files = next;
-        this.fileIris = new Set(next.map(g => g.value));
+    setShapesGraphs(graphs: Iterable<NamedNode>): void {
+        const next = [...graphs];
+        if (next.length === this.shapes.size && next.every(g => this.shapes.has(g))) return;
+        this.shapes = rdf.termSet(next);
         this.invalidate({ shapes: true, query: true, data: true });
     }
 
-    /** `keys`: the termKeys of the subjects whose statements are shapes statements. */
-    setShapeSubjects(keys: Iterable<string>): void {
-        const next = new Set(keys);
-        if (next.size === this.shapeSubjects.size && [...next].every(k => this.shapeSubjects.has(k))) return;
-        this.shapeSubjects = next;
+    setDataGraphs(graphs: Iterable<NamedNode>): void {
+        const next = [...graphs];
+        if (this.data && next.length === this.data.length && next.every(g => this.data!.some(x => x.equals(g)))) return;
+        this.data = next;
         this.invalidate({ shapes: true, query: true, data: true });
     }
 
-    /** The file graphs, sorted; the union graph when no file is registered. */
-    dataGraphs(): NamedNode[] { return this.files ? [...this.files] : [this.union]; }
-
-    protected isFileGraph(t: Pick<Term, 'termType' | 'value'> | undefined): boolean {
-        return !!t && t.termType === 'NamedNode' && this.fileIris.has(t.value);
-    }
+    dataGraphs(): NamedNode[] { return this.data ?? [this.union]; }
 
     isDataGraph(t: Pick<Term, 'termType' | 'value'> | undefined): boolean {
-        return !!t && t.termType === 'NamedNode' && (t.value === this.union.value || this.isFileGraph(t));
+        return !!t && t.termType === 'NamedNode' && (t.value === this.union.value || !!this.data?.some(g => g.value === t.value));
     }
 
-    /** A file graph: it can hold shapes statements. */
     isShapesGraph(t: Term | undefined): boolean {
-        return this.isFileGraph(t);
+        return !!t && t.termType === 'NamedNode' && this.shapes.has(t);
     }
 
-    /** A statement of a shape: in a file graph, with a shape subject. */
-    isShapesQuad(q: Quad): boolean {
-        return this.isFileGraph(q.graph) && this.shapeSubjects.has(termKey(q.subject));
-    }
-
-    /** A data statement: in a file graph or the union graph, and not a shapes statement. */
-    isDataQuad(q: Quad): boolean {
-        return this.isDataGraph(q.graph) && !this.isShapesQuad(q);
-    }
-
-    /** A statement with a data copy: a SPARQL read of the union graph also gives the shapes statements of the file graphs. */
-    isDataTriple(s: Term, p: Term, o: Term): boolean {
-        return this.store.match(s, p, o).some(q => this.isDataQuad(q));
-    }
-
-    /** The registered file graph of a model file (its store path). A view file has its view graph instead. */
+    /** The registered data graph and shapes graph of a model file (its store path). A view file has its view graph instead. */
     graphsOfFile(file: string): NamedNode[] {
-        const g = rdf.namedNode(this.names.file(file));
-        return this.isFileGraph(g) ? [g] : [];
+        return [rdf.namedNode(this.names.data(file)), rdf.namedNode(this.names.shapes(file))].filter(g => this.isDataGraph(g) || this.isShapesGraph(g));
     }
 
     has(q: Quad): boolean {
-        return q.graph.equals(this.union) && this.files ? this.match(q.subject, q.predicate, q.object, this.union).length > 0 : this.store.has(q);
+        return q.graph.equals(this.union) && this.data ? this.match(q.subject, q.predicate, q.object, this.union).length > 0 : this.store.has(q);
     }
 
     match(s?: Maybe<Term>, p?: Maybe<Term>, o?: Maybe<Term>, g?: Maybe<Term>): Quad[] {
-        if (!g?.equals(this.union) || !this.files) return this.store.match(s, p, o, g);
+        if (!g?.equals(this.union) || !this.data) return this.store.match(s, p, o, g);
         const found = new Map<string, Quad>();
-        // The union is the data statements: the shapes statements of the file graphs are not in it.
-        for (const graph of [...this.files, this.union]) for (const q of this.store.match(s, p, o, graph)) {
-            if (this.isShapesQuad(q)) continue;
+        for (const graph of [...this.data, this.union]) for (const q of this.store.match(s, p, o, graph)) {
             found.set(tripleKey(q), rdf.quad(q.subject, q.predicate, q.object, this.union));
         }
         return [...found.values()];
@@ -202,12 +173,11 @@ export class ModelGraph<P = unknown> {
      * Oxigraph preserves duplicate bindings across FROM graphs, so each graph pattern needs DISTINCT.
      */
     protected scopedQuery(query: string): string {
-        if (!this.files) return query;
+        if (!this.data) return query;
         const union = `GRAPH <${this.union.value}>`;
         if (!query.includes(union)) return query;
-        const files = this.dataGraphs();
-        const graphs = [...new Set([...files, this.union, ...this.rules.views(this), rdf.namedNode(this.names.report)].map(g => g.value))];
-        const dataset = [...files, this.union].map(g => `FROM <${g.value}>`).join(' ')
+        const graphs = [...new Set([...this.data, this.union, ...this.shapesGraphs(), ...this.rules.views(this), rdf.namedNode(this.names.report)].map(g => g.value))];
+        const dataset = [...this.data, this.union].map(g => `FROM <${g.value}>`).join(' ')
             + ' ' + graphs.map(g => `FROM NAMED <${g}>`).join(' ');
         let index = 0, offset = 0;
         // Quotes inside IRI tokens are not string delimiters.
@@ -253,9 +223,6 @@ export class ModelGraph<P = unknown> {
         const q = rdf.quad(s, p, o, g);
         if (this.has(q)) return;
         if (!this.log) { this.transact(graph => { graph.add(s, p, o, g, was); return { ok: true }; }); return; }
-        if (this.isFileGraph(q.graph) && this.rules.shapeStatement(q) && !this.shapeSubjects.has(termKey(q.subject))) {
-            this.shapeSubjects = new Set(this.shapeSubjects).add(termKey(q.subject));
-        }
         const dependencies = this.dependencies(q);
         this.store.add(q);
         this.invalidate(dependencies);
@@ -263,10 +230,9 @@ export class ModelGraph<P = unknown> {
     }
 
     remove(q: Quad): void {
-        if (q.graph.equals(this.union) && this.files) {
+        if (q.graph.equals(this.union) && this.data) {
             this.update(() => {
-                for (const graph of [...this.dataGraphs(), this.union]) for (const copy of this.store.match(q.subject, q.predicate, q.object, graph)) {
-                    if (this.isShapesQuad(copy)) continue;
+                for (const graph of [...this.data!, this.union]) for (const copy of this.store.match(q.subject, q.predicate, q.object, graph)) {
                     if (graph.equals(this.union)) this.removeStored(copy);
                     else this.remove(copy);
                 }
@@ -295,7 +261,7 @@ export class ModelGraph<P = unknown> {
      */
     transact<R extends { ok: boolean }>(fn: (g: this) => R): { result: R | { ok: false; error: string }; patch: Patch } {
         if (this.log) throw new Error('A transaction is already open.');
-        const before = { change: this.change, keys: { ...this.keys }, files: this.files, fileIris: this.fileIris, shapeSubjects: this.shapeSubjects };
+        const before = { change: this.change, keys: { ...this.keys }, shapes: this.shapes, data: this.data };
         const log: Patch = this.log = [];
         this.pending = { shapes: false, query: false, data: false, persisted: false };
         this.proposed = [];
@@ -317,9 +283,8 @@ export class ModelGraph<P = unknown> {
         }
         this.change = before.change;
         this.keys = before.keys;
-        this.files = before.files;
-        this.fileIris = before.fileIris;
-        this.shapeSubjects = before.shapeSubjects;
+        this.shapes = before.shapes;
+        this.data = before.data;
         this.pending = { shapes: false, query: false, data: false, persisted: false };
         return { result, patch: [] };
     }
@@ -353,17 +318,17 @@ export class ModelGraph<P = unknown> {
         return v === undefined || isNaN(Number(v)) ? fallback : Number(v);
     }
 
-    /** The file graphs (they hold the shapes statements), sorted. None when no file is registered. */
+    /** Shapes graph IRIs that have quads, sorted. */
     shapesGraphs(): NamedNode[] {
-        return this.files ? [...this.files] : [];
+        return sorted([...this.shapes].filter(g => this.match(null, null, null, g).length > 0));
     }
 
 
     /** Replace the objects of (s, p) in graph g. Undefined removes them. */
     set(s: Quad_Subject, p: Quad_Predicate, o: Quad_Object | undefined, g: Quad_Graph): void {
         this.update(() => {
-            const copies = g.equals(this.union) && this.files
-                ? this.store.match(s, p).filter(q => this.isDataQuad(q)) : this.match(s, p, null, g);
+            const copies = g.equals(this.union) && this.data
+                ? this.store.match(s, p).filter(q => this.isDataGraph(q.graph)) : this.match(s, p, null, g);
             const graphs = copies.length ? [...new Map(copies.map(q => [q.graph.value, q.graph])).values()] : [g];
             for (const q of copies) if (!o || !q.object.equals(o)) this.remove(q);
             if (o) for (const graph of graphs) this.add(s, p, o, graph);
