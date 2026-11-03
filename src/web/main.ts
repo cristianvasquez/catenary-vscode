@@ -182,10 +182,13 @@ function removeModel(rel: string): void {
     models.delete(rel);
 }
 
-/** Replace the buffer text with one undoable edit (didChange follows). */
+/** Replace the buffer text with one undoable edit of its own (didChange follows): the stack elements keep two edits apart. */
 function setBuffer(rel: string, text: string): void {
     const model = models.get(rel) ?? addModel(rel, text);
-    if (model.getValue() !== text) model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+    if (model.getValue() === text) return;
+    model.pushStackElement();
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+    model.pushStackElement();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------

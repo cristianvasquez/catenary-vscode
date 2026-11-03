@@ -112,6 +112,25 @@ try {
   await page.keyboard.press("Control+Y")
   const redone = await until(async () => (await stored())[name], (t) => t === saved)
   check("Ctrl+Y moves it again", redone === saved)
+  // Two moves in a row are two undo steps; then the file is back at `saved` for the checks below.
+  const other = svgOf().locator(".catenary-card", { hasText: "Book shape" }).first()
+  const drag = async (prev) => {
+    const at = await until(() => other.locator(".shape-name").boundingBox(), (b) => !prev || b.x !== prev.x)
+    await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(at.x + at.width / 2 + 60, at.y + at.height / 2 + 30, { steps: 6 })
+    await page.mouse.up()
+    return at
+  }
+  const at = await drag()
+  const once = await until(async () => (await stored())[name], (t) => t !== saved)
+  await drag(at)
+  const second = await until(async () => (await stored())[name], (t) => t !== once)
+  await page.keyboard.press("Control+Z")
+  const one = await until(async () => (await stored())[name], (t) => t !== second)
+  await page.keyboard.press("Control+Z")
+  const none = await until(async () => (await stored())[name], (t) => t === saved)
+  check("two moves in a row are two undo steps", once !== saved && second !== once && one === once && none === saved, JSON.stringify([once?.length, second?.length, one?.length, none?.length]))
 
   // ------------------------------------------------------------------ failed storage and retry
   await page.evaluate(() => { localStorage.setItem = () => { throw new Error('full') } })
