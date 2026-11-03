@@ -7,7 +7,9 @@ export const ROOT = '/work';
 const KEY = 'catenary-web-files';
 
 export const pathOf = (rel: string) => `${ROOT}/${rel}`;
-export const uriOf = (rel: string) => 'file://' + pathOf(rel).split('/').map(encodeURIComponent).join('/');
+/** The file URI of an absolute path of the in-memory file system. */
+export const fileUriOf = (path: string) => 'file://' + path.split('/').map(encodeURIComponent).join('/');
+export const uriOf = (rel: string) => fileUriOf(pathOf(rel));
 export function relOfUri(uri: string): string | undefined {
     const prefix = `file://${ROOT}/`;
     return uri.startsWith(prefix) ? uri.slice(prefix.length).split('/').map(decodeURIComponent).join('/') : undefined;

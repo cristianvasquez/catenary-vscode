@@ -1,6 +1,6 @@
 // The browser page check: serves dist-web/ (pnpm web:build first), opens it in headless Chromium with empty storage, and checks the page
-// with a real mouse and keys: the first canvas, turtle-lsp diagnostics, move, undo, redo and save, Insert, TriG and back, a model edit
-// that reaches the canvas, persistence after a reload, and the instance view. Each check prints `ok - <name>` or `not ok - <name>`.
+// with a real mouse and keys: a turtle/query round trip to the engine, the first canvas, turtle-lsp diagnostics, a move that writes the view
+// file, undo and redo, Insert, TriG and back, a model edit that reaches the canvas, persistence after a reload, and the instance view. Each check prints `ok - <name>` or `not ok - <name>`.
 // Chromium: CHROMIUM (path), else /usr/bin/chromium. CATENARY_UI_HEADED=1: a visible window. Screenshots: test/ui/out/web-*.png.
 import fs from "node:fs"
 import { createServer } from "node:http"
@@ -69,6 +69,19 @@ try {
   const dirty = async (name) => (await tab(name).getAttribute("class")).includes("dirty")
   const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem("catenary-web-files") ?? "{}"))
 
+  // ------------------------------------------------------------------ turtle/query in the engine of the page
+  // A second client of the page's engine modules (the module path is an argument: it is a URL of the page, not a module of this repository).
+  const rows = await page.evaluate(async (module) => {
+    const { LspClient } = await import(module)
+    const client = new LspClient(new URL("turtle-lsp/lsp-worker.js", location.href))
+    await client.initialize({ processId: null, rootUri: null, capabilities: {} })
+    const uri = "file:///probe/a.ttl"
+    client.notify("textDocument/didOpen", { textDocument: { uri, languageId: "turtle", version: 1, text: "<urn:a> <urn:p> \"x\" ." } })
+    const answer = await client.request("turtle/query", { query: "SELECT ?s ?o WHERE { ?s <urn:p> ?o }", files: [uri] })
+    return answer.results.bindings
+  }, "./turtle-lsp/editor-lsp.js")
+  check("turtle/query answers in the browser engine", rows.length === 1 && rows[0].s.value === "urn:a" && rows[0].o.value === "x", JSON.stringify(rows))
+
   // ------------------------------------------------------------------ first canvas
   const first = await until(state, (s) => BOXES.every((b) => s.boxes.includes(b)), 60000)
   await page.screenshot({ path: path.join(out, "web-model.png") })
@@ -77,41 +90,40 @@ try {
   const status = await until(() => page.locator("#status").textContent(), (t) => /[1-9]\d* errors · [1-9]\d* warnings/.test(t), 60000)
   check("turtle-lsp diagnostics reach the status bar", /[1-9]\d* errors · [1-9]\d* warnings · \d+ statements/.test(status), status)
 
-  // ------------------------------------------------------------------ move, undo, redo, save
+  // ------------------------------------------------------------------ move, undo, redo: each writes the view file
   const name = "model.trig"
+  // The page stores nothing before the first write: the sample text is the buffer's.
+  const buffer = () => page.evaluate((n) => window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("/" + n)).getValue(), name)
+  const sample = await buffer()
   const card = svgOf().locator(".catenary-card", { hasText: "Author shape" }).first()
   const before = await card.locator(".shape-name").boundingBox()
   await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
   await page.mouse.down()
   await page.mouse.move(before.x + before.width / 2 + 60, before.y + before.height / 2 + 30, { steps: 6 })
   await page.mouse.up()
-  check("a move makes the canvas tab dirty", await until(() => dirty(name), (d) => d))
-  const moved = await card.locator(".shape-name").boundingBox()
+  const saved = await until(async () => (await stored())[name], (t) => t !== sample)
+  const moved = await until(() => card.locator(".shape-name").boundingBox(), (b) => Math.abs(b.x - before.x) > 20)
+  check("a move changes the view file in the FileStore and its buffer", saved !== sample && saved === (await buffer()) && !(await dirty(name)) && Math.abs(moved.x - before.x) > 20, JSON.stringify({ before, moved, chars: saved?.length }))
   await page.keyboard.press("Control+Z")
-  await until(() => dirty(name), (d) => !d)
-  // The redraw follows the undo asynchronously (session refresh, then a model update over the port).
+  const undoneText = await until(async () => (await stored())[name], (t) => t === sample)
+  // The redraw follows the undo asynchronously (didChange, then a model update over the port).
   const undone = await until(() => card.locator(".shape-name").boundingBox(), (b) => Math.abs(b.x - before.x) < 2)
-  check("Ctrl+Z puts the box back and the tab is clean", !(await dirty(name)) && Math.abs(undone.x - before.x) < 2 && Math.abs(moved.x - before.x) > 20, JSON.stringify({ before, moved, undone }))
+  check("Ctrl+Z puts the box back and the file text back", undoneText === sample && Math.abs(undone.x - before.x) < 2, JSON.stringify({ before, undone }))
   await page.keyboard.press("Control+Y")
-  check("Ctrl+Y moves it again", await until(() => dirty(name), (d) => d))
-  const sample = (await stored())["model.trig"]
-  await page.keyboard.press("Control+S")
-  await until(() => dirty(name), (d) => !d)
-  const saved = (await stored())["model.trig"]
-  check("Ctrl+S writes the view file to browser storage", !(await dirty(name)) && saved !== sample && saved.includes("view:"), `${saved?.length} chars`)
+  const redone = await until(async () => (await stored())[name], (t) => t === saved)
+  check("Ctrl+Y moves it again", redone === saved)
 
   // ------------------------------------------------------------------ failed storage and retry
   await page.evaluate(() => { localStorage.setItem = () => { throw new Error('full') } })
   await page.keyboard.press("Control+Z")
   await until(() => dirty(name), (d) => d)
-  await page.keyboard.press("Control+S")
   const warning = page.locator("#toasts .toast.warning", { hasText: "Not stored" })
   await warning.waitFor()
   const notStored = await dirty(name)
   await page.evaluate(() => { delete localStorage.setItem })
   await page.keyboard.press("Control+S")
   const retryClean = await until(() => dirty(name), (d) => !d)
-  check("a failed save warns and stays dirty until a retry succeeds", notStored && !retryClean && (await stored())["model.trig"] !== saved)
+  check("a failed write of the view file warns and stays dirty until a save succeeds", notStored && !retryClean && (await stored())["model.trig"] !== saved)
 
   // ------------------------------------------------------------------ Insert
   await frameOf().locator('.catenary-tools [data-item="insert"]').click()
@@ -125,7 +137,13 @@ try {
   // The sample view already places the other view (Bookshop); remove it before linking it again.
   const references = () => svgOf().locator(".catenary-view-reference").count()
   const existing = svgOf().locator(".catenary-view-reference", { hasText: /^Bookshop$/ })
-  await existing.click()
+  // The redraws of the insert can land after the click: Delete waits until the reference is the only selected element.
+  const selected = () => svgOf().locator("[data-svg-metadata-type^=node].selected").evaluateAll((els) => els.map((e) => e.getAttribute("class")))
+  for (let i = 0; i < 10; i++) {
+    await existing.click()
+    const now = await until(selected, (l) => l.length === 1 && l[0].includes("view-reference"), 1000)
+    if (now?.length === 1 && now[0].includes("view-reference")) break
+  }
   await page.keyboard.press("Delete")
   await existing.waitFor({ state: "detached" })
   const referencesBefore = await references()
