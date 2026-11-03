@@ -38,16 +38,25 @@ class HttpError extends Error {
   constructor(readonly status: number, message: string, readonly headers: Record<string, string> = {}) { super(message) }
 }
 
-/** Starts the endpoint; `port` 0 lets the OS pick one. */
-export function startSparqlEndpoint(query: QueryFn, options: { port: number; host?: string; log?: (line: string) => void }): Promise<SparqlEndpoint> {
+/**
+ * Starts the endpoint; `port` 0 lets the OS pick one. `allowOrigins`: the web origins that get CORS headers
+ * (exact match on the `Origin` header); empty or missing allows no browser page.
+ */
+export function startSparqlEndpoint(query: QueryFn, options: { port: number; host?: string; log?: (line: string) => void; allowOrigins?: string[] }): Promise<SparqlEndpoint> {
   const host = options.host ?? '127.0.0.1'
+  const allowOrigins = new Set(options.allowOrigins ?? [])
   let url = ''
   const server = createServer((req, res) => {
     const start = Date.now()
     const path = (req.url ?? '/').split('?')[0]
     res.on('finish', () => options.log?.(`${req.method} ${path} ${res.statusCode} ${Date.now() - start}ms`))
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    handle(req, res, path, query, url).catch(err => {
+    const origin = req.headers.origin
+    const cors = origin !== undefined && allowOrigins.has(origin)
+    if (cors) {
+      res.setHeader('Access-Control-Allow-Origin', origin)
+      res.setHeader('Vary', 'Origin')
+    }
+    handle(req, res, path, query, url, cors).catch(err => {
       if (res.headersSent) { res.destroy(); return }
       const e = err instanceof HttpError ? err : new HttpError(500, messageOf(err))
       send(res, e.status, 'text/plain; charset=utf-8', `${e.message}\n`, e.headers)
@@ -76,10 +85,10 @@ function urlHost(host: string): string {
   return host.includes(':') ? `[${host}]` : host
 }
 
-async function handle(req: IncomingMessage, res: ServerResponse, path: string, query: QueryFn, url: string): Promise<void> {
+async function handle(req: IncomingMessage, res: ServerResponse, path: string, query: QueryFn, url: string, cors: boolean): Promise<void> {
   if (path !== '/' && path !== PATH) throw new HttpError(404, `Not found: ${path}. The endpoint is ${url}`)
   if (path === PATH && req.method === 'OPTIONS') {
-    res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type, Accept' })
+    res.writeHead(204, cors ? { 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type, Accept' } : {})
     res.end()
     return
   }

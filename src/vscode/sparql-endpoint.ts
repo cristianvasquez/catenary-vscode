@@ -1,14 +1,17 @@
-// The local SPARQL endpoint in VS Code: the catenary.sparql.port setting, the start, stop and copy URL commands, a status bar item.
+// The local SPARQL endpoint in VS Code: the catenary.sparql.port and catenary.sparql.allowOrigins settings, the start, stop and copy URL commands, a status bar item.
 import * as vscode from 'vscode';
 import { startSparqlEndpoint, type QueryFn, type SparqlEndpoint } from '../node/sparql-endpoint';
 import { requestQuery, type TurtleApi } from '../node/turtle-api';
 
 const SETTING = 'catenary.sparql.port';
+const ORIGINS_SETTING = 'catenary.sparql.allowOrigins';
 const METHOD_NOT_FOUND = -32601;
 
 /** Starts the endpoint when the setting is over 0, follows the setting, and registers the commands. */
 export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: TurtleApi, log: (line: string) => void): vscode.Disposable {
     let endpoint: SparqlEndpoint | undefined;
+    /** The allow-list the running endpoint started with. */
+    let endpointOrigins: string[] = [];
     /** Serializes start and stop. */
     let queue: Promise<unknown> = Promise.resolve();
     let missingShown = false;
@@ -29,6 +32,7 @@ export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: T
     };
 
     const configured = () => vscode.workspace.getConfiguration().get<number>(SETTING, 0);
+    const configuredOrigins = () => vscode.workspace.getConfiguration().get<string[]>(ORIGINS_SETTING, []).filter(o => typeof o === 'string');
 
     const stopNow = async () => {
         const current = endpoint;
@@ -40,12 +44,16 @@ export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: T
     };
 
     const startNow = async (port: number): Promise<SparqlEndpoint | undefined> => {
+        const allowOrigins = configuredOrigins();
         if (endpoint) {
-            if (endpoint.port === port || port === 0) return endpoint;
+            const sameOrigins = allowOrigins.length === endpointOrigins.length && allowOrigins.every((o, i) => o === endpointOrigins[i]);
+            if (sameOrigins && (endpoint.port === port || port === 0)) return endpoint;
+            if (port === 0) port = endpoint.port;
             await stopNow();
         }
         try {
-            endpoint = await startSparqlEndpoint(query, { port, log: line => log(`SPARQL ${line}`) });
+            endpoint = await startSparqlEndpoint(query, { port, log: line => log(`SPARQL ${line}`), allowOrigins });
+            endpointOrigins = allowOrigins;
         } catch (err) {
             const message = `SPARQL endpoint did not start on port ${port}: ${err instanceof Error ? err.message : String(err)}`;
             log(message);
@@ -66,6 +74,8 @@ export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: T
     };
     const start = (port: number) => enqueue(() => startNow(port));
     const stop = () => enqueue(stopNow);
+    /** Restarts a running endpoint on its port with the current allow-list. */
+    const restart = () => enqueue(async () => endpoint ? startNow(endpoint.port) : undefined);
     const follow = () => {
         const port = configured();
         return port > 0 ? start(port) : stop();
@@ -76,7 +86,10 @@ export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: T
     const disposables = [
         { dispose: () => { void stop(); } },
         status,
-        vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration(SETTING)) void follow(); }),
+        vscode.workspace.onDidChangeConfiguration(e => {
+            if (e.affectsConfiguration(SETTING)) void follow();
+            else if (e.affectsConfiguration(ORIGINS_SETTING)) void restart();
+        }),
         vscode.commands.registerCommand('catenary.sparql.start', async () => {
             const started = await start(configured());
             if (started) void vscode.window.showInformationMessage(`SPARQL endpoint: ${started.url}`);

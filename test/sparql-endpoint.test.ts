@@ -42,7 +42,6 @@ test('GET with a query parameter runs the query and answers SPARQL JSON by defau
     const res = await fetch(`${ep.url}?query=${encodeURIComponent('SELECT * { ?s ?p ?o }')}&default-graph-uri=urn:g`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toMatch(/^application\/sparql-results\+json/);
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
     expect(await res.json()).toEqual({ head: select.head, results: (select as { results: unknown }).results });
     expect(queries).toEqual(['SELECT * { ?s ?p ?o }']);
     expect(lines.at(-1)).toMatch(/^GET \/sparql 200 \d+ms$/);
@@ -100,19 +99,53 @@ test('no query: 400; another path: 404; PUT: 405 with Allow; impossible Accept: 
     const put = await fetch(ep.url, { method: 'PUT', body: 'x' });
     expect(put.status).toBe(405);
     expect(put.headers.get('allow')).toBe('GET, POST');
-    expect(put.headers.get('access-control-allow-origin')).toBe('*');
     expect((await get('SELECT', 'image/png')).status).toBe(406);
     expect((await get('CONSTRUCT {}', 'text/csv')).status).toBe(406);
 });
 
-test('OPTIONS /sparql: 204 with the CORS preflight headers, and runs no query', async () => {
-    const res = await fetch(ep.url, { method: 'OPTIONS', headers: { Origin: 'http://example.org', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
-    expect(res.status).toBe(204);
-    expect(res.headers.get('access-control-allow-origin')).toBe('*');
-    expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST');
-    expect(res.headers.get('access-control-allow-headers')).toBe('Content-Type, Accept');
-    expect(await res.text()).toBe('');
-    expect(queries).toEqual([]);
+const preflight = (url: string, origin: string) =>
+    fetch(url, { method: 'OPTIONS', headers: { Origin: origin, 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
+
+test('without allowOrigins: no CORS header on a request or a preflight, and the preflight runs no query', async () => {
+    const res = await fetch(`${ep.url}?query=SELECT`, { headers: { Origin: 'https://a.example' } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('access-control-allow-origin')).toBeNull();
+    const pre = await preflight(ep.url, 'https://a.example');
+    expect(pre.status).toBe(204);
+    expect(pre.headers.get('access-control-allow-origin')).toBeNull();
+    expect(pre.headers.get('access-control-allow-methods')).toBeNull();
+    expect(pre.headers.get('access-control-allow-headers')).toBeNull();
+    expect(await pre.text()).toBe('');
+    expect(queries).toEqual(['SELECT']);
+});
+
+test('allowOrigins: the listed origin gets CORS headers and Vary: Origin, another origin gets none', async () => {
+    const allowed = await startSparqlEndpoint(fake, { port: 0, allowOrigins: ['https://a.example'] });
+    try {
+        const ok = await fetch(`${allowed.url}?query=SELECT`, { headers: { Origin: 'https://a.example' } });
+        expect(ok.headers.get('access-control-allow-origin')).toBe('https://a.example');
+        expect(ok.headers.get('vary')).toBe('Origin');
+        const err = await fetch(allowed.url, { headers: { Origin: 'https://a.example' } });
+        expect(err.status).toBe(400);
+        expect(err.headers.get('access-control-allow-origin')).toBe('https://a.example');
+        for (const origin of ['https://b.example', 'https://a.example/', 'HTTPS://A.EXAMPLE']) {
+            const other = await fetch(`${allowed.url}?query=SELECT`, { headers: { Origin: origin } });
+            expect(other.headers.get('access-control-allow-origin')).toBeNull();
+            expect(other.headers.get('vary')).toBeNull();
+        }
+        const pre = await preflight(allowed.url, 'https://a.example');
+        expect(pre.status).toBe(204);
+        expect(pre.headers.get('access-control-allow-origin')).toBe('https://a.example');
+        expect(pre.headers.get('access-control-allow-methods')).toBe('GET, POST');
+        expect(pre.headers.get('access-control-allow-headers')).toBe('Content-Type, Accept');
+        const denied = await preflight(allowed.url, 'https://b.example');
+        expect(denied.status).toBe(204);
+        expect(denied.headers.get('access-control-allow-origin')).toBeNull();
+        expect(denied.headers.get('access-control-allow-methods')).toBeNull();
+        expect(denied.headers.get('access-control-allow-headers')).toBeNull();
+    } finally {
+        await allowed.close();
+    }
 });
 
 test('a body over 1 MiB: 413', async () => {

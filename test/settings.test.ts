@@ -17,7 +17,7 @@ function canvasSettings(): string[] {
 }
 
 /** Settings that the extension host reads; the canvas does not get them. */
-const HOST_SETTINGS = ['catenary.sparql.port'];
+const HOST_SETTINGS = ['catenary.sparql.port', 'catenary.sparql.allowOrigins'];
 
 test('configuration declares exactly the settings sent to the canvas plus the host settings, with types and defaults', () => {
     const properties = manifest.contributes.configuration.properties;
@@ -28,6 +28,7 @@ test('configuration declares exactly the settings sent to the canvas plus the ho
         'catenary.noteFontSize': { type: 'number', default: 40 },
         'catenary.edgeStyle': { type: 'string', default: 'curved', enum: ['direct', 'curved'] },
         'catenary.vocabularyColor': { type: 'string', default: 'name', enum: ['name', 'prefix', 'off'] },
-        'catenary.sparql.port': { type: 'integer', default: 0, minimum: 0, maximum: 65535 }
+        'catenary.sparql.port': { type: 'integer', default: 0, minimum: 0, maximum: 65535 },
+        'catenary.sparql.allowOrigins': { type: 'array', items: { type: 'string' }, default: [] }
     });
 });

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` over the workspace through the Turtle language server `turtle/query` request: setting `catenary.sparql.port`, commands Start, Stop and Copy SPARQL Endpoint URL, a status bar item, and CORS preflight for browser clients.
+- Local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` over the workspace through the Turtle language server `turtle/query` request: setting `catenary.sparql.port`, commands Start, Stop and Copy SPARQL Endpoint URL, a status bar item, and browser pages from the origins in `catenary.sparql.allowOrigins`.
 
 ## 0.0.3
 

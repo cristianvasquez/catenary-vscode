@@ -90,6 +90,14 @@
           "minimum": 0,
           "maximum": 65535,
           "description": "Port of the local SPARQL endpoint (http://127.0.0.1:<port>/sparql) over the workspace as the Turtle language server sees it. 0 turns it off."
+        },
+        "catenary.sparql.allowOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Web origins (such as https://yasgui.triply.cc) allowed to query the local SPARQL endpoint from a browser page. Empty: no browser page may; curl, scripts and notebooks are not affected."
         }
       }
     },
