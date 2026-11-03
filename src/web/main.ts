@@ -4,15 +4,19 @@
 import './shims/globals';
 import './notations';
 import '@vscode/codicons/dist/codicon.css';
-import { Parser } from 'n3';
 import { StatusAction } from '@eclipse-glsp/protocol';
 import samples from 'catenary:samples';
 import pkg from '../../package.json';
+import { boxes } from '../catenary/model/doc';
 import { idIri, iriId } from '../catenary/model/ids';
 import { NS } from '../catenary/model/terms';
 import { DROP_FILES_EVENT, INSERT_ELEMENT, OPEN_IN_EVENT, OPEN_TEXT } from '../common/protocol';
+import { locateParserFiles } from '../edit/text-patch';
 import { toEngine } from '../model/port';
 import { newViewText, viewFileName } from '../node/new-view';
+import { instanceLabels } from '../read/choices';
+import { factsOf, inShapesOf } from '../read/neighbors';
+import { viewLabelsOf } from '../read/view';
 import { pasteTurtle } from '../vscode/paste-rdf';
 import { PASTE_RDF_EVENT } from '../webview/clipboard';
 import type { PreferenceValues } from '../webview/preferences';
@@ -106,28 +110,22 @@ function ask(question: string, value = ''): string | undefined {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Start: Monaco, turtle-lsp, the workspace and the GLSP server
 
+// The text patch of a canvas command (src/edit/text-patch.ts) fetches its parser next to the page (scripts/build-web.mjs copies it).
+locateParserFiles(name => new URL(name, location.href).href);
 const files = new FileStore(samples);
-/**
- * The view IRI of a TriG text: the graph `?g` of its statement `?g a view:View`; undefined when it has none or does not parse. The page
- * parses the saved text with n3 until its engine answers turtle/query (K13).
- */
-function viewIriOf(text: string | undefined): string | undefined {
-    if (!text) return undefined;
-    try {
-        return new Parser({ format: 'application/trig' }).parse(text)
-            .find(q => q.predicate.value === NS.rdf + 'type' && q.object.value === NS.view + 'View' && q.graph.termType === 'NamedNode' && q.subject.equals(q.graph))?.graph.value;
-    } catch {
-        return undefined;
-    }
-}
-/** A view file: a saved .trig file with a view:View graph. */
-const isView = (rel: string) => rel.endsWith('.trig') && viewIriOf(files.read(rel)) !== undefined;
 let monaco: Monaco, editor: Monaco;
 const lsp = new LspClient(new URL('turtle-lsp/lsp-worker.js', location.href));
 let hooks: { refresh(method: string): void; shown(): void } | undefined;
 const models = new Map<string, Monaco>();
-const ws = new WebWorkspace(lsp, files, uri => { const rel = relOfUri(uri); return rel === undefined ? undefined : models.get(rel)?.getValue(); }, log, m => toast(m, 'warning'));
+const ws = new WebWorkspace(lsp, files, {
+    get: rel => { const model = models.get(rel); return model && { text: model.getValue(), version: model.getVersionId() }; },
+    open: rel => void addModel(rel, files.read(rel) ?? ''),
+    replace: setBuffer
+}, log, m => toast(m, 'warning'));
 const server = createCanvasServer(ws);
+/** The view IRI of a file: a view file of the last refresh (viewFilesOf over turtle/query); undefined for another file. */
+const viewIriOf = (rel: string) => ws.viewOfFile(pathOf(rel));
+const isView = (rel: string) => viewIriOf(rel) !== undefined;
 
 lsp.on('diagnostics', (uri, list) => {
     ws.setDiagnostics(uri, list);
@@ -139,8 +137,9 @@ lsp.on('diagnostics', (uri, list) => {
 lsp.on('serverRequest', method => hooks?.refresh(method));
 lsp.on('busy', busy => { document.body.dataset.busy = String(busy); renderStatus(); });
 lsp.on('crash', message => toast(`turtle-lsp: ${message}`, 'warning'));
-files.onDidChange(() => { ws.schedule(); renderFiles(); });
-ws.onDidChange(() => renderStatus());
+// A changed view file draws the canvases again; any other change reads the model again.
+files.onDidChange(e => { if (e.kind === 'change' && isView(e.rel)) ws.viewChanged(); else ws.schedule(); renderFiles(); });
+ws.onDidChange(() => { renderStatus(); renderFiles(); renderTabs(); });
 
 /** Monaco's AMD loader comes after the bundle ran: a global `define` before it would let UMD modules of the bundle register with it. */
 async function loadMonaco(): Promise<Monaco> {
@@ -165,6 +164,7 @@ function addModel(rel: string, text: string): Monaco {
     const uri = model.uri.toString();
     model.onDidChangeContent((e: { changes: { range: Parameters<typeof toLsp>[0]; text: string }[] }) => {
         lsp.notify('textDocument/didChange', { textDocument: { uri, version: model.getVersionId() }, contentChanges: e.changes.map(c => ({ range: toLsp(c.range), text: c.text })) });
+        if (isView(rel)) ws.viewChanged();
         renderTabs();
         renderFiles();
     });
@@ -182,16 +182,19 @@ function removeModel(rel: string): void {
     models.delete(rel);
 }
 
-/** Replace the buffer text with one undoable edit (didChange follows). */
+/** Replace the buffer text with one undoable edit of its own (didChange follows): the stack elements keep two edits apart. */
 function setBuffer(rel: string, text: string): void {
     const model = models.get(rel) ?? addModel(rel, text);
-    if (model.getValue() !== text) model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+    if (model.getValue() === text) return;
+    model.pushStackElement();
+    model.pushEditOperations([], [{ range: model.getFullModelRange(), text }], () => null);
+    model.pushStackElement();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Tabs: text editors and canvases
 
-/** A view open in a canvas: its iframe. The canvas is read-only until K13 (the engine has no turtle/query: no command runs). */
+/** A view open in a canvas: its iframe. A canvas command edits the buffer of the view file and writes the file (WebWorkspace.applyEdits). */
 interface ViewDoc {
     rel: string;
     iri: string;
@@ -277,14 +280,15 @@ function openText(rel: string, range?: LspRange): void {
 async function openCanvas(rel: string, fromText = false): Promise<void> {
     const existing = tabs.find(t => t.rel === rel && t.kind === 'canvas');
     if (existing) return activate(existing);
-    const text = files.read(rel) ?? '';
-    const iri = viewIriOf(text);
-    if (!iri) {
+    if (fromText) await ws.refresh(); else await ws.ready();
+    if (ws.error) return toast(`${rel}: ${ws.error}`, 'warning');
+    const view = await ws.viewOfDocument(pathOf(rel));
+    if (!view) {
         toast(`${rel} holds no view graph.`, 'warning');
         return openText(rel);
     }
-    if (fromText) await ws.refresh(); else await ws.ready();
-    if (ws.error) return toast(`${rel}: ${ws.error}`, 'warning');
+    if ('problem' in view) return toast(`${rel}: ${view.problem}`, 'warning');
+    const iri = view.iri;
     if (ws.viewFiles.get(iri) !== pathOf(rel)) return toast(`${rel} was skipped: invalid or duplicate view file.`, 'warning');
     const frame = document.createElement('iframe');
     frame.className = 'canvas-frame';
@@ -311,7 +315,7 @@ function toCanvas(doc: ViewDoc, message: ToCanvas): void {
 function save(tab: Tab | undefined = active): void {
     if (!tab) return;
     let stored = true;
-    // A canvas tab has no edits of its own (K13): its file is saved from the text buffer, as a text tab.
+    // A canvas command writes its file at once; a canvas tab saves the text buffer, as a text tab.
     const model = models.get(tab.rel);
     if (model) stored = files.write(tab.rel, model.getValue());
     if (!stored) toast('Not stored: the browser storage is full or blocked. The file is kept in memory; use Download to keep it.', 'warning');
@@ -323,6 +327,7 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
     const doc = tab.doc;
     if (m.type === 'key') {
         if (m.key === 'save') save(tab);
+        else undoRedo(tab.rel, m.key);
         return;
     }
     if (m.type === 'notify') {
@@ -332,7 +337,7 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
         return;
     }
     switch (m.name) {
-        case INSERT_ELEMENT: void insertElement(); break;
+        case INSERT_ELEMENT: void insertElement(doc); break;
         case OPEN_TEXT: void canvasToText(tab); break;
         case OPEN_IN_EVENT: void openIn(doc, m.detail as { view?: string; file?: string; element?: string; problem?: string }); break;
         case DROP_FILES_EVENT: {
@@ -347,6 +352,15 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
             break;
         }
     }
+}
+
+/** Undo or redo in a canvas: the undo history of the view file's buffer; the file is written as a canvas command writes it. */
+function undoRedo(rel: string, key: 'undo' | 'redo'): void {
+    const model = models.get(rel);
+    if (!model) return;
+    const before = model.getValue();
+    if (key === 'undo') model.undo(); else model.redo();
+    if (model.getValue() !== before && !files.write(rel, model.getValue())) toast('Not stored: the browser storage is full or blocked. The file is kept in memory; use Download to keep it.', 'warning');
 }
 
 /** The TriG button: save first, then the text replaces the canvas tab (VS Code: Reopen Editor With). */
@@ -370,9 +384,47 @@ async function textToCanvas(): Promise<void> {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Canvas requests (vscode/canvas-editor.ts)
 
-/** Insert reads the model of the page: refused until its engine answers turtle/query (K13). */
-async function insertElement(): Promise<void> {
-    toast(`Insert: ${ws.error ?? 'the browser page needs the fork engine.'}`, 'warning');
+/**
+ * One pick and one command (vscode/canvas-editor.ts insertElement): the node shapes of the shapes model and the instances of the model
+ * files (instanceLabels), by kind, from turtle/query; link rows pick a file or a view.
+ */
+async function insertElement(doc: ViewDoc): Promise<void> {
+    const ctx = ws.context();
+    if (!ctx) return toast(`Insert: ${ws.error ?? 'the model is not read yet.'}`, 'warning');
+    const view = (await ws.diagram(iriId(doc.iri), {})).doc.views[iriId(doc.iri)];
+    const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
+    const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+    const { types } = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), labels.keys());
+    const items: (PickItem & { id?: string; link?: 'file' | 'view' })[] = [];
+    for (const shape of Object.values(ctx.shapes.index.model.nodeShapes)) {
+        if (!placed.has(shape.id)) items.push({ id: shape.id, label: shape.label, description: shape.uri, detail: 'shape' });
+    }
+    for (const [iri, label] of labels) {
+        if (placed.has(iriId(iri))) continue;
+        const of = types.get(iri) ?? [];
+        const kind = of.some(t => t === NS.rdfs + 'Class' || t === NS.owl + 'Class') ? 'class'
+            : of.includes(NS.skos + 'Concept') ? 'concept' : of.includes(NS.skos + 'Collection') ? 'collection' : 'instance';
+        items.push({ id: iriId(iri), label, description: iri, detail: kind });
+    }
+    items.sort((a, b) => a.label.localeCompare(b.label));
+    const picked = await pick([{ label: 'Link to a file…', link: 'file' as const, action: true }, { label: 'Link to a view…', link: 'view' as const, action: true }, ...items], 'Insert elements from the workspace', true);
+    for (const item of picked) {
+        if (!item.link) continue;
+        let rel: string | undefined;
+        if (item.link === 'file') rel = (await pick(files.list().map(f => ({ label: f })), 'Link to a file'))[0]?.label;
+        else {
+            const choices = [...ws.viewFiles].filter(([iri]) => iri !== doc.iri).map(([iri, file]) => ({
+                label: viewLabels[iriId(iri)] || file.split('/').pop()!, description: relOfPath(file), rel: relOfPath(file)
+            })).sort((a, b) => a.label.localeCompare(b.label));
+            rel = (await pick(choices, 'Link to a view'))[0]?.rel;
+        }
+        if (rel) await linkFile(doc, uriOf(rel), { x: 300, y: 300 });
+    }
+    const ids = picked.flatMap(item => item.id ? [item.id] : []);
+    if (ids.length) {
+        const result = await ws.execute(iriId(doc.iri), { kind: 'addToView', view: iriId(doc.iri), ids, at: { x: 300, y: 300 } });
+        if (!result.ok) toast(result.error, 'warning');
+    }
 }
 
 /** A dropped or picked file becomes one undoable reference at the supplied point. */
@@ -382,8 +434,8 @@ async function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number })
         const rel = relOfUri(uri);
         if (rel === undefined || !files.has(rel)) throw new Error(`${uri} is not a workspace file.`);
         let result;
-        if (isView(rel)) {
-            const target = viewIriOf(files.read(rel))!;
+        const target = viewIriOf(rel);
+        if (target) {
             if (target === doc.iri) throw new Error('The target view is the open view itself.');
             result = await ws.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
         } else {

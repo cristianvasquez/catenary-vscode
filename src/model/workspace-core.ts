@@ -65,6 +65,10 @@ export abstract class WorkspaceCore implements ViewSource {
     protected abstract readonly port: ModelPort;
     /** turtle-lsp `turtle/graph`, limited to the documents of this folder. */
     protected abstract requestGraph(): Promise<GraphResult>;
+    /** The RDF documents of the folder (file paths): by default the documents of the turtle/graph answer (requestGraph keeps this folder's). */
+    protected documentsOf(result: GraphResult): string[] {
+        return [...new Set(result.edges.map(e => e.uri).filter(u => u.startsWith('file:')))].map(u => fileURLToPath(u)).sort();
+    }
     /** The diagnostics of this folder by document URI, with VS Code severities (0 error … 3 hint). */
     protected abstract diagnosticsByUri(): Record<string, Diagnostic[]>;
     /** The text of a document URI; '' when it cannot be read. */
@@ -146,9 +150,7 @@ export abstract class WorkspaceCore implements ViewSource {
         const seq = ++this.seq;
         try {
             const result = await this.requestGraph();
-            // The RDF documents of the folder: the documents of the turtle/graph answer (requestGraph keeps this folder's).
-            const documents = [...new Set(result.edges.map(e => e.uri).filter(u => u.startsWith('file:')))].map(u => fileURLToPath(u)).sort();
-            const records = await modelContextOf(this.port, documents);
+            const records = await modelContextOf(this.port, this.documentsOf(result));
             if (seq !== this.seq) return;
             const { views: viewFiles, skipped } = records.viewFiles;
             for (const { file, reason } of skipped) this.log(`workspace ${this.name}: skipped ${file}: ${reason}`);

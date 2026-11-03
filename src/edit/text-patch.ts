@@ -28,12 +28,27 @@ const fileIri = (file: string): string => pathToFileURL(path.resolve(file)).href
 export type PatchResult = { ok: true; text: string } | { ok: false; reason: string };
 
 let parser: Promise<Parser> | undefined;
+/** The URL of a WASM file by name (`tree-sitter.wasm`, `turtle.wasm`), set by a host without a file system (the browser page). */
+let locate: ((name: string) => string) | undefined;
+
+/** The WASM files are at `url(name)`: the browser page gives URLs next to the page. Call before the first patch. */
+export function locateParserFiles(url: (name: string) => string): void {
+    locate = url;
+}
+
 /**
- * The parser. The WASM files are next to this script in a bundle (the bundler of the application copies them there), else in the repository:
- * `grammars/turtle.wasm`, and `tree-sitter.wasm` of web-tree-sitter.
+ * The parser. The WASM files are at the URLs of locateParserFiles, else next to this script in a bundle (the bundler of the application
+ * copies them there), else in the repository: `grammars/turtle.wasm`, and `tree-sitter.wasm` of web-tree-sitter.
  */
 function turtleParser(): Promise<Parser> {
     return parser ??= (async () => {
+        if (locate) {
+            const url = locate;
+            await Parser.init({ locateFile: (name: string) => url(name) });
+            const p = new Parser();
+            p.setLanguage(await Language.load(url('turtle.wasm')));
+            return p;
+        }
         const here = (name: string) => path.join(__dirname, name);
         const bundled = existsSync(here('tree-sitter.wasm'));
         await Parser.init(bundled ? { locateFile: (name: string) => here(name) } : undefined);
