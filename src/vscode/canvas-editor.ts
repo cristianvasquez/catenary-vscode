@@ -117,8 +117,21 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
         const links: (vscode.QuickPickItem & { link: 'file' | 'view' })[] = [
             { label: 'Link to a file…', link: 'file' }, { label: 'Link to a view…', link: 'view' }
         ];
-        const picked = await vscode.window.showQuickPick([...links, ...items.sort((a, b) => a.label.localeCompare(b.label))], {
-            canPickMany: true, matchOnDescription: true, matchOnDetail: true, placeHolder: 'Insert elements from the workspace'
+        // A link row acts at once: its selection hides the pick, so that its check box never stays ticked.
+        const quickPick = vscode.window.createQuickPick<(typeof links)[number] | (typeof items)[number]>();
+        quickPick.canSelectMany = true;
+        quickPick.matchOnDescription = true;
+        quickPick.matchOnDetail = true;
+        quickPick.placeholder = 'Insert elements from the workspace';
+        quickPick.items = [...links, ...items.sort((a, b) => a.label.localeCompare(b.label))];
+        const picked = await new Promise<readonly (typeof quickPick.items)[number][]>(resolve => {
+            let result: readonly (typeof quickPick.items)[number][] = [];
+            quickPick.onDidChangeSelection(selection => {
+                if (selection.some(item => 'link' in item)) { result = selection; quickPick.hide(); }
+            });
+            quickPick.onDidAccept(() => { result = quickPick.selectedItems; quickPick.hide(); });
+            quickPick.onDidHide(() => { quickPick.dispose(); resolve(result); });
+            quickPick.show();
         });
         if (!picked?.length || !this.panels.has(entry[0])) return;
         for (const item of picked) {

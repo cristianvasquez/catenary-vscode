@@ -54,9 +54,10 @@ function toast(text: string, severity: 'info' | 'warning' = 'info'): void {
 
 const log = (line: string) => console.info(`[catenary] ${line}`);
 
-interface PickItem { label: string; description?: string; detail?: string }
+interface PickItem { label: string; description?: string; detail?: string; action?: boolean }
 
-/** A quick pick: a filter field over a list; `many`: check boxes and an OK button. Resolves with the picked items; [] on Escape. */
+/** A quick pick: a filter field over a list; `many`: check boxes and an OK button. Resolves with the picked items; [] on Escape.
+ *  An `action` row has no check box: a click or Enter on it closes the pick at once with the checked rows and that row. */
 function pick<T extends PickItem>(items: T[], placeholder: string, many = false): Promise<T[]> {
     return new Promise(resolve => {
         const dialog = $<HTMLDialogElement>('picker'), input = dialog.querySelector('input')!, list = dialog.querySelector('ul')!, ok = dialog.querySelector('button')!;
@@ -73,12 +74,12 @@ function pick<T extends PickItem>(items: T[], placeholder: string, many = false)
             list.replaceChildren(...shown.map((item, i) => {
                 const li = document.createElement('li');
                 li.className = (i === active ? 'active ' : '') + (checked.has(item) ? 'checked' : '');
-                li.innerHTML = `${many ? '<input type="checkbox" tabindex="-1">' : ''}<span class="label"></span><span class="detail"></span><span class="description"></span>`;
-                if (many) li.querySelector<HTMLInputElement>('input')!.checked = checked.has(item);
+                li.innerHTML = `${many && !item.action ? '<input type="checkbox" tabindex="-1">' : ''}<span class="label"></span><span class="detail"></span><span class="description"></span>`;
+                if (many && !item.action) li.querySelector<HTMLInputElement>('input')!.checked = checked.has(item);
                 li.querySelector('.label')!.textContent = item.label;
                 li.querySelector('.detail')!.textContent = item.detail ?? '';
                 li.querySelector('.description')!.textContent = item.description ?? '';
-                li.onclick = () => { if (many) { toggle(item); render(); } else done([item]); };
+                li.onclick = () => { if (!many) done([item]); else if (item.action) done([...checked, item]); else { toggle(item); render(); } };
                 return li;
             }));
             list.querySelector('.active')?.scrollIntoView({ block: 'nearest' });
@@ -88,15 +89,17 @@ function pick<T extends PickItem>(items: T[], placeholder: string, many = false)
         input.onkeydown = e => {
             if (e.key === 'ArrowDown') { active = Math.min(active + 1, shown.length - 1); render(); e.preventDefault(); }
             else if (e.key === 'ArrowUp') { active = Math.max(active - 1, 0); render(); e.preventDefault(); }
-            else if (e.key === ' ' && many && shown[active] && !input.value) { toggle(shown[active]); render(); e.preventDefault(); }
+            else if (e.key === ' ' && many && shown[active] && !shown[active].action && !input.value) { toggle(shown[active]); render(); e.preventDefault(); }
             else if (e.key === 'Enter') {
                 e.preventDefault();
                 if (!many) { if (shown[active]) done([shown[active]]); }
+                else if (shown[active]?.action) done([...checked, shown[active]]);
                 else done(checked.size ? [...checked] : shown[active] ? [shown[active]] : []);
             }
         };
         ok.onclick = () => done([...checked]);
-        dialog.onclose = () => resolve([]);
+        // The close event of a previous pick arrives after this pick opened the dialog again: only a closed dialog resolves.
+        dialog.onclose = () => { if (!dialog.open) resolve([]); };
         render();
         dialog.showModal();
         input.focus();
@@ -430,7 +433,7 @@ async function insertElement(doc: ViewDoc): Promise<void> {
         if (kind) items.push({ id: iriId(iri), label: node.label || node.name || iri, description: iri, detail: kind });
     }
     items.sort((a, b) => a.label.localeCompare(b.label));
-    const picked = await pick([{ label: 'Link to a file…', link: 'file' as const }, { label: 'Link to a view…', link: 'view' as const }, ...items], 'Insert elements from the workspace', true);
+    const picked = await pick([{ label: 'Link to a file…', link: 'file' as const, action: true }, { label: 'Link to a view…', link: 'view' as const, action: true }, ...items], 'Insert elements from the workspace', true);
     for (const item of picked) {
         if (!item.link) continue;
         let rel: string | undefined;
