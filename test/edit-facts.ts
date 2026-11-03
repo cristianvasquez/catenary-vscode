@@ -5,7 +5,7 @@ import { elementTerm } from '../src/catenary/rdf/ids';
 import { shapesCardTerm, shapesIndexOf } from '../src/catenary/rdf/shapes-read';
 import { rdf } from '../src/catenary/rdf/terms';
 import { isView } from '../src/catenary/rdf/views';
-import { homeOf, isInstance, label, P } from '../src/catenary/rdf/vocabulary';
+import { homeOf, isInstance, label, P, SKOS_TYPES } from '../src/catenary/rdf/vocabulary';
 import type { Facts } from '../src/edit/facts';
 
 export function factsFromGraph(g: ModelGraph): Facts {
@@ -28,6 +28,17 @@ export function factsFromGraph(g: ModelGraph): Facts {
             return iris.flatMap(s => g.match(n(s), null, null, g.union))
                 .filter(q => among.has(q.object.value) && !q.predicate.equals(P.type) && !q.predicate.equals(P.label) && typedOrLabelled(q.subject) && typedOrLabelled(q.object))
                 .map(q => rdf.quad(q.subject, q.predicate, q.object));
-        }
+        },
+        shapesMatch: (s, p, o) => g.match(s === null ? null : n(s), p === null ? null : n(p), o == null ? null : n(o)).filter(q => g.isShapesGraph(q.graph)),
+        statementsOf: iris => {
+            const among = new Set(iris);
+            return iris.flatMap(s => g.match(n(s), null, null, g.union)).filter(q => q.predicate.equals(P.type) || q.object.termType !== 'NamedNode'
+                || among.has(q.object.value) || !typedOrLabelled(q.object)).map(q => rdf.quad(q.subject, q.predicate, q.object));
+        },
+        vocabularyStatements: () => {
+            const subjects = [...new Set(SKOS_TYPES.flatMap(t => g.match(null, P.type, t, g.union)).map(q => q.subject.value))];
+            return subjects.flatMap(s => g.match(n(s), null, null, g.union)).map(q => rdf.quad(q.subject, q.predicate, q.object));
+        },
+        language: g.language
     };
 }

@@ -39,7 +39,7 @@ export const V = {
     Frame: v('Frame'), Pill: v('Pill'), Note: v('Note'), FileRef: v('FileRef'), EntityGroup: v('EntityGroup'),
     arrow: v('arrow'), member: v('member'), element: v('element'), view: v('view'), text: v('text'), file: v('file'),
     x: v('x'), y: v('y'), width: v('width'), height: v('height'), color: v('color'), display: v('display'),
-    fromSide: v('fromSide'), toSide: v('toSide'), vertices: v('vertices')
+    fromSide: v('fromSide'), toSide: v('toSide'), vertices: v('vertices'), of: v('of'), keptByLines: v('keptByLines'), description: v('description')
 };
 
 /** An IRI that a read made from a blank node (rdf-core/skolem.ts). */

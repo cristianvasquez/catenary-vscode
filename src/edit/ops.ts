@@ -31,12 +31,12 @@ const same = (a: Term, b: Term) => termKey(a) === termKey(b);
 // ------------------------------------------------------------------ view statements (rdf/views.ts, one view)
 
 /** The placement of an element in this view. */
-function nodeOf(view: ViewQuads, element: Term): Quad_Subject | undefined {
+export function nodeOf(view: ViewQuads, element: Term): Quad_Subject | undefined {
     return view.subjects(V.element, element).find(s => view.has(s, P.type, V.Placement));
 }
 
 /** The placement of a connector (a relation, an arrow) in this view: the placement that reifies the triple `s p o`. */
-function edgeOf(view: ViewQuads, s: Term, p: Term, o: Term): Quad_Subject | undefined {
+export function edgeOf(view: ViewQuads, s: Term, p: Term, o: Term): Quad_Subject | undefined {
     return view.subjects(P.reifies, rdf.quad(s as Quad_Subject, p as NamedNode, o as Quad_Object)).find(e => view.has(e, P.type, V.Placement));
 }
 
@@ -324,7 +324,7 @@ type Delta = { dx: number; dy: number };
  * (`figures`, the join of the view); a shared property shape has one line for each shown owner, and its one placement moves once, only
  * when every start and the end move by one delta.
  */
-function moveVertices(view: ViewQuads, delta: Map<string, Delta>, figures: ViewFigures): void {
+function moveVertices(view: ViewQuads, delta: Map<string, Delta>, figuresOf: () => ViewFigures): void {
     if (![...delta.values()].some(d => d.dx || d.dy)) return;
     const move = (e: Quad_Subject, da: Delta | undefined, db: Delta | undefined) => {
         if (!da || !db || da.dx !== db.dx || da.dy !== db.dy || (!da.dx && !da.dy)) return;
@@ -339,6 +339,7 @@ function moveVertices(view: ViewQuads, delta: Map<string, Delta>, figures: ViewF
         move(e, a && delta.get(a.value), b && delta.get(b.value));
     }
     if (lines.length === 0) return;
+    const figures = figuresOf();
     const placementOf = (f: { placedAs: TermJSON } | undefined) => f && figures.placed.get(nkey(f.placedAs))?.iri;
     // The deltas of the ends of each line placement: all must be equal for the bends to move.
     const ends = new Map<string, (Delta | undefined)[]>();
@@ -610,9 +611,10 @@ export function boundsOf(view: ViewQuads, facts: Facts, viewId: string, ids: str
 
 /**
  * New bounds of cards and groups in this view (one drag or resize). A group that moves with the same size also moves the cards and
- * groups fully inside it, as in JSON Canvas. `figures`: the figures of this view (the bends of property lines move with their ends).
+ * groups fully inside it, as in JSON Canvas. `figures`: the figures of this view after the placements that setBounds adds (the bends of
+ * property lines move with their ends); called once, after those placements.
  */
-export function setBounds(view: ViewQuads, facts: Facts, viewId: string, bounds: ({ id: string } & Partial<Box>)[], figures: ViewFigures): Result {
+export function setBounds(view: ViewQuads, facts: Facts, viewId: string, bounds: ({ id: string } & Partial<Box>)[], figures: () => ViewFigures): Result {
     if (!thisView(view, viewId)) return gone('view', viewId);
     // An element drawn without a placement gets one at the place where it was moved (an "in" or "one of" box: its list term).
     for (const b of bounds) {
