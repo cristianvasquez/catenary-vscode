@@ -38,11 +38,9 @@ export class MarkdownSvgRenderer {
             });
             // Attach a rejection handler while the GLSP client is being registered.
             void result.catch(() => undefined);
-            // A read-only reference to the shared store, released after export; no editor undo callback.
-            const document = await this.canvas.openCustomDocument(entry.file, { backupId: undefined, untitledDocumentData: undefined }, undefined, true);
-            if (document.problem) throw new Error(document.problem);
-            panel.onDidDispose(() => document.dispose());
-            await this.canvas.resolveCustomEditor(document, panel, undefined, token);
+            // The text document of the view (the open buffer when an editor has it); the export canvas sends no edit.
+            const text = await vscode.workspace.openTextDocument(entry.file);
+            await this.canvas.resolveCustomTextEditor(text, panel, undefined, token);
             return await result;
         } finally {
             clearTimeout(timer);

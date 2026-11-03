@@ -135,12 +135,33 @@ const IRI = /^[^\s<>"{}|^`\\]+$/;
 /** The figures of a view, its placements and their join, and the number of index reads that the prefetch did not cover. */
 export type PrefetchedFigures = ViewFigures & { misses: number };
 
+/** One prefetch of a view: `view` the view quads of the server; `figures` the figures of the view with the given view quads. */
+export interface FiguresPrefetch {
+    view: Quad[];
+    /**
+     * Synchronous: the figures of the view when its quads are `view` (the quads of the server or a copy changed in memory), for the placed
+     * terms and `also`. A statement of the server's view quads that `view` does not have is not in the index.
+     */
+    figures(view: Iterable<Quad>, also?: NTerm[]): PrefetchedFigures;
+}
+
+const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.object)}`;
+
 /**
  * The figures of a view from one prefetch, with `deriveFigures` unchanged (the old viewFiguresOf in catenary/rdf/notations.ts, `keep` false).
  * The prefetch: (a) the view quads; (b) the shapes closure of `shapes`; (c) the statements around the placed terms and `also`, D times
  * outwards (D = roleDepth), blank nodes through their anchors; (d) rdfs:subClassOf over `modelFiles`; (e) the list cells below the terms of (c).
  */
 export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = []): Promise<PrefetchedFigures> {
+    const prefetch = await prefetchFigures(port, viewIri, shapes, modelFiles, also);
+    return prefetch.figures(prefetch.view, also);
+}
+
+/**
+ * The prefetch of viewFiguresOf, read before a command: `reach` are terms that the command can place (their statements are read as those
+ * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them).
+ */
+export async function prefetchFigures(port: ModelPort, viewIri: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = []): Promise<FiguresPrefetch> {
     const notes = readNotations(), depth = roleDepth(notes);
     const [view, subclasses] = await Promise.all([
         port.construct(`CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <${viewIri}> { ?s ?p ?o } }`),
@@ -149,7 +170,7 @@ export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: Sh
     const viewQuads = nquads(view);
     const placed = placementsOf(new TripleIndex(viewQuads), viewIri);
     // As the old viewFiguresOf: a placement of another term (a statement with a literal) has no figure; the join reports it.
-    const scope = [...[...placed.keys()].map(keyTerm), ...also].filter(t => t.termType === 'Triple' || IRI.test(t.value));
+    const scope = [...[...placed.keys()].map(keyTerm), ...reach].filter(t => t.termType === 'Triple' || IRI.test(t.value));
 
     const covered: Coverage = { outAll: new Set(), outP: new Set(), inAll: new Set(), predicates: new Set([SUBCLASS]) };
     // The closure holds every sh: statement of the model files without the manifest (shapePart starts at each subject with one), and the
@@ -192,8 +213,18 @@ export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: Sh
     const cells = expanded.size ? nquads(await port.construct(LIST_CELLS([...expanded]))) : [];
     for (const q of cells) covered.outP.add(`${nkey(q.subject)} ${q.predicate}`);
 
-    const index = new PrefetchIndex([...viewQuads, ...closure, ...around, ...nquads(subclasses), ...cells], covered);
-    const derivation = deriveFigures(index, notes, viewIri, scope, new Map());
-    const result = viewFigures(index, notes, viewIri, derivation);
-    return { ...result, misses: index.missed.size };
+    const prefetched = [...closure, ...around, ...nquads(subclasses), ...cells], served = new Set(viewQuads.map(tripleOf));
+    return {
+        view,
+        figures(now, also = []) {
+            const current = nquads(now), kept = new Set(current.map(tripleOf));
+            // The view statements are also in (c) (the view IRI is a frontier term): a statement that left the view leaves the index.
+            const gone = new Set([...served].filter(k => !kept.has(k)));
+            const index = new PrefetchIndex([...current, ...gone.size ? prefetched.filter(q => !gone.has(tripleOf(q))) : prefetched], covered);
+            const terms = [...[...placementsOf(new TripleIndex(current), viewIri).keys()].map(keyTerm), ...also].filter(t => t.termType === 'Triple' || IRI.test(t.value));
+            const derivation = deriveFigures(index, notes, viewIri, terms, new Map());
+            const result = viewFigures(index, notes, viewIri, derivation);
+            return { ...result, misses: index.missed.size };
+        }
+    };
 }

@@ -1,6 +1,6 @@
-// Read and refresh one GLSP view and route edits to its ViewStore; adapted from Catenary modeler/src/node/glsp/view-session.ts.
-// Each store step is one VS Code undo step; refreshes must not replace a newer edit model. The session computes the diagram (async,
-// turtle/query) into ViewState before it submits; the synchronous GModelFactory reads it.
+// Read and refresh one GLSP view and route edits to the workspace; adapted from Catenary modeler/src/node/glsp/view-session.ts.
+// Each edit is one text edit of the view document (one VS Code undo step); refreshes must not replace a newer edit model. The session
+// computes the diagram (async, turtle/query) into ViewState before it submits; the synchronous GModelFactory reads it.
 
 import {
     Action, ClientActionForwarder, ClientActionKinds, ClientId, ClientSessionManager, GModelFactory, GModelRoot, GModelSerializer,
@@ -11,7 +11,7 @@ import { viewIdOfUri } from '../../common/protocol';
 import type { ViewCommand } from '../../catenary/model/commands';
 import { Doc, View, placementOfId } from '../../catenary/model/doc';
 import type { Choices } from '../../catenary/model/prompts';
-import type { Result } from '../../catenary/rdf/ops';
+import type { Result } from '../../edit/ops';
 import type { Violation } from '../../catenary/model/validation';
 import { type DiagramOptions, type Drawn, emptyDrawn } from '../../read/diagram';
 
@@ -25,8 +25,8 @@ export interface ViewSource {
     memberOptions(viewId: string, collection: string): string[];
     instancesNamed(text: string): string[];
     onDidChange(listener: () => void): { dispose(): void };
-    /** One edit of the view `viewId` (element id) through the ViewStore of its document; refused when no editor has the view open. */
-    execute(viewId: string, command: ViewCommand): Result<unknown>;
+    /** One edit of the view `viewId` (element id): a text edit of its document; refused when no editor has the view open. */
+    execute(viewId: string, command: ViewCommand): Promise<Result<unknown>>;
     /** The last clip of a copy or cut in any canvas of the folder: each view editor is its own webview (handlers.ts PasteHandler). */
     clip?: { id: string; data: string };
 }
@@ -110,13 +110,14 @@ export class ViewSession {
      * Run an edit for this session: the one edit path of a canvas operation. The session sends its own
      * update first, then `followUp` (for example a selection of the created element). An error of the edit reaches the client as
      * one warning with the command kind and the message: a refused command with the model (the canvas shows the store again), a
-     * command that threw without a model. Resolves with the result of the store (a note commit keeps its draft on a refusal).
+     * command that threw without a model. Resolves with the result of the command (a note commit keeps its draft on a refusal). The draw
+     * after the edit reads the new text: the language server receives the change of the document before the next request.
      */
     async edit(command: ViewCommand, followUp?: (r: EditResult) => Action[]): Promise<{ ok: true } | { ok: false; error: string }> {
         this.muted = true;
         let r: Result<unknown>;
         try {
-            r = this.store.execute(this.viewId, command);
+            r = await this.store.execute(this.viewId, command);
         } catch (e) {
             const error = e instanceof Error ? e.message : String(e);
             await this.dispatcher.dispatchAll([editWarning(command.kind, 'failed in the backend', error)]);
@@ -189,8 +190,8 @@ export class ViewModelStorage implements SourceModelStorage {
         await this.session.draw();
     }
 
-    /** VS Code saves the view document (CanvasEditorProvider.saveCustomDocument); a GLSP save has nothing to write. */
-    saveSourceModel(_action: SaveModelAction): void { /* the custom editor writes the view file */ }
+    /** VS Code saves the view document (a text document of the custom text editor); a GLSP save has nothing to write. */
+    saveSourceModel(_action: SaveModelAction): void { /* VS Code writes the view file */ }
 }
 
 @injectable()

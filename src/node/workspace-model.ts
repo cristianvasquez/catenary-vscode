@@ -1,17 +1,16 @@
-// Maintain one folder's model records (turtle/query), view-file index and shared open ViewStores for editors and export (VS Code host).
-// Model edits, saves and view-file changes refresh the records and the graph while open stores keep their view edits and undo history
-// (model/workspace-core.ts).
+// Maintain one folder's model records (turtle/query) and view-file index (VS Code host). Model edits, saves and view-file changes refresh
+// the records; a change of a view document redraws the canvases. A canvas command is one WorkspaceEdit of the view documents
+// (model/workspace-core.ts); VS Code keeps the undo history, the dirty state and the backups.
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as vscode from 'vscode';
-import { isViewFile, viewIriOf } from '../model/graph-input';
+import { isViewFile } from '../model/graph-input';
+import type { ViewEdit } from '../edit/executor';
 import type { ModelPort } from '../model/port';
 import { WorkspaceCore } from '../model/workspace-core';
 import { nodePort } from './port';
 import { type TurtleApi, type GraphResult, requestGraph } from './turtle-api';
-
-export type { OpenView } from '../model/workspace-core';
 
 /** Candidate view files: a .trig file is a view when it has a view:View (isViewFile). */
 const VIEW_FILES = '**/*.trig';
@@ -19,11 +18,6 @@ const VIEW_FILES = '**/*.trig';
 const MODEL_DOCUMENT = /\.(ttl|trig)$/;
 /** Ask again this long after the last change. */
 const REFRESH_MS = 300;
-
-/** The view graph IRI of a view file. */
-export function viewIriOfFile(file: string): string | undefined {
-    return viewIriOf(readFileSync(file, 'utf8'));
-}
 
 export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
     protected readonly disposables: vscode.Disposable[] = [];
@@ -39,12 +33,13 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
             vscode.workspace.onDidSaveTextDocument(doc => {
                 if (!isViewFile(doc.uri.fsPath, doc.getText()) && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
             }),
-            // turtle-lsp reads the open buffer of a model document: the next query sees the change before a save. Any RDF document of the
-            // folder that is not a view file (an empty new file is in no list yet).
+            // turtle-lsp reads the open buffer of a document: the next query sees the change before a save. A view document redraws the
+            // canvases; any other RDF document of the folder refreshes the model (an empty new file is in no list yet).
             vscode.workspace.onDidChangeTextDocument(e => {
                 const file = e.document.uri.fsPath;
-                if (e.contentChanges.length && MODEL_DOCUMENT.test(file) && vscode.workspace.getWorkspaceFolder(e.document.uri) === folder
-                    && ![...this.viewFiles.values()].includes(file)) schedule();
+                if (!e.contentChanges.length || !MODEL_DOCUMENT.test(file) || vscode.workspace.getWorkspaceFolder(e.document.uri) !== folder) return;
+                if (this.viewOfFile(file)) this.viewChanged();
+                else schedule();
             }),
             vscode.languages.onDidChangeDiagnostics(e => {
                 if (e.uris.some(uri => vscode.workspace.getWorkspaceFolder(uri) === folder)) void this.readDiagnostics().then(() => this.fire());
@@ -72,6 +67,22 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
         try { return readFileSync(fileURLToPath(uri), 'utf8'); } catch { return ''; }
     }
 
+    protected async documentOf(file: string, load: boolean): Promise<{ uri: string; text: string } | undefined> {
+        const uri = vscode.Uri.file(file);
+        const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) ?? (load ? await vscode.workspace.openTextDocument(uri) : undefined);
+        return document && { uri: document.uri.toString(), text: document.getText() };
+    }
+
+    /** One WorkspaceEdit: each view document is replaced as a whole (the tree-sitter patch is K12). */
+    protected async applyEdits(edits: ViewEdit[]): Promise<boolean> {
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of edits) {
+            const uri = vscode.Uri.parse(e.uri), document = await vscode.workspace.openTextDocument(uri);
+            edit.replace(uri, document.validateRange(new vscode.Range(0, 0, document.lineCount, 0)), e.text);
+        }
+        return vscode.workspace.applyEdit(edit);
+    }
+
     protected log(line: string): void { this.logLine(line); }
 
     protected warn(message: string): void { void vscode.window.showWarningMessage(message); }
@@ -88,6 +99,7 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
 
     dispose(): void {
         clearTimeout(this.timer);
+        clearTimeout(this.redrawTimer);
         for (const d of this.disposables.splice(0)) d.dispose();
         this.listeners.clear();
     }

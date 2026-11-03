@@ -13,7 +13,7 @@ import { V } from '../src/catenary/rdf/views';
 import { P } from '../src/catenary/rdf/vocabulary';
 import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
-import { ViewStore } from '../src/model/store';
+import { ViewStore } from './view-store';
 import type { GraphResult } from '../src/node/turtle-api';
 import { fixtureGraph } from './fixture-graph';
 

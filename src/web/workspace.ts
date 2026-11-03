@@ -1,13 +1,16 @@
 // The workspace graph of the page: turtle-lsp in a worker (engine.wasm) answers turtle/graph for the open buffers; view files are read
 // from the saved files (FileStore), as the VS Code host reads them from disk. Diagnostics arrive as LSP notifications.
-// The engine has no turtle/query until K13: the page draws from the old graph (model/diagram.ts) and maps diagnostics on it.
+// The engine has no turtle/query until K13: the page draws from the old graph (model/diagram.ts) and maps diagnostics on it, and a
+// canvas command is refused (a command reads the views through turtle/query; K13 applies its edits to the FileStore).
 import type { Diagnostic } from 'vscode';
+import type { ViewCommand } from '../catenary/model/commands';
 import { iriId } from '../catenary/model/ids';
 import { shapesIndexOf } from '../catenary/rdf/shapes-read';
 import { viewFiguresOf } from '../catenary/rdf/notations';
 import { readView } from '../catenary/rdf/view-read';
 import { diagramOf } from '../model/diagram';
 import { graphPrefixes, isViewFile } from '../model/graph-input';
+import { fail, type Result } from '../edit/ops';
 import { WorkspaceCore } from '../model/workspace-core';
 import { diagnosticsOf } from '../node/diagnostics';
 import type { GraphResult } from '../node/turtle-api';
@@ -46,6 +49,14 @@ export class WebWorkspace extends WorkspaceCore {
 
     protected textOf(uri: string): string {
         return this.bufferOf(uri) ?? '';
+    }
+
+    protected async documentOf(): Promise<undefined> { return undefined; }
+
+    protected async applyEdits(): Promise<boolean> { return false; }
+
+    override async execute(_viewId: string, command: ViewCommand): Promise<Result<unknown>> {
+        return fail(`"${command.kind}": the canvas of the browser page is read-only until its engine answers turtle/query.`);
     }
 
     protected log(line: string): void { this.logLine(line); }

@@ -1,5 +1,5 @@
 // Handle GLSP view operations and read requests; adapted from Catenary modeler/src/node/glsp/handlers.ts.
-// Edits use ViewSession.edit; ViewStore owns history and VS Code runs undo and redo.
+// Edits use ViewSession.edit: one text edit of the view document; VS Code runs undo and redo.
 
 import {
     Action, ActionHandler, ChangeBoundsOperation, Command, CreateNodeOperation, CreateNodeOperationHandler, DeleteElementOperation,

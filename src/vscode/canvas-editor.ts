@@ -1,8 +1,7 @@
-// Custom view-file editor with GLSP transport, settings, navigation and drops; adapted from catenary-vscode src/vscode/canvas-editor.ts.
-// ViewStore steps map to VS Code undo history; view files are written on save only.
+// Custom text editor of a view file with GLSP transport, settings, navigation and drops; adapted from catenary-vscode src/vscode/canvas-editor.ts.
+// The document is the TriG text: a canvas command is one text edit of it, and VS Code owns undo, redo, dirty state, save, revert and backup.
 
 import { randomBytes } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { GlspVscodeConnector, WebviewEndpoint } from '@eclipse-glsp/vscode-integration';
@@ -10,12 +9,11 @@ import type { GlspVscodeServer } from '@eclipse-glsp/vscode-integration';
 import { DIAGRAM_TYPE } from '../common/protocol';
 import { EXPORT_META } from '../common/markdown-export';
 import { createCanvasServer } from '../node/glsp/server';
-import { type OpenView, type WorkspaceModel, viewIriOfFile } from '../node/workspace-model';
+import type { WorkspaceModel } from '../node/workspace-model';
 import { idIri, iriId } from '../catenary/model/ids';
 import { boxes } from '../catenary/model/doc';
-import { readView } from '../catenary/rdf/view-read';
 import { shapesIndexOf } from '../catenary/rdf/shapes-read';
-import { isViewFile, toEngine } from '../model/graph-input';
+import { toEngine } from '../model/graph-input';
 import { rdf } from '../catenary/rdf/terms';
 import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
 import { pickLabel } from '../catenary/model/labels';
@@ -36,60 +34,43 @@ function preferences(): PreferenceValues {
 }
 
 const escapeAttribute = (text: string) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-/** The text of a file; undefined when it cannot be read. */
-const readText = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return undefined; } };
 
-/** A view file open in the editor. `open`: its store on the workspace graph; undefined when the file holds no view of a folder. */
+/**
+ * A view document in a canvas: the text document, its folder and its view IRI; `problem` when it holds no view of a folder. The GLSP
+ * connector keys its clients on this object (a CustomDocument); the text document is VS Code's.
+ */
 export class ViewDocument implements vscode.CustomDocument {
-    constructor(readonly uri: vscode.Uri, readonly model?: WorkspaceModel, public open?: OpenView & vscode.Disposable, readonly problem?: string) {}
+    constructor(readonly text: vscode.TextDocument, readonly model?: WorkspaceModel, readonly iri?: string, readonly problem?: string) {}
 
-    /** The workspace graph takes the view from its file again: a document closed without saving leaves no edit in the graph. */
-    dispose(): void {
-        this.open?.dispose();
-        this.open = undefined;
-    }
+    get uri(): vscode.Uri { return this.text.uri; }
+
+    dispose(): void { /* VS Code owns the text document */ }
 }
 
-const decode = (bytes: Uint8Array) => new TextDecoder().decode(bytes);
-
-export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDocument>, vscode.Disposable {
+export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vscode.Disposable {
     /** The connector to the GLSP server of each folder. */
     protected readonly folders = new Map<WorkspaceModel, GlspVscodeConnector>();
     protected count = 0;
     protected readonly panels = new Map<vscode.WebviewPanel, ViewDocument>();
-    protected readonly fromText = new Set<string>();
 
-    /** Switching editors is disk-based: save before replacing the active tab. */
-    protected async saveBeforeSwitch(tab: vscode.Tab, message: string): Promise<boolean> {
-        if (tab.isDirty) {
-            if (await vscode.window.showWarningMessage(message, { modal: true }, 'Save') !== 'Save') return false;
-            if (vscode.window.tabGroups.activeTabGroup.activeTab !== tab) return false;
-            await vscode.commands.executeCommand('workbench.action.files.save');
-        }
-        return vscode.window.tabGroups.activeTabGroup.activeTab === tab && !tab.isDirty;
-    }
-
+    /** The canvas and the text editor show the same document: the switch needs no save. */
     protected async openText(document: ViewDocument): Promise<void> {
         const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
         if (!(tab?.input instanceof vscode.TabInputCustom) || tab.input.viewType !== CANVAS_EDITOR
             || tab.input.uri.toString() !== document.uri.toString()) return;
-        if (await this.saveBeforeSwitch(tab, 'Save the view before you open it as TriG.')) {
-            await vscode.commands.executeCommand('workbench.action.reopenTextEditor');
-        }
+        await vscode.commands.executeCommand('workbench.action.reopenTextEditor');
     }
 
+    /** "Open in Canvas" of a view file's text: the canvas replaces the text tab, on the same document (unsaved text included). */
     async openCanvas(): Promise<void> {
         const group = vscode.window.tabGroups.activeTabGroup, tab = group.activeTab;
-        if (!(tab?.input instanceof vscode.TabInputText) || !isViewFile(tab.input.uri.path, tab.input.uri.scheme === 'file' ? readText(tab.input.uri.fsPath) : undefined)) return;
-        if (!await this.saveBeforeSwitch(tab, 'Save the text before you open it in Canvas.')) return;
+        if (!(tab?.input instanceof vscode.TabInputText)) return;
+        const uri = tab.input.uri, model = this.modelOf(uri);
+        if (!model) return;
+        await model.ready();
+        if (!model.viewOfFile(uri.fsPath) && !await model.holdsView(uri.fsPath)) return;
         const index = group.tabs.indexOf(tab);
-        const uri = tab.input.uri;
-        this.fromText.add(uri.toString());
-        try {
-            await vscode.commands.executeCommand('vscode.openWith', uri, CANVAS_EDITOR, { viewColumn: group.viewColumn, preview: false });
-        } finally {
-            this.fromText.delete(uri.toString());
-        }
+        await vscode.commands.executeCommand('vscode.openWith', uri, CANVAS_EDITOR, { viewColumn: group.viewColumn, preview: false });
         if (group.tabs.includes(tab)) await vscode.window.tabGroups.close(tab);
         await vscode.commands.executeCommand('moveActiveEditor', { to: 'position', by: 'tab', value: index + 1 });
     }
@@ -98,10 +79,10 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
     async insertElement(): Promise<void> {
         const entry = [...this.panels].find(([panel]) => panel.active);
         if (!entry) return;
-        const [, document] = entry, model = document.model, open = document.open;
+        const [, document] = entry, model = document.model, open = document.iri ? { iri: document.iri } : undefined;
         if (!model?.graph || !open) return;
         const graph = model.graph, seen = new Set<string>();
-        const view = readView(open.store.graph, iriId(open.iri)).views[iriId(open.iri)];
+        const view = (await model.diagram(iriId(open.iri), {})).doc.views[iriId(open.iri)];
         const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
         const items: (vscode.QuickPickItem & { id: string })[] = [];
         for (const node of model.result?.nodes ?? []) {
@@ -148,12 +129,12 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
                 const target = await vscode.window.showQuickPick(choices, { placeHolder: 'Link to a view', matchOnDescription: true });
                 if (target) resource = vscode.Uri.file(target.file);
             }
-            if (!this.panels.has(entry[0]) || document.open !== open) return;
-            if (resource) this.linkFile(document, resource.toString(), { x: 300, y: 300 });
+            if (!this.panels.has(entry[0])) return;
+            if (resource) await this.linkFile(document, resource.toString(), { x: 300, y: 300 });
         }
         const ids = picked.flatMap(item => 'id' in item ? [item.id] : []);
         if (ids.length) {
-            const result = model.execute(iriId(open.iri), { kind: 'addToView', view: iriId(open.iri), ids, at: { x: 300, y: 300 } });
+            const result = await model.execute(iriId(open.iri), { kind: 'addToView', view: iriId(open.iri), ids, at: { x: 300, y: 300 } });
             if (!result.ok) void vscode.window.showWarningMessage(result.error);
         }
     }
@@ -192,122 +173,72 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
         }
     }
 
-    /** Each dropped file is one undoable reference; subsequent references are offset. */
-    protected dropFiles(document: ViewDocument, request: { uris: string[]; at: { x: number; y: number } }): void {
-        request.uris.forEach((uri, i) => this.linkFile(document, uri, { x: request.at.x + i * 40, y: request.at.y + i * 40 }));
+    /** Each dropped file is one undoable reference; subsequent references are offset. Commands run one after the other. */
+    protected async dropFiles(document: ViewDocument, request: { uris: string[]; at: { x: number; y: number } }): Promise<void> {
+        for (const [i, uri] of request.uris.entries()) await this.linkFile(document, uri, { x: request.at.x + i * 40, y: request.at.y + i * 40 });
     }
 
-    /** A dropped or picked file becomes one undoable reference at the supplied point. */
-    protected linkFile(document: ViewDocument, uri: string, at: { x: number; y: number }): void {
-        const model = document.model, open = document.open;
-        if (!model || !open) return;
-        const view = iriId(open.iri);
+    /** A dropped or picked file becomes one undoable reference at the supplied point: a view file of the folder a view reference. */
+    protected async linkFile(document: ViewDocument, uri: string, at: { x: number; y: number }): Promise<void> {
+        const model = document.model, iri = document.iri;
+        if (!model || !iri) return;
+        const view = iriId(iri);
         try {
             const resource = vscode.Uri.parse(uri);
             if (resource.scheme !== 'file') throw new Error('Only file URIs can be linked.');
-            const file = resource.fsPath;
-            let result;
-            if (isViewFile(file, readText(file))) {
-                const target = viewIriOfFile(file);
-                if (!target) throw new Error(`${file} holds no view.`);
-                if (target === open.iri) throw new Error('The target view is the open view itself.');
-                result = model.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
-            } else {
-                result = model.execute(view, { kind: 'addFileReference', view, file: path.relative(path.dirname(document.uri.fsPath), file).split(path.sep).join('/'), at });
-            }
+            const file = resource.fsPath, target = model.viewOfFile(file);
+            if (target === iri) throw new Error('The target view is the open view itself.');
+            const result = target
+                ? await model.execute(view, { kind: 'addViewReference', view, target: iriId(target), at })
+                : await model.execute(view, { kind: 'addFileReference', view, file: path.relative(path.dirname(document.uri.fsPath), file).split(path.sep).join('/'), at });
             if (!result.ok) throw new Error(result.error);
         } catch (e) {
             void vscode.window.showWarningMessage(`Cannot link file: ${e instanceof Error ? e.message : String(e)}`);
         }
     }
 
-    protected readonly changes = new vscode.EventEmitter<vscode.CustomDocumentEditEvent<ViewDocument>>();
-    readonly onDidChangeCustomDocument = this.changes.event;
-
     constructor(protected readonly extensionUri: vscode.Uri,
         protected readonly modelOf: (uri: vscode.Uri) => WorkspaceModel | undefined,
         protected readonly log: (line: string) => void) {}
 
-    /** The store of the view on the workspace graph (after its first read); a backup replaces the view graph with its content. */
-    async openCustomDocument(uri: vscode.Uri, context: vscode.CustomDocumentOpenContext, _token?: vscode.CancellationToken, readOnly = false): Promise<ViewDocument> {
-        const file = uri.fsPath, model = this.modelOf(uri);
-        if (!model) return new ViewDocument(uri, undefined, undefined, `${file} is not in a workspace folder.`);
-        let iri: string | undefined;
-        try { iri = viewIriOfFile(file); } catch (e) { return new ViewDocument(uri, model, undefined, `${file}: ${e}`); }
-        if (!iri) return new ViewDocument(uri, model, undefined, `${file} holds no view.`);
-        const fromText = this.fromText.has(uri.toString());
-        if (fromText) await model.refresh();
-        else await model.ready();
-        if (!model.graph) return new ViewDocument(uri, model, undefined, `${file}: ${model.error ?? 'no workspace graph'}`);
-        if (model.viewFiles.get(iri) !== file) return new ViewDocument(uri, model, undefined, `${file} was skipped: invalid or duplicate view file. See the Catenary output.`);
-        const document = new ViewDocument(uri, model);
-        // No await between replacing the disk graph and opening its store: a pending watcher
-        // refresh must preserve this graph through keepOpenViews, not the pre-save graph.
-        if (fromText) model.replaceView(iri, readFileSync(file, 'utf8'));
-        document.open = this.openView(document, iri, readOnly);
-        if (context.backupId) model.replaceView(iri, decode(await vscode.workspace.fs.readFile(vscode.Uri.parse(context.backupId))));
-        return document;
-    }
-
     /**
-     * One store step of the document is one VS Code step: undo and redo apply the patch of that step to the workspace graph and draw
-     * again. A step of a store that a revert replaced does nothing.
+     * The view of a text document: its view IRI from the view files of its folder (viewFilesOf over the open buffers), read again once when
+     * the document is not one of them (a view written in the text and not saved). Undefined: the document holds no view:View (a model file).
      */
-    protected openView(document: ViewDocument, iri: string, readOnly = false): OpenView & vscode.Disposable {
-        const model = document.model!;
-        const open = model.openView(iri, readOnly ? undefined : (label, patch) => this.changes.fire({
-            document, label,
-            undo: () => { if (document.open === open) { open.store.graph.undo(patch); model.redraw(); } },
-            redo: () => { if (document.open === open) { open.store.graph.redo(patch); model.redraw(); } }
-        }), () => {
-            try { model.replaceView(iri, readFileSync(document.uri.fsPath, 'utf8')); } catch { /* the next refresh drops a deleted file */ }
-        });
-        return open;
+    async viewDocumentOf(text: vscode.TextDocument): Promise<ViewDocument | undefined> {
+        const file = text.uri.fsPath, model = this.modelOf(text.uri);
+        if (!model) return new ViewDocument(text, undefined, undefined, `${file} is not in a workspace folder.`);
+        await model.ready();
+        let iri = model.viewOfFile(file);
+        if (!iri) {
+            await model.refresh();
+            iri = model.viewOfFile(file);
+        }
+        if (iri) return new ViewDocument(text, model, iri);
+        if (model.error) return new ViewDocument(text, model, undefined, `${file}: ${model.error}`);
+        if (!await model.holdsView(file)) return undefined;
+        return new ViewDocument(text, model, undefined, `${file} was skipped: invalid or duplicate view file. See the Catenary output.`);
     }
 
-    protected async write(document: ViewDocument, uri: vscode.Uri): Promise<void> {
-        if (!document.open) throw new Error(document.problem ?? 'No view.');
-        await vscode.workspace.fs.writeFile(uri, new TextEncoder().encode(document.open.store.viewText(document.open.iri)));
-    }
-
-    saveCustomDocument(document: ViewDocument): Promise<void> {
-        return this.write(document, document.uri);
-    }
-
-    saveCustomDocumentAs(document: ViewDocument, destination: vscode.Uri): Promise<void> {
-        return this.write(document, destination);
-    }
-
-    /** The view graph of the file, and a new store: the steps before the revert change nothing. */
-    async revertCustomDocument(document: ViewDocument): Promise<void> {
-        const open = document.open;
-        if (!open || !document.model) return;
-        document.model.replaceView(open.iri, decode(await vscode.workspace.fs.readFile(document.uri)));
-        open.dispose();
-        document.open = this.openView(document, open.iri);
-    }
-
-    async backupCustomDocument(document: ViewDocument, context: vscode.CustomDocumentBackupContext): Promise<vscode.CustomDocumentBackup> {
-        await this.write(document, context.destination);
-        return { id: context.destination.toString(), delete: () => void vscode.workspace.fs.delete(context.destination).then(undefined, () => undefined) };
-    }
-
-    async resolveCustomEditor(document: ViewDocument, panel: vscode.WebviewPanel, _token?: vscode.CancellationToken, exportToken?: string): Promise<void> {
-        const file = document.uri.fsPath, model = document.model, open = document.open;
-        if (!model || !open) {
-            if (!isViewFile(file, readText(file))) {
-                // A .trig file without a view:View is a model file: the text editor opens it.
-                panel.dispose();
-                await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
-                return;
-            }
+    async resolveCustomTextEditor(text: vscode.TextDocument, panel: vscode.WebviewPanel, _token?: vscode.CancellationToken, exportToken?: string): Promise<void> {
+        const file = text.uri.fsPath, document = await this.viewDocumentOf(text);
+        if (!document) {
+            if (exportToken) throw new Error(`${file} holds no view.`);
+            // A .trig file without a view:View is a model file: the text editor opens it.
+            panel.dispose();
+            await vscode.commands.executeCommand('vscode.openWith', text.uri, 'default');
+            return;
+        }
+        const model = document.model, iri = document.iri;
+        if (!model || !iri) {
             panel.webview.html = `<!doctype html><html><body><p>${escapeAttribute(document.problem ?? `${file} holds no view.`)}</p></body></html>`;
             this.log(`canvas: no view for ${file}: ${document.problem}`);
+            if (exportToken) throw new Error(document.problem ?? `${file} holds no view.`);
             return;
         }
         this.panels.set(panel, document);
         panel.onDidDispose(() => this.panels.delete(panel));
-        const view = iriId(open.iri);
+        const view = iriId(iri);
         const connector = await this.connectorOf(model);
         const clientId = `${DIAGRAM_TYPE}_${this.count++}`;
         const endpoint = new WebviewEndpoint({ diagramIdentifier: { diagramType: DIAGRAM_TYPE, uri: document.uri.toString(), clientId }, messenger: connector.messenger, webviewPanel: panel });
@@ -315,8 +246,8 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
         connector.messenger.onNotification(InsertElement, () => this.insertElement(), { sender });
         connector.messenger.onNotification(OpenText, () => this.openText(document), { sender });
         connector.messenger.onNotification(OpenIn, request => void this.openIn(document, request), { sender });
-        connector.messenger.onNotification(DropFiles, request => this.dropFiles(document, request), { sender });
-        connector.messenger.onNotification(PasteRdf, ({ text, mediaType, at }) => void pasteTurtle(model, document.open?.iri ?? open.iri, text, mediaType, at)
+        connector.messenger.onNotification(DropFiles, request => void this.dropFiles(document, request), { sender });
+        connector.messenger.onNotification(PasteRdf, ({ text, mediaType, at }) => void pasteTurtle(model, iri, text, mediaType, at)
             .then(message => connector.dispatchAction(StatusAction.create(message, { severity: 'INFO', timeout: 10000 }), clientId)), { sender });
         const subscription = vscode.workspace.onDidChangeConfiguration(e => {
             if (CANVAS_SETTINGS.some(name => e.affectsConfiguration(`catenary.${name}`))) connector.messenger.sendNotification(Preferences, sender, preferences());
@@ -353,7 +284,6 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
     }
 
     dispose(): void {
-        this.changes.dispose();
         for (const connector of this.folders.values()) connector.dispose();
         this.folders.clear();
     }

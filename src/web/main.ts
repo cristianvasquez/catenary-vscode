@@ -8,7 +8,6 @@ import initOxigraph from 'oxigraph/web.js';
 import { StatusAction } from '@eclipse-glsp/protocol';
 import samples from 'catenary:samples';
 import pkg from '../../package.json';
-import type { Patch } from '../catenary/rdf-core/graph';
 import { boxes } from '../catenary/model/doc';
 import { idIri, iriId } from '../catenary/model/ids';
 import { pickLabel } from '../catenary/model/labels';
@@ -19,7 +18,6 @@ import { rdf } from '../catenary/rdf/terms';
 import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
 import { DROP_FILES_EVENT, INSERT_ELEMENT, OPEN_IN_EVENT, OPEN_TEXT } from '../common/protocol';
 import { isViewFile, toEngine, viewIriOf } from '../model/graph-input';
-import type { OpenView, Releasable } from '../model/workspace-core';
 import { newViewText, viewFileName } from '../node/new-view';
 import { pasteTurtle } from '../vscode/paste-rdf';
 import { PASTE_RDF_EVENT } from '../webview/clipboard';
@@ -186,16 +184,10 @@ function setBuffer(rel: string, text: string): void {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Tabs: text editors and canvases
 
-/** A view open in a canvas: its store, its undo history and the iframe. */
+/** A view open in a canvas: its iframe. The canvas is read-only until K13 (the engine has no turtle/query: no command runs). */
 interface ViewDoc {
     rel: string;
     iri: string;
-    open: OpenView & Releasable;
-    undo: Patch[];
-    redo: Patch[];
-    /** Steps since the open; the saved state is at `saved` (-1: no longer reachable). */
-    depth: number;
-    saved: number;
     frame: HTMLIFrameElement;
     host?: MessagePort;
     stop?: () => void;
@@ -207,8 +199,7 @@ let active: Tab | undefined;
 let canvasCount = 0;
 
 const dirtyText = (rel: string) => models.has(rel) && models.get(rel).getValue() !== files.read(rel);
-const dirtyView = (doc: ViewDoc) => doc.depth !== doc.saved;
-const isDirty = (tab: Tab) => files.unstored.has(tab.rel) || (tab.kind === 'canvas' ? dirtyView(tab.doc) : dirtyText(tab.rel));
+const isDirty = (tab: Tab) => files.unstored.has(tab.rel) || dirtyText(tab.rel);
 
 function renderTabs(): void {
     $('tabs').replaceChildren(...tabs.map(tab => {
@@ -243,7 +234,6 @@ function activate(tab: Tab): void {
 }
 
 function closeTab(tab: Tab, force = false): boolean {
-    if (!force && tab.kind === 'canvas' && dirtyView(tab.doc) && !confirm(`Discard the changes of the view ${tab.rel}?`)) return false;
     if (!force && tab.kind === 'text' && dirtyText(tab.rel)) {
         if (!confirm(`Discard the changes of ${tab.rel}?`)) return false;
         models.get(tab.rel)!.setValue(files.read(tab.rel) ?? '');
@@ -252,7 +242,6 @@ function closeTab(tab: Tab, force = false): boolean {
     tabs.splice(i, 1);
     if (tab.kind === 'canvas') {
         tab.doc.stop?.();
-        tab.doc.open.dispose();
         tab.doc.frame.remove();
     }
     if (active === tab) {
@@ -290,18 +279,10 @@ async function openCanvas(rel: string, fromText = false): Promise<void> {
     if (fromText) await ws.refresh(); else await ws.ready();
     if (!ws.graph) return toast(`${rel}: ${ws.error ?? 'no workspace graph'}`, 'warning');
     if (ws.viewFiles.get(iri) !== pathOf(rel)) return toast(`${rel} was skipped: invalid or duplicate view file.`, 'warning');
-    if (fromText) ws.replaceView(iri, text);
     const frame = document.createElement('iframe');
     frame.className = 'canvas-frame';
     frame.src = 'canvas.html';
-    const doc = { rel, iri, undo: [], redo: [], depth: 0, saved: 0, frame } as unknown as ViewDoc;
-    doc.open = ws.openView(iri, (_label, patch) => {
-        doc.undo.push(patch);
-        doc.redo = [];
-        if (doc.saved > doc.depth) doc.saved = -1;
-        doc.depth++;
-        renderTabs();
-    }, () => ws.replaceView(iri, files.read(rel) ?? ''));
+    const doc: ViewDoc = { rel, iri, frame };
     const tab: Tab = { rel, kind: 'canvas', doc };
     frame.onload = () => {
         const glsp = new MessageChannel(), host = new MessageChannel();
@@ -320,38 +301,12 @@ function toCanvas(doc: ViewDoc, message: ToCanvas): void {
     doc.host?.postMessage(message);
 }
 
-function undo(doc: ViewDoc): void {
-    const patch = doc.undo.pop();
-    if (!patch) return;
-    doc.open.store.graph.undo(patch);
-    doc.redo.push(patch);
-    doc.depth--;
-    ws.redraw();
-    renderTabs();
-}
-
-function redo(doc: ViewDoc): void {
-    const patch = doc.redo.pop();
-    if (!patch) return;
-    doc.open.store.graph.redo(patch);
-    doc.undo.push(patch);
-    doc.depth++;
-    ws.redraw();
-    renderTabs();
-}
-
 function save(tab: Tab | undefined = active): void {
     if (!tab) return;
     let stored = true;
-    if (tab.kind === 'canvas') {
-        const text = tab.doc.open.store.viewText(tab.doc.iri);
-        setBuffer(tab.rel, text);
-        stored = files.write(tab.rel, text);
-        tab.doc.saved = tab.doc.depth;
-    } else {
-        const model = models.get(tab.rel);
-        if (model) stored = files.write(tab.rel, model.getValue());
-    }
+    // A canvas tab has no edits of its own (K13): its file is saved from the text buffer, as a text tab.
+    const model = models.get(tab.rel);
+    if (model) stored = files.write(tab.rel, model.getValue());
     if (!stored) toast('Not stored: the browser storage is full or blocked. The file is kept in memory; use Download to keep it.', 'warning');
     renderTabs();
     renderFiles();
@@ -360,9 +315,7 @@ function save(tab: Tab | undefined = active): void {
 function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
     const doc = tab.doc;
     if (m.type === 'key') {
-        if (m.key === 'undo') undo(doc);
-        else if (m.key === 'redo') redo(doc);
-        else save(tab);
+        if (m.key === 'save') save(tab);
         return;
     }
     if (m.type === 'notify') {
@@ -377,7 +330,7 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
         case OPEN_IN_EVENT: void openIn(doc, m.detail as { view?: string; file?: string; element?: string; problem?: string }); break;
         case DROP_FILES_EVENT: {
             const { uris, at } = m.detail as { uris: string[]; at: { x: number; y: number } };
-            uris.forEach((uri, i) => linkFile(doc, uri, { x: at.x + i * 40, y: at.y + i * 40 }));
+            void (async () => { for (const [i, uri] of uris.entries()) await linkFile(doc, uri, { x: at.x + i * 40, y: at.y + i * 40 }); })();
             break;
         }
         case PASTE_RDF_EVENT: {
@@ -391,10 +344,6 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
 
 /** The TriG button: save first, then the text replaces the canvas tab (VS Code: Reopen Editor With). */
 async function canvasToText(tab: Tab & { kind: 'canvas' }): Promise<void> {
-    if (dirtyView(tab.doc)) {
-        if (!confirm('Save the view before you open it as TriG?')) return;
-        save(tab);
-    }
     closeTab(tab, true);
     openText(tab.rel);
 }
@@ -418,7 +367,7 @@ async function textToCanvas(): Promise<void> {
 async function insertElement(doc: ViewDoc): Promise<void> {
     const graph = ws.graph;
     if (!graph) return;
-    const view = readView(doc.open.store.graph, iriId(doc.iri)).views[iriId(doc.iri)];
+    const view = readView(graph, iriId(doc.iri)).views[iriId(doc.iri)];
     const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
     const seen = new Set<string>();
     const items: (PickItem & { id?: string; link?: 'file' | 'view' })[] = [];
@@ -445,17 +394,17 @@ async function insertElement(doc: ViewDoc): Promise<void> {
             })).sort((a, b) => a.label.localeCompare(b.label));
             rel = (await pick(choices, 'Link to a view'))[0]?.rel;
         }
-        if (rel) linkFile(doc, uriOf(rel), { x: 300, y: 300 });
+        if (rel) await linkFile(doc, uriOf(rel), { x: 300, y: 300 });
     }
     const ids = picked.flatMap(item => item.id ? [item.id] : []);
     if (ids.length) {
-        const result = ws.execute(iriId(doc.iri), { kind: 'addToView', view: iriId(doc.iri), ids, at: { x: 300, y: 300 } });
+        const result = await ws.execute(iriId(doc.iri), { kind: 'addToView', view: iriId(doc.iri), ids, at: { x: 300, y: 300 } });
         if (!result.ok) toast(result.error, 'warning');
     }
 }
 
 /** A dropped or picked file becomes one undoable reference at the supplied point. */
-function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number }): void {
+async function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number }): Promise<void> {
     const view = iriId(doc.iri);
     try {
         const rel = relOfUri(uri);
@@ -464,13 +413,13 @@ function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number }): void
         if (isView(rel)) {
             const target = viewIriOf(files.read(rel)!);
             if (target === doc.iri) throw new Error('The target view is the open view itself.');
-            result = ws.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
+            result = await ws.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
         } else {
             const from = doc.rel.split('/').slice(0, -1), to = rel.split('/');
             let common = 0;
             while (common < from.length && common < to.length - 1 && from[common] === to[common]) common++;
             const relative = [...from.slice(common).map(() => '..'), ...to.slice(common)].join('/');
-            result = ws.execute(view, { kind: 'addFileReference', view, file: relative, at });
+            result = await ws.execute(view, { kind: 'addFileReference', view, file: relative, at });
         }
         if (!result.ok) throw new Error(result.error);
     } catch (e) {

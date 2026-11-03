@@ -15,7 +15,7 @@ import * as ops from '../src/edit/ops';
 import { ViewQuads, viewText } from '../src/edit/view-quads';
 import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
-import { ViewStore } from '../src/model/store';
+import { ViewStore } from './view-store';
 import { factsFromGraph } from './edit-facts';
 import { fixtureGraph } from './fixture-graph';
 

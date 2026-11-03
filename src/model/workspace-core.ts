@@ -1,21 +1,16 @@
-// The platform-free part of one folder's workspace: the model records read through turtle/query (the canvas draws from them), and until
-// K10 the old graph with the open view stores for the edits. The VS Code host (node/workspace-model.ts) and the browser page
-// (web/workspace.ts) supply the port, the turtle-lsp graph, the view files and the diagnostics.
+// The platform-free part of one folder's workspace: the model records read through turtle/query (the canvas draws from them and the
+// commands read them), and the old graph of the pickers until K7. A command edits the text of the view documents (src/edit/executor.ts);
+// the host applies the edits. The VS Code host (node/workspace-model.ts) and the browser page (web/workspace.ts) supply the port, the
+// turtle-lsp graph, the view files, the documents and the diagnostics.
 import { fileURLToPath } from 'node:url';
 import type { Diagnostic } from 'vscode';
 import type { ViewCommand } from '../catenary/model/commands';
-import { iriId } from '../catenary/model/ids';
-import { skolemize } from '../catenary/rdf-core/skolem';
-import type { Patch } from '../catenary/rdf-core/graph';
+import { idIri } from '../catenary/model/ids';
 import type { ModelGraph } from '../catenary/rdf/graph';
-import { parseRdfSync } from '../catenary/rdf-files/oxigraph-store';
-import { readLegacy } from '../catenary/rdf/loader';
-import { fail, type Result } from '../catenary/rdf/ops';
-import { rdf } from '../catenary/rdf/terms';
-import { V } from '../catenary/rdf/views';
 import type { Violation } from '../catenary/model/validation';
+import { runCommand, type ViewEdit, type ViewInput } from '../edit/executor';
+import { fail, type Result } from '../edit/ops';
 import { graphOf } from './graph-input';
-import { ViewStore } from './store';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
 import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDrawn, modelContextOf } from '../read/diagram';
@@ -24,24 +19,18 @@ import type { ManifestRecords } from '../read/manifest';
 import type { ShapesModelRecords } from '../read/shapes';
 import { expandChoices, instancesNamed, memberOptions } from './choices';
 import type { ModelPort } from './port';
-
-/** The quads of a view file, as graphOf reads them. */
-function viewQuads(text: string) {
-    return skolemize(readLegacy(parseRdfSync(text, 'application/trig')).quads).quads;
-}
-
-/** A view open in an editor: its store, and the editor step of each edit. */
-export interface OpenView {
-    readonly iri: string;
-    readonly store: ViewStore;
-    /** One step of the edit history of the document: one store step and its patch. */
-    step(label: string, patch: Patch): void;
-}
+import { viewFilesOf } from './view-files';
 
 export interface Releasable { dispose(): void }
 
+/** The IRI of a view given by its IRI or its element id. */
+const viewIriOf = (view: string) => view.includes(':') ? view : idIri(view);
+
+/** The sessions draw again this long after the last change of a view document. */
+const REDRAW_MS = 100;
+
 export abstract class WorkspaceCore implements ViewSource {
-    /** The old graph, for the write path (execute, open view stores) and the pickers until K7 and K10; undefined before the first answer. */
+    /** The old graph of the pickers until K7 (read from the saved view files); undefined before the first answer. */
     graph: ModelGraph | undefined;
     /** The turtle/graph answer: node ranges of the diagnostics. */
     result: GraphResult | undefined;
@@ -65,8 +54,8 @@ export abstract class WorkspaceCore implements ViewSource {
     protected diagnosticsSeq = 0;
     protected first?: Promise<void>;
     protected readonly listeners = new Set<() => void>();
-    /** The views open in an editor, by view id. */
-    protected readonly open = new Map<string, OpenView & { references: number; steps: Set<OpenView['step']> }>();
+    /** The last command started: the next command reads the views after its edits. */
+    protected commands: Promise<unknown> = Promise.resolve();
 
     /** A short name of the folder, for log lines. */
     protected abstract readonly name: string;
@@ -80,6 +69,13 @@ export abstract class WorkspaceCore implements ViewSource {
     protected abstract diagnosticsByUri(): Record<string, Diagnostic[]>;
     /** The text of a document URI; '' when it cannot be read. */
     protected abstract textOf(uri: string): string;
+    /**
+     * The document of a view file: its URI and its text. `load` false: undefined when no editor has the document open; true: the host opens
+     * it without showing it (the language server receives it).
+     */
+    protected abstract documentOf(file: string, load: boolean): Promise<{ uri: string; text: string } | undefined>;
+    /** Applies the edits as one edit of the workspace (one undo step in each document); false when the host refuses it. */
+    protected abstract applyEdits(edits: ViewEdit[]): Promise<boolean>;
     protected abstract log(line: string): void;
     protected abstract warn(message: string): void;
 
@@ -92,70 +88,43 @@ export abstract class WorkspaceCore implements ViewSource {
         for (const listener of [...this.listeners]) listener();
     }
 
-    /** One store per IRI; a caller without a step callback is a read-only reference (export). */
-    openView(iri: string, step?: OpenView['step'], close: () => void = () => undefined): OpenView & Releasable {
-        if (!this.graph) throw new Error(this.error ?? 'The workspace graph is not read yet.');
-        const id = iriId(iri);
-        let view = this.open.get(id);
-        if (!view) {
-            const steps = new Set<OpenView['step']>();
-            view = { iri, store: new ViewStore(this.graph), references: 0, steps,
-                step: (label, patch) => steps.values().next().value?.(label, patch) };
-            this.open.set(id, view);
-        }
-        const shared = view;
-        shared.references++;
-        if (step) shared.steps.add(step);
-        let released = false;
-        return { iri, store: shared.store, step: shared.step, dispose: () => {
-            if (released) return;
-            released = true;
-            if (step) shared.steps.delete(step);
-            if (--shared.references !== 0) return;
-            this.open.delete(id);
-            close();
-        } };
+    protected redrawTimer: ReturnType<typeof setTimeout> | undefined;
+
+    /** A view document changed (a canvas edit, an undo, a text editor): the sessions draw again after REDRAW_MS without a change. */
+    viewChanged(): void {
+        clearTimeout(this.redrawTimer);
+        this.redrawTimer = setTimeout(() => this.fire(), REDRAW_MS);
     }
 
     /**
-     * One edit of the open view `viewId`: a store step is a step of its document. Refused when no editor has the view open. A step that
-     * changes several views (a paste of a cut: moveBetweenViews) is one step in each of their documents, with the changes of its view;
-     * it is undone and refused when one of the views is not open in an editor.
+     * One command on the view `viewId` (IRI or element id): the views it edits are this view and, for a paste of a cut, the source view.
+     * Refused when no editor has the view `viewId` open; the source view of a cut is opened without an editor. The command reads the views
+     * from the server (the open buffers), and the host applies the new texts in one edit; a refused edit fails the command. Commands run
+     * one after the other.
      */
-    execute(viewId: string, command: ViewCommand): Result<unknown> {
-        const view = this.open.get(viewId);
-        if (!view?.steps.size) return fail('The view is not open in an editor.');
-        const last = view.store.last;
-        const r = view.store.execute(command);
-        const patch = view.store.last;
-        if (r.ok && patch && patch !== last) {
-            const graphs = [...new Set(patch.map(c => c.quad.graph.value))];
-            const closed = graphs.filter(g => !this.open.get(iriId(g))?.steps.size);
-            if (closed.length) {
-                view.store.graph.undo(patch);
-                return fail(`Open the view ${closed.join(', ')} in an editor: the edit changes it.`);
-            }
-            for (const g of graphs) this.open.get(iriId(g))!.step(command.kind, patch.filter(c => c.quad.graph.value === g));
-            this.fire();
+    execute(viewId: string, command: ViewCommand): Promise<Result<unknown>> {
+        const run = this.commands.then(() => this.run(viewId, command));
+        this.commands = run.catch(() => undefined);
+        return run;
+    }
+
+    protected async run(viewId: string, command: ViewCommand): Promise<Result<unknown>> {
+        const ctx = this.context();
+        if (!ctx) return fail(this.error ?? 'The model is not read yet.');
+        const iri = viewIriOf(viewId);
+        if (!iri) return fail(`No view with the id ${viewId}.`);
+        const iris = [iri, ...command.kind === 'moveBetweenViews' ? [command.from, command.to].map(viewIriOf) : []];
+        const views: ViewInput[] = [];
+        for (const v of new Set(iris)) {
+            const file = v && this.viewFiles.get(v);
+            if (!v || !file) return fail(`The view ${v ?? ''} has no view file in ${this.name}.`);
+            const document = await this.documentOf(file, v !== iri);
+            if (!document) return fail('The view is not open in an editor.');
+            views.push({ iri: v, ...document });
         }
+        const { edits, ...r } = await runCommand(ctx, views, command);
+        if (r.ok && edits.length && !await this.applyEdits(edits)) return fail('The editor refused the edit of the view file.');
         return r;
-    }
-
-    /** After an undo or redo of an open view: the sessions draw again. */
-    redraw(): void {
-        this.fire();
-    }
-
-    /** The view graph `iri` becomes the statements of the TriG `text` (revert, backup restore). */
-    replaceView(iri: string, text: string): void {
-        const graph = this.graph;
-        if (!graph) return;
-        const g = rdf.namedNode(iri), quads = viewQuads(text).filter(q => q.graph.equals(g));
-        graph.update(() => {
-            graph.removeMatches(null, null, null, g);
-            for (const q of quads) graph.add(q.subject, q.predicate, q.object, q.graph);
-        });
-        this.fire();
     }
 
     /** Resolves after the first refresh. */
@@ -175,7 +144,6 @@ export abstract class WorkspaceCore implements ViewSource {
             const records = this.port ? await modelContextOf(this.port, documents) : undefined;
             if (seq !== this.seq) return;
             const { graph } = old, { views: viewFiles, skipped } = records?.viewFiles ?? old;
-            if (this.graph) this.keepOpenViews(this.graph, graph);
             for (const { file, reason } of skipped) this.log(`workspace ${this.name}: skipped ${file}: ${reason}`);
             if (skipped.length) this.warn(`Catenary: skipped ${skipped.length} view file(s) in ${this.name}. See the Catenary output for details.`);
             this.viewFiles.clear();
@@ -201,7 +169,21 @@ export abstract class WorkspaceCore implements ViewSource {
         return this.ctx;
     }
 
-    /** The diagram of the view `viewId` from turtle/query: the saved view file (an unsaved canvas edit is not drawn until K10). */
+    /** The view IRI of a view file of this folder (the last refresh); undefined when the file is not one. */
+    viewOfFile(file: string): string | undefined {
+        for (const [iri, f] of this.viewFiles) if (f === file) return iri;
+        return undefined;
+    }
+
+    /** True when the server has a view:View graph in the document `file`, also when the folder skipped it (a duplicate). */
+    async holdsView(file: string): Promise<boolean> {
+        const ctx = this.context();
+        if (!ctx) return false;
+        const { views, skipped } = await viewFilesOf(ctx.port, [file]);
+        return views.size > 0 || skipped.length > 0;
+    }
+
+    /** The diagram of the view `viewId` from turtle/query: the open buffer of its document wins over the saved file. */
     async diagram(viewId: string, opts: DiagramOptions): Promise<Drawn> {
         const ctx = this.context();
         return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
@@ -218,23 +200,6 @@ export abstract class WorkspaceCore implements ViewSource {
 
     instancesNamed(text: string): string[] {
         return this.graph ? instancesNamed(this.graph, text) : [];
-    }
-
-    /**
-     * The open views keep their view graph (it can differ from the file: unsaved edits) and their store, on the new graph. Blank nodes of
-     * the model get new ids from turtle-lsp: a placed element whose id is gone stays in the view graph and is not drawn (log line).
-     */
-    protected keepOpenViews(from: ModelGraph, to: ModelGraph): void {
-        for (const view of this.open.values()) {
-            const g = rdf.namedNode(view.iri);
-            to.update(() => {
-                to.removeMatches(null, null, null, g);
-                for (const q of from.match(null, null, null, g)) to.add(q.subject, q.predicate, q.object, q.graph);
-            });
-            view.store.graph = to;
-            const gone = to.match(null, V.element, null, g).filter(q => !to.match(q.object, null, null).some(m => !m.graph.equals(g)));
-            for (const q of gone) this.log(`workspace ${this.name}: ${view.iri}: placed element ${q.object.value} is not in the model; it is not drawn`);
-        }
     }
 
     /** Diagnostics of turtle-lsp as SHACL violations: one turtle/query for the focus terms. A later call wins over an earlier one. */

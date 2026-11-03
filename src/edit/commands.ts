@@ -1,5 +1,5 @@
 // The view commands over the quads of the views they edit and the model facts: pure, synchronous, no graph, no store.
-// Oracle until the cutover: ViewStore.execute (src/model/store.ts) with src/catenary/rdf/commands.ts. A command edits the views of `views`
+// Oracle until the cutover: the old store (test/view-store.ts) with src/catenary/rdf/commands.ts. A command edits the views of `views`
 // only (decision 6); the post-steps run on the views that it changed.
 import type { NamedNode } from '@rdfjs/types';
 import { centered, gridPositions, isViewClip, Point, ViewClip, ViewCommand } from '../catenary/model/commands';
@@ -35,7 +35,7 @@ function mapCommandIds(c: ViewCommand, f: (x: unknown) => unknown): ViewCommand 
     return out as ViewCommand;
 }
 
-/** The command with IRIs replaced by ids (ViewStore.execute): a property shape IRI by the id of its first occurrence, another IRI by its id. */
+/** The command with IRIs replaced by ids (as the old store): a property shape IRI by the id of its first occurrence, another IRI by its id. */
 export function resolveIds(facts: Pick<Facts, 'shapes'>, c: ViewCommand): ViewCommand {
     return mapCommandIds(c, x => typeof x === 'string' && x.includes(':') ? facts.shapes.byTerm.get(termKey(rdf.namedNode(x))) ?? iriId(x) : x);
 }

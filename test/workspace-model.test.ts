@@ -3,8 +3,12 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test, vi } from 'vitest';
-import type { TextDocumentChangeEvent, Uri, WorkspaceFolder } from 'vscode';
+import type { TextDocument, TextDocumentChangeEvent, Uri, WorkspaceFolder } from 'vscode';
+import type { ViewCommand } from '../src/catenary/model/commands';
 import { iriId } from '../src/catenary/model/ids';
+import { parseRdfSync } from '../src/catenary/rdf-files/oxigraph-store';
+import { tripleKey } from '../src/edit/terms';
+import type { ViewEdit } from '../src/edit/executor';
 import { graphOf } from '../src/model/graph-input';
 import type { TurtleApi } from '../src/node/turtle-api';
 
@@ -35,60 +39,136 @@ import { startServer } from './server';
 const result = fixtureGraph();
 const file = resolve('test/fixtures/shapes/instances.trig');
 
-test('two opens share the store; releasing one keeps edits and execute available', () => {
-    const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
-    model.graph = graphOf(result, [file]).graph;
-    const step = vi.fn(), close = vi.fn(), iri = 'urn:name:Bookshop';
-    const first = model.openView(iri, step, close);
-    const text = first.store.viewText(iri);
-    const second = model.openView(iri, vi.fn());
-    expect(second.store).toBe(first.store);
-    expect(model.execute(iriId(iri), { kind: 'createNote', text: 'one', view: iriId(iri), at: { x: 10, y: 20 } }).ok).toBe(true);
-    second.dispose();
-    expect(close).not.toHaveBeenCalled();
-    expect(first.store.viewText(iri)).not.toBe(text);
-    expect(model.execute(iriId(iri), { kind: 'createNote', text: 'two', view: iriId(iri), at: { x: 30, y: 40 } }).ok).toBe(true);
-    expect(step).toHaveBeenCalledTimes(2);
-    first.dispose();
-    expect(close).toHaveBeenCalledOnce();
-    expect(model.execute(iriId(iri), { kind: 'createNote', text: 'closed', view: iriId(iri), at: { x: 0, y: 0 } }).ok).toBe(false);
-    model.dispose();
+/** The statements of the graph `iri` of a TriG text, sorted. */
+const viewQuadKeys = (text: string, iri: string) => parseRdfSync(text, 'application/trig').filter(q => q.graph.value === iri).map(tripleKey).sort();
+
+/** A TurtleApi over the test server. `hidden`: a document that turtle/graph does not give, as if it were in another folder of the window. */
+const apiOf = (server: Awaited<ReturnType<typeof startServer>>, hidden?: string): TurtleApi => ({
+    client: () => ({ isRunning: () => true, sendRequest: async <R>(method: string, params: unknown) => {
+        if (method === 'turtle/query') return await server.query(params as never) as R;
+        const graph = await server.graph(params as never);
+        return { ...graph, edges: graph.edges.filter(e => !hidden || e.uri !== pathToFileURL(hidden).href) } as R;
+    } }),
+    idle: async () => {}
 });
 
-test('an export opened first does not own editor steps; closing an editor leaves a read-only reference', () => {
-    const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
-    model.graph = graphOf(result, [file]).graph;
-    const iri = 'urn:name:Bookshop', step = vi.fn();
-    const exported = model.openView(iri);
-    const editor = model.openView(iri, step);
-    expect(editor.store).toBe(exported.store);
-    exported.dispose();
-    const anotherExport = model.openView(iri);
-    expect(model.execute(iriId(iri), { kind: 'createNote', text: 'owned', view: iriId(iri), at: { x: 0, y: 0 } }).ok).toBe(true);
-    expect(step).toHaveBeenCalledOnce();
-    editor.dispose();
-    expect(model.execute(iriId(iri), { kind: 'createNote', text: 'refused', view: iriId(iri), at: { x: 0, y: 0 } }).ok).toBe(false);
-    anotherExport.dispose();
-    model.dispose();
+/** The host side of a view document for WorkspaceModel: `documentOf` and `applyEdits` as VS Code does them, on the test server. */
+interface Host { open: Set<string>; edits: ViewEdit[][]; refuse: boolean; type(uri: string, text: string): void }
+
+function fakeHost(model: WorkspaceModel, server: Awaited<ReturnType<typeof startServer>>): Host {
+    const texts = new Map<string, string>(), opened = new Set<string>();
+    const host: Host = { open: new Set(), edits: [], refuse: false, type: (uri, text) => { texts.set(uri, text); server.change(uri, text); } };
+    const load = (uri: string, file: string) => {
+        if (!texts.has(uri)) texts.set(uri, readFileSync(file, 'utf8'));
+        if (!opened.has(uri)) { opened.add(uri); server.open(uri, texts.get(uri)!, 'trig'); }
+    };
+    vi.spyOn(model as unknown as { documentOf(file: string, load: boolean): Promise<unknown> }, 'documentOf').mockImplementation(async (file, loading) => {
+        const uri = pathToFileURL(file).href;
+        if (!host.open.has(file) && !loading) return undefined;
+        load(uri, file);
+        return { uri, text: texts.get(uri)! };
+    });
+    // VS Code applies the edit to the open document and the language client sends didChange before the next request.
+    vi.spyOn(model as unknown as { applyEdits(edits: ViewEdit[]): Promise<boolean> }, 'applyEdits').mockImplementation(async edits => {
+        host.edits.push(edits);
+        if (host.refuse) return false;
+        for (const e of edits) host.type(e.uri, e.text);
+        return true;
+    });
+    return host;
+}
+
+const V_NS = 'https://cristianvasquez.github.io/catenary/vocab/view#';
+
+test('a canvas command is one edit of the open view document; the next draw reads the new text; refused and closed views fail', async () => {
+    const server = await startServer(FIXTURE, 282);
+    host.files = ['instances', 'model'].map(f => join(FIXTURE, `${f}.trig`));
+    const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(folder, () => apiOf(server), () => undefined);
+    const fake = fakeHost(model, server);
+    try {
+        await model.refresh();
+        const iri = 'urn:name:Bookshop', vid = iriId(iri), file = host.files[0], uri = pathToFileURL(file).href;
+        const cardsOf = async () => (await model.diagram(vid, {})).schema.children!.filter(e => e.type === 'node:card');
+        const card = (await cardsOf())[0], at = { x: 4321, y: 1234 };
+        const command: ViewCommand = { kind: 'setBounds', view: vid, bounds: [{ id: card.element as string, ...at }] };
+
+        expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The view is not open in an editor.' });
+        expect(fake.edits).toEqual([]);
+
+        fake.open.add(file);
+        const before = viewQuadKeys(readFileSync(file, 'utf8'), iri);
+        expect(await model.execute(vid, command)).toMatchObject({ ok: true });
+        expect(fake.edits).toHaveLength(1);
+        const [[edit]] = fake.edits;
+        expect(edit.uri).toBe(uri);
+        // The text parsed back: the statements of the file with the new x and y of the moved placement, nothing else.
+        const after = viewQuadKeys(edit.text, iri);
+        const removed = before.filter(k => !after.includes(k)), added = after.filter(k => !before.includes(k));
+        expect(removed.map(k => k.split(' ')[1]).sort()).toEqual([`<${V_NS}x>`, `<${V_NS}y>`]);
+        expect(added.map(k => k.split(' ').slice(1).join(' ')).sort()).toEqual([`<${V_NS}x> "4321"^^<http://www.w3.org/2001/XMLSchema#integer>`, `<${V_NS}y> "1234"^^<http://www.w3.org/2001/XMLSchema#integer>`]);
+        expect(new Set([...removed, ...added].map(k => k.split(' ')[0])).size).toBe(1);
+        // After didChange the next draw shows the new position.
+        expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(at);
+
+        // A text change of the document (a text editor, an undo) is drawn too.
+        fake.type(uri, readFileSync(file, 'utf8'));
+        expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
+
+        fake.refuse = true;
+        expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The editor refused the edit of the view file.' });
+    } finally {
+        model.dispose();
+        host.files = [];
+        host.folder = undefined;
+        await server.stop();
+    }
+}, 20000);
+
+test('a change of an open view document redraws the canvases after 100 ms; a model document schedules a refresh', async () => {
+    vi.useFakeTimers();
+    host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(host.folder as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
+    try {
+        model.viewFiles.set('urn:name:Bookshop', join(FIXTURE, 'instances.trig'));
+        const fired = vi.fn(), schedule = vi.spyOn(model as unknown as { schedule(): void }, 'schedule').mockImplementation(() => undefined);
+        model.onDidChange(fired);
+        const change = (fsPath: string) => host.changes.at(-1)!({ document: { uri: { fsPath } }, contentChanges: [{}] } as unknown as TextDocumentChangeEvent);
+        change(join(FIXTURE, 'instances.trig'));
+        change(join(FIXTURE, 'instances.trig'));
+        vi.advanceTimersByTime(99);
+        expect(fired).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(fired).toHaveBeenCalledOnce();
+        expect(schedule).not.toHaveBeenCalled();
+        change(join(FIXTURE, 'data.ttl'));
+        expect(schedule).toHaveBeenCalledOnce();
+    } finally {
+        model.dispose();
+        host.folder = undefined;
+        vi.useRealTimers();
+    }
 });
 
 test('a skipped duplicate cannot open as the accepted view document', async () => {
     const { CanvasEditorProvider } = await import('../src/vscode/canvas-editor');
     const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
-    const loaded = graphOf(result, [file]);
-    model.graph = loaded.graph;
-    for (const [iri, path] of loaded.views) model.viewFiles.set(iri, path);
+    model.viewFiles.set('urn:name:Bookshop', file);
     vi.spyOn(model, 'ready').mockResolvedValue();
+    vi.spyOn(model, 'refresh').mockResolvedValue();
+    const holdsView = vi.spyOn(model, 'holdsView').mockResolvedValue(true);
     const provider = new CanvasEditorProvider({} as Uri, () => model, () => undefined);
-    const dir = mkdtempSync(join(tmpdir(), 'catenary-duplicate-'));
     try {
-        const duplicate = join(dir, 'duplicate.trig');
-        writeFileSync(duplicate, readFileSync(file));
-        const document = await provider.openCustomDocument({ fsPath: duplicate } as Uri, { backupId: undefined, untitledDocumentData: undefined });
-        expect(document.open).toBeUndefined();
-        expect(document.problem).toContain('skipped: invalid or duplicate view file');
+        const text = (fsPath: string) => ({ uri: { fsPath } }) as unknown as TextDocument;
+        const accepted = await provider.viewDocumentOf(text(file));
+        expect(accepted?.iri).toBe('urn:name:Bookshop');
+        const duplicate = await provider.viewDocumentOf(text('/elsewhere/duplicate.trig'));
+        expect(duplicate?.iri).toBeUndefined();
+        expect(duplicate?.problem).toContain('skipped: invalid or duplicate view file');
+        // A .trig document without a view:View is a model file: no view document, the text editor opens it.
+        holdsView.mockResolvedValue(false);
+        expect(await provider.viewDocumentOf(text('/elsewhere/model.trig'))).toBeUndefined();
     } finally {
-        rmSync(dir, { recursive: true });
         provider.dispose();
         model.dispose();
     }
@@ -113,16 +193,7 @@ test('bad and duplicate view files are reported without blocking a valid view', 
 
 test('a refresh over the port reads the view files, the shapes and the diagram; a model document change schedules a refresh', async () => {
     const server = await startServer(FIXTURE, 282);
-    /** `hidden`: a document that turtle/graph does not give, as if it were in another folder of the window. */
-    const apiOf = (hidden?: string): TurtleApi => ({
-        client: () => ({ isRunning: () => true, sendRequest: async <R>(method: string, params: unknown) => {
-            if (method === 'turtle/query') return await server.query(params as never) as R;
-            const graph = await server.graph(params as never);
-            return { ...graph, edges: graph.edges.filter(e => !hidden || e.uri !== pathToFileURL(hidden).href) } as R;
-        } }),
-        idle: async () => {}
-    });
-    const api = apiOf();
+    const api = apiOf(server);
     host.files = ['instances', 'model'].map(f => join(FIXTURE, `${f}.trig`));
     const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
     const model = new WorkspaceModel(folder, () => api, () => undefined);
@@ -147,7 +218,7 @@ test('a refresh over the port reads the view files, the shapes and the diagram; 
         await model.refresh();
         expect(model.generation).toBe(2);
         // The server holds the view of another folder; this folder's canvas does not draw it.
-        const other = new WorkspaceModel(folder, () => apiOf(host.files[0]), () => undefined);
+        const other = new WorkspaceModel(folder, () => apiOf(server, host.files[0]), () => undefined);
         try {
             await other.refresh();
             expect(other.viewFiles.has('urn:name:Bookshop')).toBe(false);

@@ -25,7 +25,7 @@ import { commandIris, factsOf } from '../src/edit/facts-of';
 import { ViewQuads } from '../src/edit/view-quads';
 import { diagramOf } from '../src/model/diagram';
 import { graphOf, graphPrefixes } from '../src/model/graph-input';
-import { ViewStore } from '../src/model/store';
+import { ViewStore } from './view-store';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { manifestOf } from '../src/read/manifest';
 import { shapesModelOf } from '../src/read/shapes';

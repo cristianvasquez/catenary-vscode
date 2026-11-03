@@ -1,5 +1,5 @@
 // Request canvas reads and view edits through GLSP actions; adapted from Catenary modeler/src/browser/model-client.ts.
-// The server edits the view's ViewStore and returns results or refusal messages.
+// The server edits the text of the view document and returns results or refusal messages.
 
 import { RequestAction, ResponseAction } from '@eclipse-glsp/client';
 import { inject, injectable } from 'inversify';

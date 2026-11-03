@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 import { iriId } from '../src/catenary/model/ids';
 import { graphOf } from '../src/model/graph-input';
 import { instancesNamed, memberOptions } from '../src/model/choices';
-import { ViewStore } from '../src/model/store';
+import { ViewStore } from './view-store';
 import { layoutView } from '../src/node/glsp/layout';
 import type { GraphResult } from '../src/node/turtle-api';
 import { readView } from '../src/catenary/rdf/view-read';

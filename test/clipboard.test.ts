@@ -9,7 +9,7 @@ import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
 import { readView } from '../src/catenary/rdf/view-read';
 import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
-import { ViewStore } from '../src/model/store';
+import { ViewStore } from './view-store';
 import type { GraphResult } from '../src/node/turtle-api';
 import { parseTurtle } from '../src/vscode/paste-rdf';
 import { fixtureGraph } from './fixture-graph';

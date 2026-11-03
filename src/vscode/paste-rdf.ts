@@ -37,7 +37,7 @@ export async function pasteTurtle(model: WorkspaceCore, viewIri: string, text: s
     const view = rdf.namedNode(viewIri);
     const count = () => present.filter(iri => model.graph!.match(null, V.element, rdf.namedNode(iri), view).length).length;
     const before = count();
-    const r = model.execute(iriId(viewIri), { kind: 'addToView', view: iriId(viewIri), ids: present.map(iriId), at });
+    const r = await model.execute(iriId(viewIri), { kind: 'addToView', view: iriId(viewIri), ids: present.map(iriId), at });
     if (!r.ok) return `${r.error}${message}`;
     return `Placed ${count() - before}.${message}`;
 }

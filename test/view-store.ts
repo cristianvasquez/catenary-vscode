@@ -1,17 +1,17 @@
-// Execute view-only transactions, replay undo patches and serialize one view graph without writing model files.
-import type { ViewCommand } from '../catenary/model/commands';
-import { iriId } from '../catenary/model/ids';
-import type { Patch } from '../catenary/rdf-core/graph';
-import { authoringMetamodel } from '../catenary/rdf/authoring';
-import { executeCommand, mapCommandIds } from '../catenary/rdf/commands';
-import type { ModelGraph } from '../catenary/rdf/graph';
-import { type Result } from '../catenary/rdf/ops';
-import { buildVocabulary, shapesTriples, vocabularyQuads } from '../catenary/rdf/shapes';
-import { shapesIndexOf } from '../catenary/rdf/shapes-read';
-import { rdf, termKey } from '../catenary/rdf/terms';
-import { views } from '../catenary/rdf/views';
-import { ViewQuads, viewText } from '../edit/view-quads';
-import { graphPrefixes } from './graph-input';
+// The old view store, the oracle of the edit tests until K11 deletes the old pipeline: view-only transactions over the old graph.
+import type { ViewCommand } from '../src/catenary/model/commands';
+import { iriId } from '../src/catenary/model/ids';
+import type { Patch } from '../src/catenary/rdf-core/graph';
+import { authoringMetamodel } from '../src/catenary/rdf/authoring';
+import { executeCommand, mapCommandIds } from '../src/catenary/rdf/commands';
+import type { ModelGraph } from '../src/catenary/rdf/graph';
+import { type Result } from '../src/catenary/rdf/ops';
+import { buildVocabulary, shapesTriples, vocabularyQuads } from '../src/catenary/rdf/shapes';
+import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
+import { rdf, termKey } from '../src/catenary/rdf/terms';
+import { views } from '../src/catenary/rdf/views';
+import { ViewQuads, viewText } from '../src/edit/view-quads';
+import { graphPrefixes } from '../src/model/graph-input';
 
 /** View-only transactions. The graph owns rollback and cache invalidation, including history replay. */
 export class ViewStore {

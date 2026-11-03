@@ -1,5 +1,5 @@
 // Bind GLSP view rendering and view-only handlers; adapted from Catenary modeler/src/node/glsp/diagram-module.ts.
-// ViewStore owns undo history; handlers return no GLSP command.
+// Each edit is one text edit of the view document; VS Code owns the undo history. Handlers return no GLSP command.
 
 import {
     ActionHandlerConstructor, BindingTarget, ClientActionForwarder, DiagramConfiguration, DiagramModule, EdgeTypeHint, GEdge,
