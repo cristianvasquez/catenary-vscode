@@ -136,20 +136,31 @@ function readBody(req: IncomingMessage): Promise<string> {
   })
 }
 
-/** The first supported type that the Accept header admits, in order of q (stable); the default for no Accept or `*\/*`. */
+/**
+ * The supported type that the Accept header admits with the highest q. A type takes the q of its most specific
+ * matching range, so `q=0` excludes it. Ties go to the range that comes first, then to the default order.
+ * No Accept gives the default.
+ */
 function negotiate(accept: string | undefined, supported: string[]): string | undefined {
   if (!accept || !accept.trim()) return supported[0]
   const ranges = accept.split(',').map((part, i) => {
     const [range, ...params] = part.split(';').map(s => s.trim().toLowerCase())
     const q = params.find(p => p.startsWith('q='))
     return { range, q: q ? Number(q.slice(2)) : 1, i }
-  }).filter(r => r.range && r.q > 0).sort((a, b) => b.q - a.q || a.i - b.i)
-  for (const { range } of ranges) {
-    if (range === '*/*') return supported[0]
-    const match = range.endsWith('/*') ? supported.find(t => t.startsWith(range.slice(0, -1))) : supported.find(t => t === range)
-    if (match) return match
+  }).filter(r => r.range && !Number.isNaN(r.q))
+  const specificity = (range: string, type: string) =>
+    range === type ? 3 : range.endsWith('/*') && range !== '*/*' && type.startsWith(range.slice(0, -1)) ? 2 : range === '*/*' ? 1 : 0
+  let best: { type: string; q: number; i: number } | undefined
+  for (const type of supported) {
+    let match: { s: number; q: number; i: number } | undefined
+    for (const r of ranges) {
+      const s = specificity(r.range, type)
+      if (s > (match?.s ?? 0)) match = { s, q: r.q, i: r.i }
+    }
+    if (!match || match.q <= 0) continue
+    if (!best || match.q > best.q || (match.q === best.q && match.i < best.i)) best = { type, q: match.q, i: match.i }
   }
-  return undefined
+  return best?.type
 }
 
 function serialize(answer: QueryAnswer, type: string): string {

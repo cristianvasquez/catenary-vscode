@@ -76,6 +76,8 @@ test('TSV: IRIs in <>, literals with @lang or ^^<dt>, blank nodes, empty for unb
 test('the first acceptable type wins; */* gives the default', async () => {
     expect((await get('SELECT', 'text/html, text/csv, application/json')).headers.get('content-type')).toMatch(/^text\/csv/);
     expect((await get('SELECT', 'text/html, */*;q=0.1')).headers.get('content-type')).toMatch(/^application\/sparql-results\+json/);
+    expect((await get('SELECT', 'application/sparql-results+json;q=0, */*')).headers.get('content-type')).toMatch(/^application\/json/);
+    expect((await get('SELECT', '*/*;q=0.5, text/csv;q=0.2, text/*')).headers.get('content-type')).toMatch(/^text\/tab-separated-values/);
 });
 
 test('ASK in JSON and in CSV', async () => {
