@@ -112,7 +112,7 @@ test('removeViewElements of a card (removeFromView)', () => {
 
 test('setBounds of a card (setBounds)', () => {
     const id = cards()[0], figures = viewFiguresOf(store.graph, view);
-    compare(view, g => old.setBounds(g, vid, [{ id, ...at, width: 600 }]), (v, f) => ops.setBounds(v, f, vid, [{ id, ...at, width: 600 }], figures));
+    compare(view, g => old.setBounds(g, vid, [{ id, ...at, width: 600 }]), (v, f) => ops.setBounds(v, f, vid, [{ id, ...at, width: 600 }], () => figures));
 });
 
 test('setBounds moves the bends of a relation whose ends move, then clearEdgeLayouts (setLayout)', () => {
@@ -122,7 +122,7 @@ test('setBounds moves the bends of a relation whose ends move, then clearEdgeLay
     const bounds = [r.s, r.o].map(t => ({ id: iriId(t.value), dx: 100, dy: 50 }))
         .map(b => { const box = children().find(e => e.element === b.id)!; const p = (box as unknown as { position: { x: number; y: number } }).position; return { id: b.id, x: p.x + b.dx, y: p.y + b.dy }; });
     const figures = viewFiguresOf(store.graph, view);
-    compare(view, g => old.setBounds(g, vid, bounds), (v, f) => ops.setBounds(v, f, vid, bounds, figures));
+    compare(view, g => old.setBounds(g, vid, bounds), (v, f) => ops.setBounds(v, f, vid, bounds, () => figures));
     expect(vertices(view)).not.toEqual(before);
     compare(view, g => old.clearEdgeLayouts(g, vid), (v, f) => ops.clearEdgeLayouts(v, f, vid));
 });
@@ -140,7 +140,7 @@ test('setEdgeLayout and setBounds of a property line (the figures of the view)',
     expect(ends).toHaveLength(2);
     const bounds = ends.map(e => ({ id: e.element, x: e.position.x + 40, y: e.position.y + 30 })), before = vertices(model);
     const figures = viewFiguresOf(store.graph, model);
-    compare(model, g => old.setBounds(g, mid, bounds), (v, f) => ops.setBounds(v, f, mid, bounds, figures));
+    compare(model, g => old.setBounds(g, mid, bounds), (v, f) => ops.setBounds(v, f, mid, bounds, () => figures));
     expect(vertices(model)).not.toEqual(before);
 });
 
@@ -163,7 +163,7 @@ test('boundsOf and createGroup, then the group label and a group move (createGro
     const id = run({ kind: 'createGroup', view: vid, label: 'frame', around });
     compare(view, g => old.setViewElement(g, vid, id, { label: 'renamed', width: 10 }), (v, f) => ops.setViewElement(v, f, vid, id, { label: 'renamed', width: 10 }));
     const figures = viewFiguresOf(store.graph, view), bounds = [{ id, x: rect.x + 70, y: rect.y + 20 }];
-    compare(view, g => old.setBounds(g, vid, bounds), (v, f) => ops.setBounds(v, f, vid, bounds, figures));
+    compare(view, g => old.setBounds(g, vid, bounds), (v, f) => ops.setBounds(v, f, vid, bounds, () => figures));
 });
 
 test('createNote (createNote)', () => {
