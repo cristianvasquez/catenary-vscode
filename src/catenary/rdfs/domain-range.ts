@@ -2,7 +2,7 @@
 import type { FieldRule, FieldsProvider } from '../contracts/fields';
 import type { LinkRule, LinksProvider } from '../contracts/links';
 import type { PaletteClass, PaletteProvider } from '../contracts/palette';
-import { OWL, QueryPort, RDF, RDFS, SH, XSD, iri } from '../contracts/query';
+import { OWL, QueryPort, QueryTerm, RDF, RDFS, SH, XSD, iri } from '../contracts/query';
 
 
 /** What the objects of a predicate are: instances of a class, literals (of a datatype), or any value (a literal or a resource). */
@@ -52,16 +52,20 @@ function withSubclasses(subs: Map<string, string[]>, c: string): string[] {
 }
 
 
-/** A plain or English literal first, then the others in value order. */
-function texts(port: QueryPort, predicates: string, subjects: string[]): Map<string, string> {
-    const out = new Map<string, string>();
-    if (!subjects.length) return out;
-    const found = port.select(`${PREFIXES} SELECT ?s ?v ?lang WHERE {
+/** The literals of `predicates` (a SPARQL path) of `subjects`. `graph`: wraps a pattern in the graphs to read. */
+function textsQuery(graph: (pattern: string) => string, predicates: string, subjects: string[]): string {
+    return `${PREFIXES} SELECT ?s ?v ?lang WHERE {
         VALUES ?s { ${subjects.map(iri).join(' ')} }
-        ${port.graph(`?s ${predicates} ?v`)} FILTER (isLiteral(?v)) BIND (LANG(?v) AS ?lang)
-    }`);
-    const rank = (r: typeof found[number]) => (!r.lang?.value || r.lang.value.startsWith('en') ? 0 : 1);
-    for (const r of [...found].sort((a, b) => rank(a) - rank(b) || a.v.value.localeCompare(b.v.value))) if (!out.has(r.s.value)) out.set(r.s.value, r.v.value);
+        ${graph(`?s ${predicates} ?v`)} FILTER (isLiteral(?v)) BIND (LANG(?v) AS ?lang)
+    }`;
+}
+
+
+/** For each subject of `rows` (textsQuery): a plain or English literal first, then the others in value order. */
+function pickTexts(rows: readonly Record<string, QueryTerm>[]): Map<string, string> {
+    const out = new Map<string, string>();
+    const rank = (r: typeof rows[number]) => (!r.lang?.value || r.lang.value.startsWith('en') ? 0 : 1);
+    for (const r of [...rows].sort((a, b) => rank(a) - rank(b) || a.v.value.localeCompare(b.v.value))) if (!out.has(r.s.value)) out.set(r.s.value, r.v.value);
     return out;
 }
 
@@ -75,18 +79,71 @@ function rangeOf(r: string, datatypes: Set<string>): RdfsRange {
 }
 
 
-/** The rules of the written rdfs:domain and rdfs:range statements of the files. */
-function rdfsRules(port: QueryPort): RdfsRules {
-    const iriPairs = (pattern: string) => port.select(`${PREFIXES} SELECT DISTINCT ?a ?b WHERE { ${port.graph(pattern)} FILTER (isIRI(?a) && isIRI(?b)) }`);
+const PAIRS = { domain: '?a rdfs:domain ?b', range: '?a rdfs:range ?b', subClassOf: '?a rdfs:subClassOf ?b' } as const;
+
+const NAMES = 'rdfs:label|skos:prefLabel', COMMENTS = 'rdfs:comment';
+
+const pairsQuery = (graph: (pattern: string) => string, pattern: string) => `${PREFIXES} SELECT DISTINCT ?a ?b WHERE { ${graph(pattern)} FILTER (isIRI(?a) && isIRI(?b)) }`;
+
+const datatypesQuery = (graph: (pattern: string) => string) => `${PREFIXES} SELECT DISTINCT ?t WHERE { ${graph('?t rdf:type rdfs:Datatype')} FILTER (isIRI(?t)) }`;
+
+
+type Rows = readonly Record<string, QueryTerm>[];
+
+/** What the rules read: the IRI pairs of rdfs:domain, rdfs:range, rdfs:subClassOf, the rdfs:Datatype IRIs, and the texts of IRIs. */
+interface RdfsFacts {
+    domain: Rows;
+    range: Rows;
+    subClassOf: Rows;
+    datatypes: string[];
+    /** `predicates`: NAMES or COMMENTS. */
+    texts(predicates: string, subjects: string[]): Map<string, string>;
+}
+
+
+/** The facts of the rules on a synchronous port; each texts read is one query. Undefined: no rdfs:domain pair. */
+function portFacts(port: QueryPort): RdfsFacts | undefined {
+    const graph = (pattern: string) => port.graph(pattern);
+    const domain = port.select(pairsQuery(graph, PAIRS.domain));
+    if (!domain.length) return undefined;
+    return {
+        domain, range: port.select(pairsQuery(graph, PAIRS.range)), subClassOf: port.select(pairsQuery(graph, PAIRS.subClassOf)),
+        datatypes: port.select(datatypesQuery(graph)).map(r => r.t.value),
+        texts: (predicates, subjects) => subjects.length ? pickTexts(port.select(textsQuery(graph, predicates, subjects))) : new Map()
+    };
+}
+
+
+/**
+ * The facts of the rules from `select`, which reads the documents to query (no GRAPH pattern). Undefined: no rdfs:domain pair. The texts
+ * are read once for every IRI of the pairs: the rules ask for the texts of their predicates and classes, and each of these is an IRI of a pair.
+ */
+async function selectFacts(select: (query: string) => Promise<Rows>): Promise<RdfsFacts | undefined> {
+    const plain = (pattern: string) => pattern;
+    const domain = await select(pairsQuery(plain, PAIRS.domain));
+    if (!domain.length) return undefined;
+    const [range, subClassOf, datatypes] = await Promise.all([select(pairsQuery(plain, PAIRS.range)), select(pairsQuery(plain, PAIRS.subClassOf)), select(datatypesQuery(plain))]);
+    const iris = [...new Set([domain, range, subClassOf].flatMap(rows => rows.flatMap(r => [r.a.value, r.b.value])))].sort();
+    const [names, comments] = await Promise.all([NAMES, COMMENTS].map(async p => pickTexts(await select(textsQuery(plain, p, iris)))));
+    const read = new Map([[NAMES, names], [COMMENTS, comments]]);
+    return {
+        domain, range, subClassOf, datatypes: datatypes.map(r => r.t.value),
+        texts: (predicates, subjects) => new Map(subjects.flatMap(s => { const v = read.get(predicates)?.get(s); return v === undefined ? [] : [[s, v] as const]; }))
+    };
+}
+
+
+/** The rules of the written rdfs:domain and rdfs:range statements of `facts`. */
+function rdfsRules(facts: RdfsFacts | undefined): RdfsRules {
     const domains = new Map<string, string[]>(), ranges = new Map<string, string[]>(), subs = new Map<string, string[]>();
-    for (const r of iriPairs('?a rdfs:domain ?b')) if (!builtIn(r.a.value) && !builtIn(r.b.value)) add(domains, r.a.value, r.b.value);
-    if (!domains.size) return { rules: [], classes: {} };
-    for (const r of iriPairs('?a rdfs:range ?b')) if (domains.has(r.a.value)) add(ranges, r.a.value, r.b.value);
-    for (const r of iriPairs('?a rdfs:subClassOf ?b')) if (r.a.value !== r.b.value) add(subs, r.b.value, r.a.value);
-    const datatypes = new Set(port.select(`${PREFIXES} SELECT DISTINCT ?t WHERE { ${port.graph('?t rdf:type rdfs:Datatype')} FILTER (isIRI(?t)) }`).map(r => r.t.value));
+    for (const r of facts?.domain ?? []) if (!builtIn(r.a.value) && !builtIn(r.b.value)) add(domains, r.a.value, r.b.value);
+    if (!facts || !domains.size) return { rules: [], classes: {} };
+    for (const r of facts.range) if (domains.has(r.a.value)) add(ranges, r.a.value, r.b.value);
+    for (const r of facts.subClassOf) if (r.a.value !== r.b.value) add(subs, r.b.value, r.a.value);
+    const datatypes = new Set(facts.datatypes);
 
     const predicates = [...domains.keys()].sort();
-    const names = texts(port, 'rdfs:label|skos:prefLabel', predicates), comments = texts(port, 'rdfs:comment', predicates);
+    const names = facts.texts(NAMES, predicates), comments = facts.texts(COMMENTS, predicates);
     const rules: RdfsRule[] = [], seen = new Set<string>();
     // The written subclasses of each class range: one shared list.
     const below = new Map<string, string[]>();
@@ -109,7 +166,7 @@ function rdfsRules(port: QueryPort): RdfsRules {
     }
 
     const classIris = [...new Set(rules.flatMap(r => [r.domain, ...(r.range.kind === 'class' ? [r.range.iri, ...r.range.subclasses ?? []] : [])]))].sort();
-    const classNames = texts(port, 'rdfs:label|skos:prefLabel', classIris), classComments = texts(port, 'rdfs:comment', classIris);
+    const classNames = facts.texts(NAMES, classIris), classComments = facts.texts(COMMENTS, classIris);
     const classes: RdfsRules['classes'] = {};
     for (const c of classIris) classes[c] = { ...(classNames.has(c) ? { name: classNames.get(c) } : {}), ...(classComments.has(c) ? { description: classComments.get(c) } : {}) };
     return { rules, classes };
@@ -121,14 +178,13 @@ const read = new WeakMap<QueryPort, RdfsRules>();
 
 const rulesOf = (port: QueryPort) => {
     let r = read.get(port);
-    if (!r) read.set(port, r = rdfsRules(port));
+    if (!r) read.set(port, r = rdfsRules(portFacts(port)));
     return r;
 };
 
 
 /** The domains of the rules, with their written labels and descriptions; in IRI order. */
-function classes(port: QueryPort): PaletteClass[] {
-    const { rules, classes } = rulesOf(port);
+function classes({ rules, classes }: RdfsRules): PaletteClass[] {
     return [...new Set(rules.map(r => r.domain))].sort().map(iri => ({ iri, ...classes[iri] }));
 }
 
@@ -137,15 +193,15 @@ const own = (r: RdfsRule) => ({ domain: r.domain, predicate: r.predicate, ...(r.
 
 
 /** A class range: a link to that class. Any value: a link to any resource (and a field). */
-function links(port: QueryPort): LinkRule[] {
-    return rulesOf(port).rules.flatMap(r => r.range.kind === 'class' ? [{ ...own(r), target: r.range.iri, ...(r.range.subclasses ? { targetSubclasses: r.range.subclasses } : {}) }] : r.range.kind === 'any' ? [own(r)] : []);
+function links({ rules }: RdfsRules): LinkRule[] {
+    return rules.flatMap(r => r.range.kind === 'class' ? [{ ...own(r), target: r.range.iri, ...(r.range.subclasses ? { targetSubclasses: r.range.subclasses } : {}) }] : r.range.kind === 'any' ? [own(r)] : []);
 }
 
 
 /** Literal ranges and any value: one field for each domain and predicate, with a datatype only when all its ranges have the same one. */
-function fields(port: QueryPort): FieldRule[] {
+function fields({ rules }: RdfsRules): FieldRule[] {
     const out = new Map<string, { field: FieldRule; datatypes: Set<string | undefined> }>();
-    for (const r of rulesOf(port).rules) {
+    for (const r of rules) {
         if (r.range.kind === 'class') continue;
         const k = r.domain + ' ' + r.predicate;
         const entry = out.get(k) ?? { field: own(r), datatypes: new Set() };
@@ -159,9 +215,15 @@ function fields(port: QueryPort): FieldRule[] {
 }
 
 
-export const rdfsPalette: PaletteProvider = { id: 'rdfs', classes };
+export const rdfsPalette: PaletteProvider = { id: 'rdfs', classes: port => classes(rulesOf(port)) };
 
-export const rdfsLinks: LinksProvider = { id: 'rdfs', links };
+export const rdfsLinks: LinksProvider = { id: 'rdfs', links: port => links(rulesOf(port)) };
 
-export const rdfsFields: FieldsProvider = { id: 'rdfs', fields };
+export const rdfsFields: FieldsProvider = { id: 'rdfs', fields: port => fields(rulesOf(port)) };
 
+
+/** The classes, links and fields of the RDFS rules, from the answers of `select` over the documents to read (no GRAPH pattern). */
+export async function rdfsAuthoring(select: (query: string) => Promise<Rows>): Promise<{ classes: PaletteClass[]; links: LinkRule[]; fields: FieldRule[] }> {
+    const rules = rdfsRules(await selectFacts(select));
+    return { classes: classes(rules), links: links(rules), fields: fields(rules) };
+}

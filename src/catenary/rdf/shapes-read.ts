@@ -77,7 +77,7 @@ export function shapesIndexOf(g: ModelGraph): ShapesIndex {
 
 
 /** Read the shapes of `quads` (quads of the shapes graphs, with their graphs). `language`: of the labels (pickLabel). */
-function readShapes(quads: Iterable<Quad>, language?: string): ShapesIndex {
+export function readShapes(quads: Iterable<Quad>, language?: string): ShapesIndex {
     const ds: Dataset = rdf.dataset([...quads]);
     /** The label rule (pickLabel) over the objects of `predicates` (IRIs), in that order. */
     const literals = (s: Term, predicates: readonly string[]) => predicates.map(p => [...ds.match(s, rdf.namedNode(p))].map(q => q.object)

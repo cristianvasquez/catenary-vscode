@@ -18,9 +18,10 @@ class Triples {
     protected readonly bySubject = new Map<string, Map<string, Node[]>>();
     readonly all: { s: Node; p: string; o: Node }[] = [];
 
-    constructor(port: QueryPort) {
+    /** `rows`: `?s ?p ?o` rows of the shapes triples; a repeated triple counts once. */
+    constructor(rows: Iterable<{ s: Node; p: Node; o: Node }>) {
         const seen = new Set<string>();
-        for (const r of port.select(`SELECT ?s ?p ?o WHERE { ${port.graph('?s ?p ?o')} }`) as Record<string, Node>[]) {
+        for (const r of rows) {
             const k = [key(r.s), r.p.value, key(r.o), r.o.language ?? '', r.o.datatype?.value ?? ''].join('\u0000');
             if (seen.has(k)) continue;
             seen.add(k);
@@ -133,7 +134,15 @@ const read = new WeakMap<QueryPort, Authoring>();
 function authoring(port: QueryPort): Authoring {
     const cached = read.get(port);
     if (cached) return cached;
-    const t = new Triples(port);
+    const out = shaclAuthoring(port.select(`SELECT ?s ?p ?o WHERE { ${port.graph('?s ?p ?o')} }`) as { s: Node; p: Node; o: Node }[]);
+    read.set(port, out);
+    return out;
+}
+
+
+/** The palette classes, links and fields of the shapes triples `rows` (`?s ?p ?o`). */
+export function shaclAuthoring(rows: Iterable<{ s: Node; p: Node; o: Node }>): Authoring {
+    const t = new Triples(rows);
 
     // Node shapes and their target classes. A shape that is also a class targets itself.
     const targets: { shape: Node; cls: string }[] = [];
@@ -216,9 +225,7 @@ function authoring(port: QueryPort): Authoring {
         const name = t.text(named(c.iri), RDFS + 'label', SKOS + 'prefLabel');
         return name === undefined ? c : { ...c, name };
     });
-    const out = { classes, links, fields };
-    read.set(port, out);
-    return out;
+    return { classes, links, fields };
 }
 
 
