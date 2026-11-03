@@ -122,6 +122,20 @@ try {
   await page.keyboard.press("Enter")
   const inserted = await until(state, (s) => s.boxes.length === 5)
   check("Insert offers workspace elements and places the picked one", offered.includes("Link to a file…") && offered.includes("Animal Farm") && inserted?.boxes.includes("Animal Farm"), JSON.stringify({ offered: offered.slice(0, 6), boxes: inserted?.boxes }))
+  // The sample view already places the other view (Bookshop); remove it before linking it again.
+  const references = () => svgOf().locator(".catenary-view-reference").count()
+  const existing = svgOf().locator(".catenary-view-reference", { hasText: /^Bookshop$/ })
+  await existing.click()
+  await page.keyboard.press("Delete")
+  await existing.waitFor({ state: "detached" })
+  const referencesBefore = await references()
+  await frameOf().locator('.catenary-tools [data-item="insert"]').click()
+  await picker.waitFor()
+  await picker.locator("li", { hasText: "Link to a view…" }).click()
+  const viewPicker = await until(() => picker.locator("input[type=text]").getAttribute("placeholder"), (t) => t === "Link to a view")
+  await picker.locator("li").first().click()
+  const referencesAfter = await until(references, (n) => n === referencesBefore + 1)
+  check("a click on Link to a view opens the view picker at once", viewPicker === "Link to a view" && referencesAfter === referencesBefore + 1, `${viewPicker}; ${referencesBefore} -> ${referencesAfter}`)
 
   // ------------------------------------------------------------------ TriG and back
   await frameOf().locator('.catenary-tools [data-item="open-text"]').click()

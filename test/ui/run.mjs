@@ -761,8 +761,8 @@ try {
       await page.keyboard.press('Delete')
       await existing.waitFor({ state: 'detached' })
       await frame.locator('[data-item="insert"]').click()
+      // A single click on the link row opens the view picker: no confirm.
       await page.locator('.quick-input-list .monaco-list-row', { hasText: 'Link to a view…' }).click()
-      await page.keyboard.press('Enter')
       const input = page.locator('.quick-input-widget input')
       await until(() => input.getAttribute('placeholder'), (text) => text === 'Link to a view')
       await input.fill('bookshop')
