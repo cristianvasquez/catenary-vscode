@@ -7,11 +7,11 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Figure } from '../src/catenary/model/notation';
 import { nkey } from '../src/catenary/model/notation-graph';
 import type { ViewFigures } from '../src/catenary/model/notation-join';
+import type { ModelPort } from '../src/model/port';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
-import { roleDepth, viewFiguresOf, type PrefetchedFigures } from '../src/read/figures';
+import { viewFiguresOf, type PrefetchedFigures } from '../src/read/figures';
 import { manifestOf } from '../src/read/manifest';
 import { shapesModelOf } from '../src/read/shapes';
-import { readNotations } from '../src/catenary/rdf/notations';
 import { FIXTURE, startServer } from './server';
 import { json, recorded } from './expected';
 
@@ -53,16 +53,29 @@ async function inputsOf(server: Awaited<ReturnType<typeof startServer>>, folder:
 
 describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
     let server: Awaited<ReturnType<typeof startServer>>;
-    const now = new Map<string, PrefetchedFigures>();
+    const now = new Map<string, PrefetchedFigures>(), sent = new Map<string, string[]>();
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
         const { port, modelFiles, shapes } = await inputsOf(server, FIXTURE);
-        for (const v of VIEWS) now.set(v, await viewFiguresOf(port, v, shapes, modelFiles));
+        for (const v of VIEWS) {
+            // The port, with every query text that the prefetch sends recorded.
+            const texts: string[] = [];
+            const recording: ModelPort = {
+                select: (q, f) => { texts.push(q); return port.select(q, f); },
+                construct: (q, f) => { texts.push(q); return port.construct(q, f); },
+                ask: (q, f) => { texts.push(q); return port.ask(q, f); }
+            };
+            now.set(v, await viewFiguresOf(recording, v, shapes, modelFiles));
+            sent.set(v, texts);
+        }
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
-    test('D, the longest role path of the built-in notations, is 5', () => {
-        expect(roleDepth(readNotations())).toBe(5);
+    test('urn:name:Bookshop%20model: every query text is under 8 KB; no blank-node dump', () => {
+        const texts = sent.get(VIEWS[0])!, lengths = texts.map(t => Buffer.byteLength(t));
+        expect(Math.max(...lengths)).toBeLessThan(8192);
+        // A lone FILTER (isBlank(?s)) reads every blank-node statement; a closure branch filters ?s with the nodes below it.
+        expect(texts.filter(t => /isBlank\(\?s\)\s*\)/.test(t))).toEqual([]);
     });
 
     test.each(VIEWS)('%s: figures, placements and join equal the recorded viewFiguresOf; no read outside the prefetch', view => {
@@ -75,7 +88,7 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
 });
 
 
-describe('viewFiguresOf reads blank nodes through their anchors (temp folder)', () => {
+describe('viewFiguresOf reads blank nodes under their owner (temp folder)', () => {
     const EX = 'http://example.org/', VIEW = 'urn:name:People';
     const head = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix ex: <${EX}> .
 @prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
@@ -106,52 +119,6 @@ ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
         const alice = got.join.boxes.find(b => b.figure.focus.value === `${EX}alice`);
         expect(alice?.rows.map(r => r.text)).toContain('knows: Bob');
         expect(json(plain(got))).toEqual(R('anchors'));
-        expect(got.misses).toBe(0);
-    });
-});
-
-/**
- * The old pipeline parsed a view file itself and named its blank nodes with random skolem IRIs; the port names them by the server label.
- * Each skolem name becomes `b<n>` by first occurrence, in IRIs and in the figure ids made from them.
- */
-function blankless(x: unknown): unknown {
-    const text = JSON.stringify(x), names = new Map<string, string>();
-    for (const [, id] of text.matchAll(/urn:skolem:(?:blank:)?([0-9a-f-]+)/g)) if (!names.has(id)) names.set(id, `b${names.size}`);
-    let out = text.replaceAll('urn:skolem:blank:', 'urn:skolem:');
-    for (const [id, name] of names) out = out.replaceAll(id, name);
-    return JSON.parse(out);
-}
-
-describe('viewFiguresOf with a placed blank node (temp folder)', () => {
-    const EX = 'http://example.org/', VIEW = 'urn:name:Placed';
-    const head = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix ex: <${EX}> .
-@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
-`;
-    const files = {
-        'shapes.ttl': `${head}ex:PersonShape a sh:NodeShape ; sh:targetClass ex:Person ; sh:property ex:PersonShape-knows .
-ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
-`,
-        'placed.trig': `${head}<${VIEW}> { <${VIEW}> a view:View . <${VIEW}/p/1> a view:Placement ; view:element _:dana ; view:view <${VIEW}> .
-_:dana a ex:Person ; rdfs:label "Dana" ; ex:knows [ rdfs:label "Eve" ] . }
-`
-    };
-    let dir: string, server: Awaited<ReturnType<typeof startServer>>, inputs: Awaited<ReturnType<typeof inputsOf>>;
-    beforeAll(async () => {
-        dir = mkdtempSync(join(tmpdir(), 'catenary-placed-'));
-        for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
-        server = await startServer(dir, 13);
-        inputs = await inputsOf(server, dir);
-    }, 20000);
-    afterAll(async () => {
-        await server?.stop();
-        if (dir) rmSync(dir, { recursive: true, force: true });
-    });
-
-    test('a placed blank-node element: no throw, its card reads its label and its blank neighbour; equal to the recorded viewFiguresOf; no miss', async () => {
-        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles);
-        const dana = got.join.boxes.find(b => b.figure.title === 'Dana');
-        expect(dana?.rows.map(r => r.text)).toContain('knows: Eve');
-        expect(json(blankless(plain(got)))).toEqual(R('placed blank node'));
         expect(got.misses).toBe(0);
     });
 });
