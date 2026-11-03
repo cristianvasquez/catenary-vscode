@@ -1,5 +1,6 @@
 // Kata dxwx: the pickers from turtle/query (fork binary over stdio) equal model/choices.ts of the old pipeline on test/fixtures/shapes.
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { iriId } from '../src/catenary/model/ids';
@@ -73,5 +74,25 @@ describe('pickers on test/fixtures/shapes', () => {
         for (const text of ['Animal Farm', 'George Orwell', 'urn:name:Animal%20Farm', 'nothing', ...labels.values()]) {
             expect((await instancesNamed(ctx, text)).sort()).toEqual(old.instancesNamed(graph, text).sort());
         }
+    });
+});
+
+describe('the insert picker candidates', () => {
+    let folder: string, server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
+    beforeAll(async () => {
+        folder = mkdtempSync(join(tmpdir(), 'catenary-dxwx-'));
+        // A SKOS concept whose statements are all in the shapes closure (an sh: predicate), and an instance.
+        writeFileSync(join(folder, 'vocabulary.ttl'), `@prefix skos: <http://www.w3.org/2004/02/skos/core#> . @prefix sh: <http://www.w3.org/ns/shacl#> .
+<urn:x:c> a skos:Concept ; sh:order 1 ; skos:prefLabel "Concept C" .
+<urn:x:i> a <urn:x:T> ; <http://www.w3.org/2000/01/rdf-schema#label> "Instance I" .
+`);
+        server = await startServer(folder, 5);
+        ctx = (await modelContextOf(server.port(), [join(folder, 'vocabulary.ttl')])).ctx;
+    }, 20000);
+    afterAll(async () => { await server?.stop(); rmSync(folder, { recursive: true, force: true }); });
+
+    test('a SKOS subject of the shapes only: not an instance of the model, a candidate of the insert picker with its label', async () => {
+        expect([...await instanceLabels(ctx)]).toEqual([['urn:x:i', 'Instance I']]);
+        expect([...await instanceLabels(ctx, { vocabulary: true })]).toEqual([['urn:x:c', 'Concept C'], ['urn:x:i', 'Instance I']]);
     });
 });

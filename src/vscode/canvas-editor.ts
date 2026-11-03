@@ -96,7 +96,7 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
 
     /**
      * One quick pick, one store command and one VS Code undo step. No canvas position supplied: fixed point (300, 300). The candidates come
-     * from turtle/query: the node shapes of the shapes model and the instances of the model files (instanceLabels), by kind.
+     * from turtle/query: the node shapes of the shapes model and the instances of the model files with the SKOS subjects of the shapes (instanceLabels), by kind.
      */
     async insertElement(): Promise<void> {
         const entry = [...this.panels].find(([panel]) => panel.active);
@@ -105,7 +105,7 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
         if (!model || !ctx || !open) return;
         const view = readView(open.store.graph, iriId(open.iri)).views[iriId(open.iri)];
         const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
-        const [labels, viewLabels] = await Promise.all([instanceLabels(ctx), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+        const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
         const { types } = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), labels.keys());
         const items: (vscode.QuickPickItem & { id: string })[] = [];
         for (const shape of Object.values(ctx.shapes.index.model.nodeShapes)) {

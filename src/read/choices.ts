@@ -42,8 +42,9 @@ async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query
 /**
  * IRI → label of each instance of the model, sorted by IRI (instanceLabels of model/choices.ts): a subject with rdf:type or rdfs:label outside
  * the shapes of its document, or a SKOS subject of the shapes that has a statement outside the shapes. The label by the manifest language.
+ * `vocabulary` (the insert picker): also every SKOS subject of the shapes, labelled from its shapes statements when it has none outside.
  */
-export async function instanceLabels(ctx: ModelContext): Promise<Map<string, string>> {
+export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: boolean } = {}): Promise<Map<string, string>> {
     const inShapes = inShapesOf(ctx.shapes);
     const rows = ctx.modelFiles.length ? legacyRows(await ctx.port.select(INSTANCE_ROWS, ctx.modelFiles)) : [];
     const modelRows = rows.filter(r => !inShapes(r.g.value, r.s));
@@ -54,9 +55,11 @@ export async function instanceLabels(ctx: ModelContext): Promise<Map<string, str
     const open = [...vocabulary].filter(s => !instances.has(s) && !inUnion.has(s));
     for (const r of await rowsOf(ctx, 's', open, clause => `SELECT DISTINCT ?g ?s WHERE { GRAPH ?g { ?s ?p ?o } ${clause} }`)) if (!inShapes(r.g.value, r.s)) inUnion.add(r.s.value);
     for (const s of vocabulary) if (inUnion.has(s)) instances.add(s);
+    const shapesOnly = options.vocabulary ? new Set([...vocabulary].filter(s => !instances.has(s))) : new Set<string>();
+    for (const s of shapesOnly) instances.add(s);
     instances.delete(UNION_GRAPH);
     const objects = new Map<string, Map<string, Term[]>>();
-    for (const r of modelRows) {
+    for (const r of [...modelRows, ...rows.filter(r => shapesOnly.has(r.s.value))]) {
         const bySubject = objects.get(r.s.value) ?? objects.set(r.s.value, new Map()).get(r.s.value)!;
         (bySubject.get(r.p.value) ?? bySubject.set(r.p.value, []).get(r.p.value)!).push(r.o);
     }
