@@ -8,7 +8,7 @@ import { graphOf } from '../src/model/graph-input';
 import type { TurtleApi } from '../src/node/turtle-api';
 
 /** The listeners of onDidChangeTextDocument, and the files that findFiles gives. */
-const host = vi.hoisted(() => ({ changes: [] as ((e: TextDocumentChangeEvent) => void)[], files: [] as string[] }));
+const host = vi.hoisted(() => ({ changes: [] as ((e: TextDocumentChangeEvent) => void)[], files: [] as string[], folder: undefined as unknown }));
 
 vi.mock('../src/node/glsp/server', () => ({ createCanvasServer: vi.fn() }));
 vi.mock('@eclipse-glsp/vscode-integration', () => ({ GlspVscodeConnector: class {}, WebviewEndpoint: class {} }));
@@ -21,7 +21,8 @@ vi.mock('vscode', () => {
             createFileSystemWatcher: () => ({ dispose() {}, onDidChange: disposable, onDidCreate: disposable, onDidDelete: disposable }),
             onDidSaveTextDocument: disposable,
             onDidChangeTextDocument: (listener: (e: TextDocumentChangeEvent) => void) => { host.changes.push(listener); return disposable(); },
-            findFiles: async () => host.files.map(fsPath => ({ fsPath }))
+            findFiles: async () => host.files.map(fsPath => ({ fsPath })),
+            getWorkspaceFolder: () => host.folder
         },
         languages: { onDidChangeDiagnostics: disposable, getDiagnostics: () => [] }
     };
@@ -116,7 +117,8 @@ test('a refresh over the port reads the view files, the shapes and the diagram; 
         idle: async () => {}
     };
     host.files = ['instances', 'model'].map(f => join(FIXTURE, `${f}.trig`));
-    const model = new WorkspaceModel({ name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder, () => api, () => undefined);
+    const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(folder, () => api, () => undefined);
     try {
         await model.refresh();
         expect(model.error).toBeUndefined();
@@ -130,13 +132,17 @@ test('a refresh over the port reads the view files, the shapes and the diagram; 
         const schedule = vi.spyOn(model as unknown as { schedule(): void }, 'schedule').mockImplementation(() => undefined);
         const change = (fsPath: string) => host.changes.at(-1)!({ document: { uri: { fsPath } }, contentChanges: [{}] } as unknown as TextDocumentChangeEvent);
         change(join(FIXTURE, 'data.ttl'));
+        // A new empty model document is in no list yet; a view file and a file that is not RDF do not refresh the model.
+        change(join(FIXTURE, 'new.ttl'));
         change(host.files[0]);
-        expect(schedule).toHaveBeenCalledOnce();
+        change(join(FIXTURE, 'readme.md'));
+        expect(schedule).toHaveBeenCalledTimes(2);
         await model.refresh();
         expect(model.generation).toBe(2);
     } finally {
         model.dispose();
         host.files = [];
+        host.folder = undefined;
         await server.stop();
     }
 }, 20000);

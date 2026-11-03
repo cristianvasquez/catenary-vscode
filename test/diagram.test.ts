@@ -49,6 +49,15 @@ describe('the old pipeline as oracle', () => {
         const before = JSON.stringify(oldDiagramOf(live, iri));
         expect(JSON.stringify((await diagramOf(ctx, iri)).schema)).toBe(before);
     });
+
+    test('the context reads its documents only: a view file of another folder is not drawn', async () => {
+        const others = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f) && f !== 'instances.trig').sort().map(f => join(FIXTURE, f));
+        const { ctx: without } = await modelContextOf(server.port(), others);
+        expect((await diagramOf(without, instancesIri)).schema).toEqual({ type: 'graph', id: 'root', children: [] });
+        // The model view keeps its shapes; its reference to the instances view (and the arrow to it) is gone with that view.
+        const shapes = (elements: ElementSchema[]) => elements.filter(e => e.type === 'node:shape').map(e => e.id);
+        expect(shapes((await diagramOf(without, modelIri)).schema.children!)).toEqual(shapes(model));
+    });
 });
 
 describe('Bookshop model', () => {

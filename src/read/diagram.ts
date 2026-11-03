@@ -26,11 +26,21 @@ export interface ModelContext {
     manifest: ManifestRecords;
 }
 
+/** `port` with the queries without `files` restricted to `documents`: the port of the window answers for every folder (multi-root). */
+function scopedPort(port: ModelPort, documents: string[]): ModelPort {
+    return {
+        select: (query, files) => port.select(query, files ?? documents),
+        construct: (query, files) => port.construct(query, files ?? documents),
+        ask: (query, files) => port.ask(query, files ?? documents),
+    };
+}
+
 /**
  * The context of the RDF `documents` of a folder (file paths), and its view files: the view files among the `.trig` documents (viewFilesOf),
- * the manifest and the shapes model of the other documents. `modelFiles` = `shapes.files`.
+ * the manifest and the shapes model of the other documents. `modelFiles` = `shapes.files`. The context port reads `documents` only.
  */
-export async function modelContextOf(port: ModelPort, documents: string[]): Promise<{ ctx: ModelContext; viewFiles: ViewFiles }> {
+export async function modelContextOf(window: ModelPort, documents: string[]): Promise<{ ctx: ModelContext; viewFiles: ViewFiles }> {
+    const port = scopedPort(window, documents);
     const viewFiles = await viewFilesOf(port, documents.filter(f => f.endsWith('.trig')));
     const files = modelFilesOf(documents, viewFiles), manifest = await manifestOf(port, files);
     const shapes = await shapesModelOf(port, files, manifest);

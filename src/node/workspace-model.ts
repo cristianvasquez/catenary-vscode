@@ -15,6 +15,8 @@ export type { OpenView } from '../model/workspace-core';
 
 /** Candidate view files: a .trig file is a view when it has a view:View (isViewFile). */
 const VIEW_FILES = '**/*.trig';
+/** The RDF documents whose text changes refresh the model (turtle-lsp: Turtle and TriG). */
+const MODEL_DOCUMENT = /\.(ttl|trig)$/;
 /** Ask again this long after the last change. */
 const REFRESH_MS = 300;
 
@@ -37,10 +39,12 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
             vscode.workspace.onDidSaveTextDocument(doc => {
                 if (!isViewFile(doc.uri.fsPath, doc.getText()) && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
             }),
-            // turtle-lsp reads the open buffer of a model document: the next query sees the change before a save.
+            // turtle-lsp reads the open buffer of a model document: the next query sees the change before a save. Any RDF document of the
+            // folder that is not a view file (an empty new file is in no list yet).
             vscode.workspace.onDidChangeTextDocument(e => {
                 const file = e.document.uri.fsPath;
-                if (e.contentChanges.length && (this.modelFiles.includes(file) || file === this.manifest.file)) schedule();
+                if (e.contentChanges.length && MODEL_DOCUMENT.test(file) && vscode.workspace.getWorkspaceFolder(e.document.uri) === folder
+                    && ![...this.viewFiles.values()].includes(file)) schedule();
             }),
             vscode.languages.onDidChangeDiagnostics(e => {
                 if (e.uris.some(uri => vscode.workspace.getWorkspaceFolder(uri) === folder)) void this.readDiagnostics().then(() => this.fire());
