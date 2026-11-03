@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catenary</title>
+<meta name="description" content="Draw diagrams of RDF, OWL, SHACL and SKOS models with Catenary and turtle-lsp running in this tab. Nothing is uploaded.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%23005fb8%22/%3E%3Cpath d=%22M6 10h8v6H6zM18 18h8v6h-8zM14 13c4 0 4 8 4 8%22 stroke=%22white%22 fill=%22none%22 stroke-width=%222%22/%3E%3C/svg%3E">
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="main.css">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="main.js"></script>
+</head>
+<body>
+<header>
+  <strong>Catenary</strong>
+  <span class="tagline">RDF, SHACL and SKOS diagrams · runs in this tab, nothing is uploaded</span>
+  <span class="spacer"></span>
+  <button id="new-file" title="Create a file"><span class="codicon codicon-new-file"></span> File</button>
+  <button id="new-view" title="Create a view file"><span class="codicon codicon-type-hierarchy"></span> View</button>
+  <button id="download" title="Download the files as a ZIP archive"><span class="codicon codicon-desktop-download"></span> Download</button>
+  <button id="reset" title="Replace all files with the samples"><span class="codicon codicon-discard"></span> Samples</button>
+</header>
+<main>
+  <aside><div class="heading">Files</div><div id="files"></div></aside>
+  <section id="editor-area">
+    <div id="tabs"></div>
+    <div id="panes">
+      <div id="empty">Open a file. A <code>*.view.trig</code> file opens in the canvas.</div>
+      <div id="text-pane" hidden>
+        <div id="text-toolbar"><button id="open-canvas" hidden><span class="codicon codicon-type-hierarchy"></span> Open in Canvas</button></div>
+        <div id="monaco"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer><span id="status"></span><span class="spacer"></span><a href="https://github.com/abhishekkundu25/turtle-lsp">turtle-lsp</a> (MIT) · <a href="LICENSE">AGPL-3.0</a></footer>
+<dialog id="picker"><input type="text" autocomplete="off"><ul></ul><button>OK</button></dialog>
+<div id="toasts"></div>
+</body>
+</html>

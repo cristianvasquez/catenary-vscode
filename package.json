@@ -1,0 +1,207 @@
+{
+  "name": "catenary",
+  "displayName": "Catenary: RDF, SHACL & SKOS Diagrams",
+  "description": "Draw and edit diagrams of RDF, OWL, SHACL and SKOS models from Turtle files. View files in TriG, export to Markdown with SVG. Uses the Turtle RDF language server.",
+  "version": "0.0.1",
+  "publisher": "cvasquezpaulus",
+  "license": "AGPL-3.0-or-later",
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "rdf",
+    "turtle",
+    "ttl",
+    "trig",
+    "shacl",
+    "skos",
+    "owl",
+    "ontology",
+    "diagram",
+    "visualization",
+    "class diagram",
+    "knowledge graph",
+    "linked data",
+    "semantic web",
+    "uml"
+  ],
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "engines": {
+    "vscode": "^1.101.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCustomEditor:catenary.view"
+  ],
+  "extensionDependencies": [
+    "abhishekkundu25.turtle-language-server"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "Catenary",
+      "properties": {
+        "catenary.cardFontSize": {
+          "type": "number",
+          "default": 40,
+          "minimum": 8,
+          "maximum": 72,
+          "description": "Card text size in canvas units."
+        },
+        "catenary.groupFontSize": {
+          "type": "number",
+          "default": 47,
+          "minimum": 8,
+          "maximum": 72,
+          "description": "Group title size in canvas units."
+        },
+        "catenary.noteFontSize": {
+          "type": "number",
+          "default": 40,
+          "minimum": 8,
+          "maximum": 72,
+          "description": "Note text size in canvas units."
+        },
+        "catenary.edgeStyle": {
+          "type": "string",
+          "enum": [
+            "direct",
+            "curved"
+          ],
+          "default": "curved",
+          "description": "Edge route style."
+        },
+        "catenary.vocabularyColor": {
+          "type": "string",
+          "enum": [
+            "name",
+            "prefix",
+            "off"
+          ],
+          "default": "name",
+          "description": "Vocabulary color on path labels."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "catenary.openCanvas",
+        "title": "Catenary: Open in Canvas",
+        "icon": "$(type-hierarchy-sub)"
+      },
+      {
+        "command": "catenary.insertElement",
+        "title": "Catenary: Insert Element…",
+        "icon": "$(add)",
+        "enablement": "activeCustomEditorId == catenary.view"
+      },
+      {
+        "command": "catenary.insertView",
+        "title": "Catenary: Insert View…",
+        "enablement": "editorLangId == markdown"
+      },
+      {
+        "command": "catenary.exportMarkdown",
+        "title": "Catenary: Export Markdown…"
+      },
+      {
+        "command": "catenary.newView",
+        "title": "Catenary: New View…",
+        "enablement": "workspaceFolderCount > 0"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "catenary.insertElement",
+          "when": "activeCustomEditorId == catenary.view",
+          "group": "navigation"
+        },
+        {
+          "command": "catenary.openCanvas",
+          "when": "resourceFilename =~ /\\.view\\.trig$/ && activeEditor == workbench.editors.files.textFileEditor",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "catenary.insertView",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "catenary.exportMarkdown",
+          "when": "editorLangId == markdown"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "catenary.newView",
+          "group": "navigation@9"
+        },
+        {
+          "command": "catenary.exportMarkdown",
+          "when": "resourceExtname == .md || resourceExtname == .markdown || explorerResourceIsFolder"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "catenary.view",
+        "displayName": "Catenary View",
+        "selector": [
+          {
+            "filenamePattern": "*.view.trig"
+          }
+        ],
+        "priority": "default"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm build",
+    "build": "node scripts/build.mjs",
+    "test": "vitest run",
+    "verify": "tsc --noEmit && knip && pnpm test && ! grep -rn \"ui-manifest\\|ADR [0-9]\\|claude-attempt\\|law_\" src",
+    "ui": "node test/ui/run.mjs",
+    "ui:markdown": "node test/ui/markdown.mjs",
+    "package": "vsce package --no-dependencies",
+    "web:build": "node scripts/build-web.mjs",
+    "web:serve": "node scripts/serve-static.mjs",
+    "web:ui": "node test/ui/web.mjs"
+  },
+  "dependencies": {
+    "@eclipse-glsp/client": "2.8.0",
+    "@eclipse-glsp/protocol": "2.8.0",
+    "@eclipse-glsp/server": "2.8.0",
+    "@eclipse-glsp/vscode-integration": "2.8.0",
+    "@eclipse-glsp/vscode-integration-webview": "2.8.0",
+    "@rdfjs/types": "^2.0.1",
+    "@vscode/codicons": "0.0.44",
+    "canonical-md": "^0.4.1",
+    "elkjs": "^0.11.1",
+    "inversify": "6.2.2",
+    "markdown-it": "^14.3.3",
+    "oxigraph": "^0.5.0",
+    "rdf-ext": "^2.6.0",
+    "reflect-metadata": "^0.2.2",
+    "snabbdom": "^3.5.1",
+    "vscode-messenger-common": "0.4.5",
+    "webcola": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "~1.101.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "^4.1.0",
+    "esbuild": "^0.25.0",
+    "knip": "^6.44.1",
+    "monaco-editor": "0.52.2",
+    "path-browserify": "1.0.1",
+    "playwright-core": "1.64.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.4",
+    "vscode-jsonrpc": "8.2.0"
+  }
+}

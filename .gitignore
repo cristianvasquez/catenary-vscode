@@ -1,0 +1,10 @@
+# roborev snapshots
+/.roborev/
+.kata.local.toml
+node_modules/
+dist/
+.cache/
+.vscode-test/
+test/ui/out/
+*.vsix
+dist-web/

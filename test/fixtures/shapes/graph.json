@@ -1,0 +1,7616 @@
+{
+ "params": {
+  "literals": true,
+  "types": true,
+  "maxNodes": 20000,
+  "namespaces": {
+   "exclude": [
+    "https://cristianvasquez.github.io/catenary/vocab/view#"
+   ]
+  }
+ },
+ "result": {
+  "edges": [
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 9,
+    "target": 70,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "ex:name",
+    "predicate": "urn:example:bookshop:name",
+    "source": 9,
+    "target": 172,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 9,
+    "target": 173,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/city>",
+    "predicate": "http://www.example.org/city",
+    "source": 9,
+    "target": 34,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/stocks>",
+    "predicate": "http://www.example.org/stocks",
+    "source": 9,
+    "target": 19,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/stocks>",
+    "predicate": "http://www.example.org/stocks",
+    "source": 9,
+    "target": 33,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/stocks>",
+    "predicate": "http://www.example.org/stocks",
+    "source": 9,
+    "target": 18,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 18,
+    "target": 39,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 18,
+    "target": 157,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/author>",
+    "predicate": "http://www.example.org/author",
+    "source": 18,
+    "target": 32,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/publicationYear>",
+    "predicate": "http://www.example.org/publicationYear",
+    "source": 18,
+    "target": 99,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 33,
+    "target": 39,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 33,
+    "target": 174,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/author>",
+    "predicate": "http://www.example.org/author",
+    "source": 33,
+    "target": 17,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/publicationYear>",
+    "predicate": "http://www.example.org/publicationYear",
+    "source": 33,
+    "target": 102,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 19,
+    "target": 39,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 19,
+    "target": 158,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/author>",
+    "predicate": "http://www.example.org/author",
+    "source": 19,
+    "target": 17,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/publicationYear>",
+    "predicate": "http://www.example.org/publicationYear",
+    "source": 19,
+    "target": 101,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 32,
+    "target": 64,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 32,
+    "target": 170,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "ex:name",
+    "predicate": "urn:example:bookshop:name",
+    "source": 32,
+    "target": 171,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/birthDate>",
+    "predicate": "http://www.example.org/birthDate",
+    "source": 32,
+    "target": 98,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 17,
+    "target": 64,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 17,
+    "target": 168,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "ex:name",
+    "predicate": "urn:example:bookshop:name",
+    "source": 17,
+    "target": 169,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "<http://www.example.org/birthDate>",
+    "predicate": "http://www.example.org/birthDate",
+    "source": 17,
+    "target": 100,
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 3,
+    "target": 161,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:arrow",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#arrow",
+    "source": 65,
+    "target": 2,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:text",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#text",
+    "source": 65,
+    "target": 156,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 247,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 20,
+    "target": 2,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 20,
+    "target": 109,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 20,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 20,
+    "target": 125,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 20,
+    "target": 91,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 20,
+    "target": 122,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 21,
+    "target": 10,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 21,
+    "target": 110,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 21,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 21,
+    "target": 129,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 21,
+    "target": 95,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 21,
+    "target": 77,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 22,
+    "target": 14,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 22,
+    "target": 111,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 22,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 22,
+    "target": 130,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 22,
+    "target": 75,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 22,
+    "target": 82,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 23,
+    "target": 35,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 23,
+    "target": 112,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 23,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 23,
+    "target": 138,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 23,
+    "target": 147,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 23,
+    "target": 83,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 71,
+    "target": 4,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 71,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 72,
+    "target": 15,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 72,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:color",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#color",
+    "source": 11,
+    "target": 140,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 11,
+    "target": 6,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 11,
+    "target": 113,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 11,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 11,
+    "target": 131,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 11,
+    "target": 148,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 11,
+    "target": 78,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 73,
+    "target": 7,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 73,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 12,
+    "target": 37,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 12,
+    "target": 96,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:keptByLines",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#keptByLines",
+    "source": 12,
+    "target": 228,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 12,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 12,
+    "target": 146,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 12,
+    "target": 149,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 12,
+    "target": 74,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:color",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#color",
+    "source": 13,
+    "target": 123,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 13,
+    "target": 65,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 13,
+    "target": 126,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 13,
+    "target": 3,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 13,
+    "target": 142,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 13,
+    "target": 139,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 13,
+    "target": 145,
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "name": "rdfs:label",
+    "predicate": "http://www.w3.org/2000/01/rdf-schema#label",
+    "source": 2,
+    "target": 162,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:arrow",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#arrow",
+    "source": 66,
+    "target": 3,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:text",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#text",
+    "source": 66,
+    "target": 167,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 24,
+    "target": 33,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 24,
+    "target": 118,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 24,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 24,
+    "target": 137,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 24,
+    "target": 92,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 24,
+    "target": 107,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 248,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 249,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 25,
+    "target": 17,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 25,
+    "target": 114,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 25,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 25,
+    "target": 132,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 25,
+    "target": 105,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 25,
+    "target": 144,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 26,
+    "target": 34,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 26,
+    "target": 115,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 26,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 26,
+    "target": 133,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 26,
+    "target": 103,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 26,
+    "target": 151,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 250,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 251,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 252,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 27,
+    "target": 3,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 27,
+    "target": 116,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 27,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 27,
+    "target": 127,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 27,
+    "target": 152,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 27,
+    "target": 81,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:color",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#color",
+    "source": 16,
+    "target": 124,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 16,
+    "target": 66,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 16,
+    "target": 128,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 16,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 16,
+    "target": 143,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 16,
+    "target": 106,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 16,
+    "target": 80,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 28,
+    "target": 32,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 28,
+    "target": 117,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 28,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 28,
+    "target": 134,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 28,
+    "target": 104,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 28,
+    "target": 76,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 253,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 254,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 29,
+    "target": 18,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 29,
+    "target": 119,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 29,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 29,
+    "target": 135,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 29,
+    "target": 94,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 29,
+    "target": 79,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 255,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 30,
+    "target": 19,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 30,
+    "target": 120,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 30,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 30,
+    "target": 136,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 30,
+    "target": 93,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 30,
+    "target": 150,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:element",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+    "source": 31,
+    "target": 9,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:height",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+    "source": 31,
+    "target": 121,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:view",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+    "source": 31,
+    "target": 2,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:width",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+    "source": 31,
+    "target": 141,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:x",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+    "source": 31,
+    "target": 97,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "view:y",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+    "source": 31,
+    "target": 108,
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 7,
+    "target": 36,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 7,
+    "target": 181,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:node",
+    "predicate": "http://www.w3.org/ns/shacl#node",
+    "source": 7,
+    "target": 10,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:path",
+    "predicate": "http://www.w3.org/ns/shacl#path",
+    "source": 7,
+    "target": 236,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 7,
+    "target": 166,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:minCount",
+    "predicate": "http://www.w3.org/ns/shacl#minCount",
+    "source": 7,
+    "target": 90,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 15,
+    "target": 36,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 15,
+    "target": 226,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:node",
+    "predicate": "http://www.w3.org/ns/shacl#node",
+    "source": 15,
+    "target": 6,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:path",
+    "predicate": "http://www.w3.org/ns/shacl#path",
+    "source": 15,
+    "target": 240,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 15,
+    "target": 178,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 4,
+    "target": 36,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 4,
+    "target": 183,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:maxCount",
+    "predicate": "http://www.w3.org/ns/shacl#maxCount",
+    "source": 4,
+    "target": 84,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:minCount",
+    "predicate": "http://www.w3.org/ns/shacl#minCount",
+    "source": 4,
+    "target": 85,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:path",
+    "predicate": "http://www.w3.org/ns/shacl#path",
+    "source": 4,
+    "target": 238,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 4,
+    "target": 164,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:node",
+    "predicate": "http://www.w3.org/ns/shacl#node",
+    "source": 4,
+    "target": 37,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:nodeKind",
+    "predicate": "http://www.w3.org/ns/shacl#nodeKind",
+    "source": 4,
+    "target": 245,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 8,
+    "target": 36,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 8,
+    "target": 220,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:maxCount",
+    "predicate": "http://www.w3.org/ns/shacl#maxCount",
+    "source": 8,
+    "target": 86,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:minCount",
+    "predicate": "http://www.w3.org/ns/shacl#minCount",
+    "source": 8,
+    "target": 87,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:datatype",
+    "predicate": "http://www.w3.org/ns/shacl#datatype",
+    "source": 8,
+    "target": 243,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:path",
+    "predicate": "http://www.w3.org/ns/shacl#path",
+    "source": 8,
+    "target": 239,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 8,
+    "target": 179,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 5,
+    "target": 36,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 5,
+    "target": 182,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:maxCount",
+    "predicate": "http://www.w3.org/ns/shacl#maxCount",
+    "source": 5,
+    "target": 88,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:minCount",
+    "predicate": "http://www.w3.org/ns/shacl#minCount",
+    "source": 5,
+    "target": 89,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:datatype",
+    "predicate": "http://www.w3.org/ns/shacl#datatype",
+    "source": 5,
+    "target": 242,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:path",
+    "predicate": "http://www.w3.org/ns/shacl#path",
+    "source": 5,
+    "target": 237,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 5,
+    "target": 165,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 10,
+    "target": 38,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 10,
+    "target": 159,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:property",
+    "predicate": "http://www.w3.org/ns/shacl#property",
+    "source": 10,
+    "target": 5,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 10,
+    "target": 154,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:targetClass",
+    "predicate": "http://www.w3.org/ns/shacl#targetClass",
+    "source": 10,
+    "target": 64,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 6,
+    "target": 38,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 6,
+    "target": 160,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:property",
+    "predicate": "http://www.w3.org/ns/shacl#property",
+    "source": 6,
+    "target": 8,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:property",
+    "predicate": "http://www.w3.org/ns/shacl#property",
+    "source": 6,
+    "target": 7,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 6,
+    "target": 153,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:targetClass",
+    "predicate": "http://www.w3.org/ns/shacl#targetClass",
+    "source": 6,
+    "target": 39,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 14,
+    "target": 38,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:name",
+    "predicate": "http://www.w3.org/ns/shacl#name",
+    "source": 14,
+    "target": 175,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:property",
+    "predicate": "http://www.w3.org/ns/shacl#property",
+    "source": 14,
+    "target": 4,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:property",
+    "predicate": "http://www.w3.org/ns/shacl#property",
+    "source": 14,
+    "target": 15,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:description",
+    "predicate": "http://www.w3.org/ns/shacl#description",
+    "source": 14,
+    "target": 155,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:targetClass",
+    "predicate": "http://www.w3.org/ns/shacl#targetClass",
+    "source": 14,
+    "target": 70,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 37,
+    "target": 38,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "sh:in",
+    "predicate": "http://www.w3.org/ns/shacl#in",
+    "source": 37,
+    "target": 67,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "dct:source",
+    "predicate": "http://purl.org/dc/terms/source",
+    "source": 37,
+    "target": 35,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:rest",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest",
+    "source": 68,
+    "target": 241,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:first",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#first",
+    "source": 68,
+    "target": 40,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:rest",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest",
+    "source": 67,
+    "target": 68,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:first",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#first",
+    "source": 67,
+    "target": 34,
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 35,
+    "target": 244,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "skos:prefLabel",
+    "predicate": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "source": 35,
+    "target": 163,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "skos:member",
+    "predicate": "http://www.w3.org/2004/02/skos/core#member",
+    "source": 35,
+    "target": 34,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "skos:member",
+    "predicate": "http://www.w3.org/2004/02/skos/core#member",
+    "source": 35,
+    "target": 40,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 34,
+    "target": 69,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "skos:prefLabel",
+    "predicate": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "source": 34,
+    "target": 176,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 40,
+    "target": 69,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "skos:prefLabel",
+    "predicate": "http://www.w3.org/2004/02/skos/core#prefLabel",
+    "source": 40,
+    "target": 177,
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 0,
+    "target": 246,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 41,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 42,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 43,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 44,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 45,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 46,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 47,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 48,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 49,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 50,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 51,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 52,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 53,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 54,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 55,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 56,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 57,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 58,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 59,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 60,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 61,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 62,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:declare",
+    "predicate": "http://www.w3.org/ns/shacl#declare",
+    "source": 0,
+    "target": 63,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "ws:defaultFile",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/workspace#defaultFile",
+    "source": 0,
+    "target": 184,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "ws:placeConcepts",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeConcepts",
+    "source": 0,
+    "target": 233,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "ws:placeInstances",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeInstances",
+    "source": 0,
+    "target": 185,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "ws:placeShapes",
+    "predicate": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeShapes",
+    "source": 0,
+    "target": 232,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 41,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 41,
+    "target": 202,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 41,
+    "target": 180,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 42,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 42,
+    "target": 203,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 42,
+    "target": 186,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 43,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 43,
+    "target": 192,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 43,
+    "target": 187,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 44,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 44,
+    "target": 217,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 44,
+    "target": 188,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 45,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 45,
+    "target": 212,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 45,
+    "target": 189,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 46,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 46,
+    "target": 194,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 46,
+    "target": 190,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 47,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 47,
+    "target": 209,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 47,
+    "target": 191,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 48,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 48,
+    "target": 204,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 48,
+    "target": 214,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 49,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 49,
+    "target": 205,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 49,
+    "target": 215,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 50,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 50,
+    "target": 206,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 50,
+    "target": 216,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 51,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 51,
+    "target": 198,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 51,
+    "target": 218,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 52,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 52,
+    "target": 207,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 52,
+    "target": 219,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 53,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 53,
+    "target": 195,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 53,
+    "target": 221,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 54,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 54,
+    "target": 196,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 54,
+    "target": 222,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 55,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 55,
+    "target": 213,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 55,
+    "target": 223,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 56,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 56,
+    "target": 208,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 56,
+    "target": 224,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 57,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 57,
+    "target": 199,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 57,
+    "target": 225,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 58,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 58,
+    "target": 200,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 58,
+    "target": 227,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 59,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 59,
+    "target": 193,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 59,
+    "target": 229,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 60,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 60,
+    "target": 201,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 60,
+    "target": 230,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 61,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 61,
+    "target": 210,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 61,
+    "target": 231,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 62,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 62,
+    "target": 211,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 62,
+    "target": 234,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "rdf:type",
+    "predicate": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+    "source": 63,
+    "target": 1,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:namespace",
+    "predicate": "http://www.w3.org/ns/shacl#namespace",
+    "source": 63,
+    "target": 197,
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "name": "sh:prefix",
+    "predicate": "http://www.w3.org/ns/shacl#prefix",
+    "source": 63,
+    "target": 235,
+    "uri": "file:///w/workspace.trig"
+   }
+  ],
+  "facets": {
+   "files": [
+    {
+     "nodes": 24,
+     "uri": "file:///w/data.ttl"
+    },
+    {
+     "nodes": 58,
+     "uri": "file:///w/views/bookshop-model.view.trig"
+    },
+    {
+     "nodes": 69,
+     "uri": "file:///w/views/bookshop.view.trig"
+    },
+    {
+     "nodes": 51,
+     "uri": "file:///w/workspace.shapes.ttl"
+    },
+    {
+     "nodes": 8,
+     "uri": "file:///w/workspace.skos.ttl"
+    },
+    {
+     "nodes": 76,
+     "uri": "file:///w/workspace.trig"
+    }
+   ],
+   "namespaces": [
+    {
+     "iri": "urn:name:",
+     "nodes": 46,
+     "prefix": null
+    },
+    {
+     "iri": "urn:name:Bookshop/p/",
+     "nodes": 17,
+     "prefix": null
+    },
+    {
+     "iri": "urn:name:Bookshop%20model/p/",
+     "nodes": 11,
+     "prefix": null
+    },
+    {
+     "iri": "http://www.example.org/",
+     "nodes": 5,
+     "prefix": null
+    },
+    {
+     "iri": "http://www.w3.org/ns/shacl#",
+     "nodes": 4,
+     "prefix": "sh"
+    },
+    {
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#",
+     "nodes": 3,
+     "prefix": "view"
+    },
+    {
+     "iri": "urn:example:bookshop:",
+     "nodes": 3,
+     "prefix": "ex"
+    },
+    {
+     "iri": "http://www.w3.org/2001/XMLSchema#",
+     "nodes": 2,
+     "prefix": "xsd"
+    },
+    {
+     "iri": "http://www.w3.org/2004/02/skos/core#",
+     "nodes": 2,
+     "prefix": "skos"
+    },
+    {
+     "iri": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+     "nodes": 1,
+     "prefix": "rdf"
+    },
+    {
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/workspace#",
+     "nodes": 1,
+     "prefix": "ws"
+    },
+    {
+     "iri": "urn:name:Bookshop%20model/m/",
+     "nodes": 1,
+     "prefix": null
+    },
+    {
+     "iri": "urn:name:Bookshop/m/",
+     "nodes": 1,
+     "prefix": null
+    }
+   ],
+   "predicates": [
+    {
+     "edges": 74,
+     "iri": "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+     "name": "rdf:type"
+    },
+    {
+     "edges": 28,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#view",
+     "name": "view:view"
+    },
+    {
+     "edges": 23,
+     "iri": "http://www.w3.org/ns/shacl#declare",
+     "name": "sh:declare"
+    },
+    {
+     "edges": 23,
+     "iri": "http://www.w3.org/ns/shacl#namespace",
+     "name": "sh:namespace"
+    },
+    {
+     "edges": 23,
+     "iri": "http://www.w3.org/ns/shacl#prefix",
+     "name": "sh:prefix"
+    },
+    {
+     "edges": 19,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#element",
+     "name": "view:element"
+    },
+    {
+     "edges": 16,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#height",
+     "name": "view:height"
+    },
+    {
+     "edges": 16,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#width",
+     "name": "view:width"
+    },
+    {
+     "edges": 16,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#x",
+     "name": "view:x"
+    },
+    {
+     "edges": 16,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#y",
+     "name": "view:y"
+    },
+    {
+     "edges": 8,
+     "iri": "http://www.w3.org/2000/01/rdf-schema#label",
+     "name": "rdfs:label"
+    },
+    {
+     "edges": 8,
+     "iri": "http://www.w3.org/ns/shacl#description",
+     "name": "sh:description"
+    },
+    {
+     "edges": 8,
+     "iri": "http://www.w3.org/ns/shacl#name",
+     "name": "sh:name"
+    },
+    {
+     "edges": 5,
+     "iri": "http://www.w3.org/ns/shacl#path",
+     "name": "sh:path"
+    },
+    {
+     "edges": 5,
+     "iri": "http://www.w3.org/ns/shacl#property",
+     "name": "sh:property"
+    },
+    {
+     "edges": 4,
+     "iri": "http://www.w3.org/ns/shacl#minCount",
+     "name": "sh:minCount"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.example.org/author",
+     "name": "<http://www.example.org/author>"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.example.org/publicationYear",
+     "name": "<http://www.example.org/publicationYear>"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.example.org/stocks",
+     "name": "<http://www.example.org/stocks>"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.w3.org/2004/02/skos/core#prefLabel",
+     "name": "skos:prefLabel"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.w3.org/ns/shacl#maxCount",
+     "name": "sh:maxCount"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.w3.org/ns/shacl#node",
+     "name": "sh:node"
+    },
+    {
+     "edges": 3,
+     "iri": "http://www.w3.org/ns/shacl#targetClass",
+     "name": "sh:targetClass"
+    },
+    {
+     "edges": 3,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#color",
+     "name": "view:color"
+    },
+    {
+     "edges": 3,
+     "iri": "urn:example:bookshop:name",
+     "name": "ex:name"
+    },
+    {
+     "edges": 2,
+     "iri": "http://www.example.org/birthDate",
+     "name": "<http://www.example.org/birthDate>"
+    },
+    {
+     "edges": 2,
+     "iri": "http://www.w3.org/1999/02/22-rdf-syntax-ns#first",
+     "name": "rdf:first"
+    },
+    {
+     "edges": 2,
+     "iri": "http://www.w3.org/1999/02/22-rdf-syntax-ns#rest",
+     "name": "rdf:rest"
+    },
+    {
+     "edges": 2,
+     "iri": "http://www.w3.org/2004/02/skos/core#member",
+     "name": "skos:member"
+    },
+    {
+     "edges": 2,
+     "iri": "http://www.w3.org/ns/shacl#datatype",
+     "name": "sh:datatype"
+    },
+    {
+     "edges": 2,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#arrow",
+     "name": "view:arrow"
+    },
+    {
+     "edges": 2,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#text",
+     "name": "view:text"
+    },
+    {
+     "edges": 1,
+     "iri": "http://purl.org/dc/terms/source",
+     "name": "dct:source"
+    },
+    {
+     "edges": 1,
+     "iri": "http://www.example.org/city",
+     "name": "<http://www.example.org/city>"
+    },
+    {
+     "edges": 1,
+     "iri": "http://www.w3.org/ns/shacl#in",
+     "name": "sh:in"
+    },
+    {
+     "edges": 1,
+     "iri": "http://www.w3.org/ns/shacl#nodeKind",
+     "name": "sh:nodeKind"
+    },
+    {
+     "edges": 1,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/view#keptByLines",
+     "name": "view:keptByLines"
+    },
+    {
+     "edges": 1,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/workspace#defaultFile",
+     "name": "ws:defaultFile"
+    },
+    {
+     "edges": 1,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeConcepts",
+     "name": "ws:placeConcepts"
+    },
+    {
+     "edges": 1,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeInstances",
+     "name": "ws:placeInstances"
+    },
+    {
+     "edges": 1,
+     "iri": "https://cristianvasquez.github.io/catenary/vocab/workspace#placeShapes",
+     "name": "ws:placeShapes"
+    }
+   ]
+  },
+  "nodes": [
+   {
+    "id": "urn:name:workspace",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace>",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 24
+     },
+     "start": {
+      "character": 0,
+      "line": 24
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "http://www.w3.org/ns/shacl#PrefixDeclaration",
+    "kind": "class",
+    "label": "Prefix declaration",
+    "literal": false,
+    "name": "sh:PrefixDeclaration",
+    "range": {
+     "end": {
+      "character": 58,
+      "line": 55
+     },
+     "start": {
+      "character": 38,
+      "line": 55
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:Bookshop",
+    "kind": "individual",
+    "label": "Bookshop",
+    "literal": false,
+    "name": "<urn:name:Bookshop>",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 5
+     },
+     "start": {
+      "character": 0,
+      "line": 5
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model",
+    "kind": "individual",
+    "label": "Bookshop model",
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model>",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 4
+     },
+     "start": {
+      "character": 0,
+      "line": 4
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20shape-city",
+    "kind": "shape",
+    "label": "city",
+    "literal": false,
+    "name": "<urn:name:Bookshop%20shape-city>",
+    "range": {
+     "end": {
+      "character": 32,
+      "line": 21
+     },
+     "start": {
+      "character": 0,
+      "line": 21
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Author%20shape-birthDate",
+    "kind": "shape",
+    "label": "birth date",
+    "literal": false,
+    "name": "<urn:name:Author%20shape-birthDate>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 39
+     },
+     "start": {
+      "character": 0,
+      "line": 39
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Book%20shape",
+    "kind": "shape",
+    "label": "Book shape",
+    "literal": false,
+    "name": "<urn:name:Book%20shape>",
+    "range": {
+     "end": {
+      "character": 23,
+      "line": 53
+     },
+     "start": {
+      "character": 0,
+      "line": 53
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Book%20shape-author",
+    "kind": "shape",
+    "label": "author",
+    "literal": false,
+    "name": "<urn:name:Book%20shape-author>",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 7
+     },
+     "start": {
+      "character": 0,
+      "line": 7
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Book%20shape-publicationYear",
+    "kind": "shape",
+    "label": "publication year",
+    "literal": false,
+    "name": "<urn:name:Book%20shape-publicationYear>",
+    "range": {
+     "end": {
+      "character": 39,
+      "line": 30
+     },
+     "start": {
+      "character": 0,
+      "line": 30
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Wonderland%20Books%20(fictional)",
+    "kind": "individual",
+    "label": "Little corner Bookshop",
+    "literal": false,
+    "name": "<urn:name:Wonderland%20Books%20(fictional)>",
+    "range": {
+     "end": {
+      "character": 43,
+      "line": 4
+     },
+     "start": {
+      "character": 0,
+      "line": 4
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Author%20shape",
+    "kind": "shape",
+    "label": "Author shape",
+    "literal": false,
+    "name": "<urn:name:Author%20shape>",
+    "range": {
+     "end": {
+      "character": 25,
+      "line": 47
+     },
+     "start": {
+      "character": 0,
+      "line": 47
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/d4355b87c04e",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/d4355b87c04e>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 56
+     },
+     "start": {
+      "character": 2,
+      "line": 56
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/ee7a149dad91",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/ee7a149dad91>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 69
+     },
+     "start": {
+      "character": 2,
+      "line": 69
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/f85d566ada46",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/f85d566ada46>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 78
+     },
+     "start": {
+      "character": 2,
+      "line": 78
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20shape",
+    "kind": "shape",
+    "label": "Shop shape",
+    "literal": false,
+    "name": "<urn:name:Bookshop%20shape>",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 59
+     },
+     "start": {
+      "character": 0,
+      "line": 59
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop%20shape-stocks",
+    "kind": "shape",
+    "label": "stocks",
+    "literal": false,
+    "name": "<urn:name:Bookshop%20shape-stocks>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 14
+     },
+     "start": {
+      "character": 0,
+      "line": 14
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop/p/96daa3b2b213",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/96daa3b2b213>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 65
+     },
+     "start": {
+      "character": 2,
+      "line": 65
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:George%20Orwell",
+    "kind": "individual",
+    "label": "George Orwell",
+    "literal": false,
+    "name": "<urn:name:George%20Orwell>",
+    "range": {
+     "end": {
+      "character": 26,
+      "line": 30
+     },
+     "start": {
+      "character": 0,
+      "line": 30
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Alice%E2%80%99s%20Adventures%20in%20Wonderland",
+    "kind": "individual",
+    "label": "Alice’s Adventures in Wonderland",
+    "literal": false,
+    "name": "<urn:name:Alice%E2%80%99s%20Adventures%20in%20Wonderland>",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 10
+     },
+     "start": {
+      "character": 0,
+      "line": 10
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Animal%20Farm",
+    "kind": "individual",
+    "label": "Animal Farm",
+    "literal": false,
+    "name": "<urn:name:Animal%20Farm>",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 20
+     },
+     "start": {
+      "character": 0,
+      "line": 20
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/48a9cdb480d9",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/48a9cdb480d9>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 16
+     },
+     "start": {
+      "character": 2,
+      "line": 16
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/4db7d79b8754",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/4db7d79b8754>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 24
+     },
+     "start": {
+      "character": 2,
+      "line": 24
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/7139963bee9d",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/7139963bee9d>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 32
+     },
+     "start": {
+      "character": 2,
+      "line": 32
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/a12a3911c890",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/a12a3911c890>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 40
+     },
+     "start": {
+      "character": 2,
+      "line": 40
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/014989b917c9",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/014989b917c9>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 13
+     },
+     "start": {
+      "character": 2,
+      "line": 13
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/1d20bca980c1",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/1d20bca980c1>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 29
+     },
+     "start": {
+      "character": 2,
+      "line": 29
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/1f6ef5ed9255",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/1f6ef5ed9255>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 37
+     },
+     "start": {
+      "character": 2,
+      "line": 37
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/80b8860c4b8e",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/80b8860c4b8e>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 57
+     },
+     "start": {
+      "character": 2,
+      "line": 57
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/b53dac522e4e",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/b53dac522e4e>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 74
+     },
+     "start": {
+      "character": 2,
+      "line": 74
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/e53bf753041c",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/e53bf753041c>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 90
+     },
+     "start": {
+      "character": 2,
+      "line": 90
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/ee17a6d31c68",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/ee17a6d31c68>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 102
+     },
+     "start": {
+      "character": 2,
+      "line": 102
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/ff7f64fcb815",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/ff7f64fcb815>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 110
+     },
+     "start": {
+      "character": 2,
+      "line": 110
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Lewis%20Carroll",
+    "kind": "individual",
+    "label": "Lewis Carroll",
+    "literal": false,
+    "name": "<urn:name:Lewis%20Carroll>",
+    "range": {
+     "end": {
+      "character": 26,
+      "line": 25
+     },
+     "start": {
+      "character": 0,
+      "line": 25
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Nineteen%20Eighty-Four",
+    "kind": "individual",
+    "label": "Nineteen Eighty-Four",
+    "literal": false,
+    "name": "<urn:name:Nineteen%20Eighty-Four>",
+    "range": {
+     "end": {
+      "character": 33,
+      "line": 15
+     },
+     "start": {
+      "character": 0,
+      "line": 15
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Tangamandapio",
+    "kind": "concept",
+    "label": "Tangamandapio",
+    "literal": false,
+    "name": "<urn:name:Tangamandapio>",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 6
+     },
+     "start": {
+      "character": 0,
+      "line": 6
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "urn:name:unnamed%20collection%201",
+    "kind": "individual",
+    "label": "Cities",
+    "literal": false,
+    "name": "<urn:name:unnamed%20collection%201>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 2
+     },
+     "start": {
+      "character": 0,
+      "line": 2
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "http://www.w3.org/ns/shacl#PropertyShape",
+    "kind": "class",
+    "label": "Property shape",
+    "literal": false,
+    "name": "sh:PropertyShape",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 7
+     },
+     "start": {
+      "character": 33,
+      "line": 7
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Cities%20member",
+    "kind": "shape",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Cities%20member>",
+    "range": {
+     "end": {
+      "character": 26,
+      "line": 65
+     },
+     "start": {
+      "character": 0,
+      "line": 65
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/ns/shacl#NodeShape",
+    "kind": "class",
+    "label": "Node shape",
+    "literal": false,
+    "name": "sh:NodeShape",
+    "range": {
+     "end": {
+      "character": 40,
+      "line": 47
+     },
+     "start": {
+      "character": 28,
+      "line": 47
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:example:bookshop:Book",
+    "kind": "class",
+    "label": null,
+    "literal": false,
+    "name": "ex:Book",
+    "range": {
+     "end": {
+      "character": 87,
+      "line": 10
+     },
+     "start": {
+      "character": 60,
+      "line": 10
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Tanganana",
+    "kind": "concept",
+    "label": "Tanganana",
+    "literal": false,
+    "name": "<urn:name:Tanganana>",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 9
+     },
+     "start": {
+      "character": 0,
+      "line": 9
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "urn:name:workspace-declare-adms",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-adms>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 55
+     },
+     "start": {
+      "character": 2,
+      "line": 55
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-dcat",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-dcat>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 59
+     },
+     "start": {
+      "character": 2,
+      "line": 59
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-dct",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-dct>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 63
+     },
+     "start": {
+      "character": 2,
+      "line": 63
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-dpm",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-dpm>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 67
+     },
+     "start": {
+      "character": 2,
+      "line": 67
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-dprod",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-dprod>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 71
+     },
+     "start": {
+      "character": 2,
+      "line": 71
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-ex",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-ex>",
+    "range": {
+     "end": {
+      "character": 33,
+      "line": 75
+     },
+     "start": {
+      "character": 2,
+      "line": 75
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-foaf",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-foaf>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 79
+     },
+     "start": {
+      "character": 2,
+      "line": 79
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-locn",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-locn>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 83
+     },
+     "start": {
+      "character": 2,
+      "line": 83
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-odrl",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-odrl>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 87
+     },
+     "start": {
+      "character": 2,
+      "line": 87
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-org",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-org>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 91
+     },
+     "start": {
+      "character": 2,
+      "line": 91
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-owl",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-owl>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 95
+     },
+     "start": {
+      "character": 2,
+      "line": 95
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-prov",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-prov>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 99
+     },
+     "start": {
+      "character": 2,
+      "line": 99
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-rdf",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-rdf>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 103
+     },
+     "start": {
+      "character": 2,
+      "line": 103
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-rdfs",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-rdfs>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 107
+     },
+     "start": {
+      "character": 2,
+      "line": 107
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-schema",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-schema>",
+    "range": {
+     "end": {
+      "character": 37,
+      "line": 111
+     },
+     "start": {
+      "character": 2,
+      "line": 111
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-sh",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-sh>",
+    "range": {
+     "end": {
+      "character": 33,
+      "line": 115
+     },
+     "start": {
+      "character": 2,
+      "line": 115
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-skos",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-skos>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 119
+     },
+     "start": {
+      "character": 2,
+      "line": 119
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-time",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-time>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 123
+     },
+     "start": {
+      "character": 2,
+      "line": 123
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-vann",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-vann>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 127
+     },
+     "start": {
+      "character": 2,
+      "line": 127
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-vcard",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-vcard>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 131
+     },
+     "start": {
+      "character": 2,
+      "line": 131
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-view",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-view>",
+    "range": {
+     "end": {
+      "character": 35,
+      "line": 135
+     },
+     "start": {
+      "character": 2,
+      "line": 135
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-ws",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-ws>",
+    "range": {
+     "end": {
+      "character": 33,
+      "line": 139
+     },
+     "start": {
+      "character": 2,
+      "line": 139
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:workspace-declare-xsd",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:workspace-declare-xsd>",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 143
+     },
+     "start": {
+      "character": 2,
+      "line": 143
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:example:bookshop:Author",
+    "kind": "class",
+    "label": null,
+    "literal": false,
+    "name": "ex:Author",
+    "range": {
+     "end": {
+      "character": 58,
+      "line": 25
+     },
+     "start": {
+      "character": 29,
+      "line": 25
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/m/s2dhuy",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/m/s2dhuy>",
+    "range": {
+     "end": {
+      "character": 38,
+      "line": 8
+     },
+     "start": {
+      "character": 2,
+      "line": 8
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/m/ylpc7r",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/m/ylpc7r>",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 9
+     },
+     "start": {
+      "character": 2,
+      "line": 9
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Cities%20member-in",
+    "kind": "other",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Cities%20member-in>",
+    "range": {
+     "end": {
+      "character": 29,
+      "line": 72
+     },
+     "start": {
+      "character": 0,
+      "line": 72
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "urn:name:Cities%20member-in-2",
+    "kind": "other",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Cities%20member-in-2>",
+    "range": {
+     "end": {
+      "character": 31,
+      "line": 69
+     },
+     "start": {
+      "character": 0,
+      "line": 69
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/2004/02/skos/core#Concept",
+    "kind": "class",
+    "label": "Concept",
+    "literal": false,
+    "name": "skos:Concept",
+    "range": {
+     "end": {
+      "character": 39,
+      "line": 6
+     },
+     "start": {
+      "character": 27,
+      "line": 6
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "urn:example:bookshop:Bookshop",
+    "kind": "class",
+    "label": null,
+    "literal": false,
+    "name": "ex:Bookshop",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 4
+     },
+     "start": {
+      "character": 46,
+      "line": 4
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/aec82d36da50",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/aec82d36da50>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 48
+     },
+     "start": {
+      "character": 2,
+      "line": 48
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/c7f3868e5777",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/c7f3868e5777>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 52
+     },
+     "start": {
+      "character": 2,
+      "line": 52
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/d738c19b5883",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/d738c19b5883>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 65
+     },
+     "start": {
+      "character": 2,
+      "line": 65
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-1350\"#1:60",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-1350\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 16,
+      "line": 76
+     },
+     "start": {
+      "character": 11,
+      "line": 76
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-15\"#1:27",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-15\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 37
+     },
+     "start": {
+      "character": 11,
+      "line": 37
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-15\"#2:62",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-15\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 80
+     },
+     "start": {
+      "character": 11,
+      "line": 80
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"-310\"#1:21",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-310\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 30
+     },
+     "start": {
+      "character": 11,
+      "line": 30
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-310\"#1:49",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-310\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 63
+     },
+     "start": {
+      "character": 11,
+      "line": 63
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-315\"#2:75",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-315\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 96
+     },
+     "start": {
+      "character": 11,
+      "line": 96
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"-720\"#2:55",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-720\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 72
+     },
+     "start": {
+      "character": 11,
+      "line": 72
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"-765\"#2:47",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-765\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 63
+     },
+     "start": {
+      "character": 11,
+      "line": 63
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"-810\"#1:28",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-810\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 38
+     },
+     "start": {
+      "character": 11,
+      "line": 38
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"-990\"#1:35",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"-990\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 46
+     },
+     "start": {
+      "character": 11,
+      "line": 46
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"1\"#3:13",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 23
+     },
+     "start": {
+      "character": 16,
+      "line": 23
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:14",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 24
+     },
+     "start": {
+      "character": 16,
+      "line": 24
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:21",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 32
+     },
+     "start": {
+      "character": 16,
+      "line": 32
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:22",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 33
+     },
+     "start": {
+      "character": 16,
+      "line": 33
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:28",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 41
+     },
+     "start": {
+      "character": 16,
+      "line": 41
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:29",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 42
+     },
+     "start": {
+      "character": 16,
+      "line": 42
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1\"#3:5",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 17,
+      "line": 12
+     },
+     "start": {
+      "character": 16,
+      "line": 12
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"1140\"#1:13",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1140\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 21
+     },
+     "start": {
+      "character": 11,
+      "line": 21
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"1200\"#2:10",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1200\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 18
+     },
+     "start": {
+      "character": 11,
+      "line": 18
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"1200\"#2:84",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1200\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 107
+     },
+     "start": {
+      "character": 11,
+      "line": 107
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"1230\"#2:74",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1230\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 95
+     },
+     "start": {
+      "character": 11,
+      "line": 95
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"1635\"#1:20",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1635\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 29
+     },
+     "start": {
+      "character": 11,
+      "line": 29
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"180\"#1:55",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"180\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 71
+     },
+     "start": {
+      "character": 16,
+      "line": 71
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"180\"#2:91",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"180\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 115
+     },
+     "start": {
+      "character": 11,
+      "line": 115
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"1832-01-27\"#0:22",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1832-01-27\"^^xsd:date",
+    "range": {
+     "end": {
+      "character": 61,
+      "line": 28
+     },
+     "start": {
+      "character": 39,
+      "line": 28
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"1865\"#0:10",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1865\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 13
+     },
+     "start": {
+      "character": 45,
+      "line": 13
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"1903-06-25\"#0:26",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1903-06-25\"^^xsd:date",
+    "range": {
+     "end": {
+      "character": 61,
+      "line": 33
+     },
+     "start": {
+      "character": 39,
+      "line": 33
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"1945\"#0:18",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1945\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 23
+     },
+     "start": {
+      "character": 45,
+      "line": 23
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"1949\"#0:14",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"1949\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 18
+     },
+     "start": {
+      "character": 45,
+      "line": 18
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"210\"#2:30",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"210\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 42
+     },
+     "start": {
+      "character": 11,
+      "line": 42
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"2280\"#2:61",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"2280\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 79
+     },
+     "start": {
+      "character": 11,
+      "line": 79
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"2325\"#2:23",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"2325\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 15,
+      "line": 34
+     },
+     "start": {
+      "character": 11,
+      "line": 34
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"240\"#2:54",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"240\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 71
+     },
+     "start": {
+      "character": 11,
+      "line": 71
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"270\"#2:11",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"270\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 19
+     },
+     "start": {
+      "character": 11,
+      "line": 19
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"270\"#2:92",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"270\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 116
+     },
+     "start": {
+      "character": 11,
+      "line": 116
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#1:10",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 18
+     },
+     "start": {
+      "character": 16,
+      "line": 18
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"300\"#1:17",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 26
+     },
+     "start": {
+      "character": 16,
+      "line": 26
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"300\"#1:24",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 34
+     },
+     "start": {
+      "character": 16,
+      "line": 34
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"300\"#1:31",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 42
+     },
+     "start": {
+      "character": 16,
+      "line": 42
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"300\"#1:45",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 59
+     },
+     "start": {
+      "character": 16,
+      "line": 59
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"300\"#2:20",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 31
+     },
+     "start": {
+      "character": 16,
+      "line": 31
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:27",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 39
+     },
+     "start": {
+      "character": 16,
+      "line": 39
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:43",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 59
+     },
+     "start": {
+      "character": 16,
+      "line": 59
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:58",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 76
+     },
+     "start": {
+      "character": 16,
+      "line": 76
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:7",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 15
+     },
+     "start": {
+      "character": 16,
+      "line": 15
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:71",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 92
+     },
+     "start": {
+      "character": 16,
+      "line": 92
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:81",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 104
+     },
+     "start": {
+      "character": 16,
+      "line": 104
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"300\"#2:88",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"300\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 112
+     },
+     "start": {
+      "character": 16,
+      "line": 112
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"315\"#1:14",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"315\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 22
+     },
+     "start": {
+      "character": 11,
+      "line": 22
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"4\"#1:62",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"4\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 79
+     },
+     "start": {
+      "character": 15,
+      "line": 79
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"4\"#2:49",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"4\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 66
+     },
+     "start": {
+      "character": 15,
+      "line": 66
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"420\"#1:12",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"420\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 20
+     },
+     "start": {
+      "character": 15,
+      "line": 20
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"420\"#1:64",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"420\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 81
+     },
+     "start": {
+      "character": 16,
+      "line": 81
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"420\"#2:45",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"420\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 61
+     },
+     "start": {
+      "character": 15,
+      "line": 61
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"420\"#2:51",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"420\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 68
+     },
+     "start": {
+      "character": 16,
+      "line": 68
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#1:19",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 28
+     },
+     "start": {
+      "character": 15,
+      "line": 28
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"450\"#1:26",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 36
+     },
+     "start": {
+      "character": 15,
+      "line": 36
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"450\"#1:47",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 61
+     },
+     "start": {
+      "character": 15,
+      "line": 61
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"450\"#2:22",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 33
+     },
+     "start": {
+      "character": 15,
+      "line": 33
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#2:29",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 41
+     },
+     "start": {
+      "character": 15,
+      "line": 41
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#2:60",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 78
+     },
+     "start": {
+      "character": 15,
+      "line": 78
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#2:73",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 94
+     },
+     "start": {
+      "character": 15,
+      "line": 94
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#2:83",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 106
+     },
+     "start": {
+      "character": 15,
+      "line": 106
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"450\"#2:9",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"450\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 17
+     },
+     "start": {
+      "character": 15,
+      "line": 17
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"480\"#1:33",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"480\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 44
+     },
+     "start": {
+      "character": 15,
+      "line": 44
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"495\"#1:67",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"495\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 84
+     },
+     "start": {
+      "character": 11,
+      "line": 84
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"5\"#1:43",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"5\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 57
+     },
+     "start": {
+      "character": 15,
+      "line": 57
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"510\"#2:90",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"510\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 114
+     },
+     "start": {
+      "character": 15,
+      "line": 114
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"560\"#1:66",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"560\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 83
+     },
+     "start": {
+      "character": 15,
+      "line": 83
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"560\"#2:53",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"560\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 70
+     },
+     "start": {
+      "character": 15,
+      "line": 70
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"570\"#2:24",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"570\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 35
+     },
+     "start": {
+      "character": 11,
+      "line": 35
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"75\"#1:68",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"75\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 13,
+      "line": 85
+     },
+     "start": {
+      "character": 11,
+      "line": 85
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"780\"#1:58",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"780\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 74
+     },
+     "start": {
+      "character": 15,
+      "line": 74
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"795\"#1:34",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"795\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 45
+     },
+     "start": {
+      "character": 11,
+      "line": 45
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"810\"#1:48",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"810\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 62
+     },
+     "start": {
+      "character": 11,
+      "line": 62
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"840\"#1:59",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"840\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 75
+     },
+     "start": {
+      "character": 11,
+      "line": 75
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"855\"#2:85",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"855\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 108
+     },
+     "start": {
+      "character": 11,
+      "line": 108
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"870\"#2:31",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"870\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 43
+     },
+     "start": {
+      "character": 11,
+      "line": 43
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"975\"#2:46",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"975\"^^xsd:integer",
+    "range": {
+     "end": {
+      "character": 14,
+      "line": 62
+     },
+     "start": {
+      "character": 11,
+      "line": 62
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"A literary work, independent of its editions and physical copies.\"#3:42",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"A literary work, independent of its editions and physical co…\"",
+    "range": {
+     "end": {
+      "character": 86,
+      "line": 56
+     },
+     "start": {
+      "character": 19,
+      "line": 56
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"A person who wrote a work.\"#3:36",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"A person who wrote a work.\"",
+    "range": {
+     "end": {
+      "character": 47,
+      "line": 50
+     },
+     "start": {
+      "character": 19,
+      "line": 50
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"A retail store. This example shows a fictional store offering books.\"#3:48",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"A retail store. This example shows a fictional store offerin…\"",
+    "range": {
+     "end": {
+      "character": 89,
+      "line": 62
+     },
+     "start": {
+      "character": 19,
+      "line": 62
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"A simple Bookstore model\n\nTo lookup some instances, follow the link\n\"#1:4",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"A simple Bookstore model\n\nTo lookup some instances, follow t…\"",
+    "range": {
+     "end": {
+      "character": 87,
+      "line": 10
+     },
+     "start": {
+      "character": 14,
+      "line": 10
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"Alice’s Adventures in Wonderland\"#0:8",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Alice’s Adventures in Wonderland\"",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 11
+     },
+     "start": {
+      "character": 15,
+      "line": 11
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Animal Farm\"#0:16",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Animal Farm\"",
+    "range": {
+     "end": {
+      "character": 28,
+      "line": 21
+     },
+     "start": {
+      "character": 15,
+      "line": 21
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Author shape\"#3:34",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Author shape\"",
+    "range": {
+     "end": {
+      "character": 26,
+      "line": 48
+     },
+     "start": {
+      "character": 12,
+      "line": 48
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Book shape\"#3:39",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Book shape\"",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 54
+     },
+     "start": {
+      "character": 12,
+      "line": 54
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Bookshop model\"#1:1",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Bookshop model\"",
+    "range": {
+     "end": {
+      "character": 31,
+      "line": 6
+     },
+     "start": {
+      "character": 15,
+      "line": 6
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"Bookshop\"#2:1",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Bookshop\"",
+    "range": {
+     "end": {
+      "character": 25,
+      "line": 7
+     },
+     "start": {
+      "character": 15,
+      "line": 7
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"Cities\"#4:1",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Cities\"",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 3
+     },
+     "start": {
+      "character": 19,
+      "line": 3
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "\"City where the store is located; fictional in this example.\"#3:16",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"City where the store is located; fictional in this example.\"",
+    "range": {
+     "end": {
+      "character": 80,
+      "line": 26
+     },
+     "start": {
+      "character": 19,
+      "line": 26
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Date of birth of the author.\"#3:32",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Date of birth of the author.\"",
+    "range": {
+     "end": {
+      "character": 49,
+      "line": 45
+     },
+     "start": {
+      "character": 19,
+      "line": 45
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Each book must have at least one author. Coauthors are allowed.\"#3:4",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Each book must have at least one author. Coauthors are allow…\"",
+    "range": {
+     "end": {
+      "character": 84,
+      "line": 11
+     },
+     "start": {
+      "character": 19,
+      "line": 11
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Example instances that conform to the Bookshop model. To lookup the model, follow the link\n\"#2:4",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Example instances that conform to the Bookshop model. To loo…\"",
+    "range": {
+     "end": {
+      "character": 108,
+      "line": 11
+     },
+     "start": {
+      "character": 14,
+      "line": 11
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "\"George Orwell\"#0:24",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"George Orwell\"",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 31
+     },
+     "start": {
+      "character": 15,
+      "line": 31
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"George Orwell\"#0:25",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"George Orwell\"",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 32
+     },
+     "start": {
+      "character": 12,
+      "line": 32
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Lewis Carroll\"#0:20",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Lewis Carroll\"",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 26
+     },
+     "start": {
+      "character": 15,
+      "line": 26
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Lewis Carroll\"#0:21",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Lewis Carroll\"",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 27
+     },
+     "start": {
+      "character": 12,
+      "line": 27
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Little corner Bookshop\"#0:1",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Little corner Bookshop\"",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 5
+     },
+     "start": {
+      "character": 12,
+      "line": 5
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Little corner Bookshop\"#0:2",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Little corner Bookshop\"",
+    "range": {
+     "end": {
+      "character": 39,
+      "line": 6
+     },
+     "start": {
+      "character": 15,
+      "line": 6
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Nineteen Eighty-Four\"#0:12",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Nineteen Eighty-Four\"",
+    "range": {
+     "end": {
+      "character": 37,
+      "line": 16
+     },
+     "start": {
+      "character": 15,
+      "line": 16
+     }
+    },
+    "uri": "file:///w/data.ttl"
+   },
+   {
+    "id": "\"Shop shape\"#3:45",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Shop shape\"",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 60
+     },
+     "start": {
+      "character": 12,
+      "line": 60
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Tangamandapio\"#4:5",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Tangamandapio\"",
+    "range": {
+     "end": {
+      "character": 34,
+      "line": 7
+     },
+     "start": {
+      "character": 19,
+      "line": 7
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "\"Tanganana\"#4:7",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Tanganana\"",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 10
+     },
+     "start": {
+      "character": 19,
+      "line": 10
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "\"Works offered by the shop; no minimum stock is required.\"#3:10",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Works offered by the shop; no minimum stock is required.\"",
+    "range": {
+     "end": {
+      "character": 77,
+      "line": 18
+     },
+     "start": {
+      "character": 19,
+      "line": 18
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"Year of first publication of the work, not an edition.\"#3:25",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"Year of first publication of the work, not an edition.\"",
+    "range": {
+     "end": {
+      "character": 75,
+      "line": 36
+     },
+     "start": {
+      "character": 19,
+      "line": 36
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"adms\"#5:30",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"adms\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 57
+     },
+     "start": {
+      "character": 14,
+      "line": 57
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"author\"#3:1",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"author\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 8
+     },
+     "start": {
+      "character": 12,
+      "line": 8
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"birth date\"#3:27",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"birth date\"",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 40
+     },
+     "start": {
+      "character": 12,
+      "line": 40
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"city\"#3:12",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"city\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 22
+     },
+     "start": {
+      "character": 12,
+      "line": 22
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"data.ttl\"#5:24",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"data.ttl\"",
+    "range": {
+     "end": {
+      "character": 29,
+      "line": 50
+     },
+     "start": {
+      "character": 19,
+      "line": 50
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"data.ttl\"#5:26",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"data.ttl\"",
+    "range": {
+     "end": {
+      "character": 32,
+      "line": 52
+     },
+     "start": {
+      "character": 22,
+      "line": 52
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"dcat\"#5:33",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"dcat\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 61
+     },
+     "start": {
+      "character": 14,
+      "line": 61
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"dct\"#5:36",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"dct\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 65
+     },
+     "start": {
+      "character": 14,
+      "line": 65
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"dpm\"#5:39",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"dpm\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 69
+     },
+     "start": {
+      "character": 14,
+      "line": 69
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"dprod\"#5:42",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"dprod\"",
+    "range": {
+     "end": {
+      "character": 21,
+      "line": 73
+     },
+     "start": {
+      "character": 14,
+      "line": 73
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"ex\"#5:45",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"ex\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 77
+     },
+     "start": {
+      "character": 14,
+      "line": 77
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"foaf\"#5:48",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"foaf\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 81
+     },
+     "start": {
+      "character": 14,
+      "line": 81
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://purl.org/dc/terms/\"#5:35",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://purl.org/dc/terms/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 56,
+      "line": 64
+     },
+     "start": {
+      "character": 17,
+      "line": 64
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://purl.org/vocab/vann/\"#5:83",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://purl.org/vocab/vann/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 58,
+      "line": 128
+     },
+     "start": {
+      "character": 17,
+      "line": 128
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.example.org/\"#5:44",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.example.org/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 54,
+      "line": 76
+     },
+     "start": {
+      "character": 17,
+      "line": 76
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"#5:65",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 74,
+      "line": 104
+     },
+     "start": {
+      "character": 17,
+      "line": 104
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2000/01/rdf-schema#\"#5:68",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2000/01/rdf-schema#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 68,
+      "line": 108
+     },
+     "start": {
+      "character": 17,
+      "line": 108
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2001/XMLSchema#\"#5:95",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2001/XMLSchema#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 64,
+      "line": 144
+     },
+     "start": {
+      "character": 17,
+      "line": 144
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2002/07/owl#\"#5:59",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2002/07/owl#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 61,
+      "line": 96
+     },
+     "start": {
+      "character": 17,
+      "line": 96
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2004/02/skos/core#\"#5:77",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2004/02/skos/core#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 67,
+      "line": 120
+     },
+     "start": {
+      "character": 17,
+      "line": 120
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2006/time#\"#5:80",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2006/time#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 59,
+      "line": 124
+     },
+     "start": {
+      "character": 17,
+      "line": 124
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/2006/vcard/ns#\"#5:86",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/2006/vcard/ns#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 63,
+      "line": 132
+     },
+     "start": {
+      "character": 17,
+      "line": 132
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/adms#\"#5:29",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/adms#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 56
+     },
+     "start": {
+      "character": 17,
+      "line": 56
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/dcat#\"#5:32",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/dcat#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 60
+     },
+     "start": {
+      "character": 17,
+      "line": 60
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/locn#\"#5:50",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/locn#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 84
+     },
+     "start": {
+      "character": 17,
+      "line": 84
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/odrl/2/\"#5:53",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/odrl/2/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 59,
+      "line": 88
+     },
+     "start": {
+      "character": 17,
+      "line": 88
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/org#\"#5:56",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/org#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 56,
+      "line": 92
+     },
+     "start": {
+      "character": 17,
+      "line": 92
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/prov#\"#5:62",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/prov#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 100
+     },
+     "start": {
+      "character": 17,
+      "line": 100
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://www.w3.org/ns/shacl#\"#5:74",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://www.w3.org/ns/shacl#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 58,
+      "line": 116
+     },
+     "start": {
+      "character": 17,
+      "line": 116
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"http://xmlns.com/foaf/0.1/\"#5:47",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"http://xmlns.com/foaf/0.1/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 57,
+      "line": 80
+     },
+     "start": {
+      "character": 17,
+      "line": 80
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"https://cristianvasquez.github.io/catenary/vocab/view#\"#5:89",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"https://cristianvasquez.github.io/catenary/vocab/view#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 85,
+      "line": 136
+     },
+     "start": {
+      "character": 17,
+      "line": 136
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"https://cristianvasquez.github.io/catenary/vocab/workspace#\"#5:92",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"https://cristianvasquez.github.io/catenary/vocab/workspace#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 90,
+      "line": 140
+     },
+     "start": {
+      "character": 17,
+      "line": 140
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"https://ekgf.github.io/dprod/\"#5:41",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"https://ekgf.github.io/dprod/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 60,
+      "line": 72
+     },
+     "start": {
+      "character": 17,
+      "line": 72
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"https://schema.org/\"#5:71",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"https://schema.org/\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 50,
+      "line": 112
+     },
+     "start": {
+      "character": 17,
+      "line": 112
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"locn\"#5:51",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"locn\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 85
+     },
+     "start": {
+      "character": 14,
+      "line": 85
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"odrl\"#5:54",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"odrl\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 89
+     },
+     "start": {
+      "character": 14,
+      "line": 89
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"org\"#5:57",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"org\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 93
+     },
+     "start": {
+      "character": 14,
+      "line": 93
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"osg://vocab/data-product-draft#\"#5:38",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"osg://vocab/data-product-draft#\"^^xsd:anyURI",
+    "range": {
+     "end": {
+      "character": 62,
+      "line": 68
+     },
+     "start": {
+      "character": 17,
+      "line": 68
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"owl\"#5:60",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"owl\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 97
+     },
+     "start": {
+      "character": 14,
+      "line": 97
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"prov\"#5:63",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"prov\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 101
+     },
+     "start": {
+      "character": 14,
+      "line": 101
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"publication year\"#3:20",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"publication year\"",
+    "range": {
+     "end": {
+      "character": 30,
+      "line": 31
+     },
+     "start": {
+      "character": 12,
+      "line": 31
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"rdf\"#5:66",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"rdf\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 105
+     },
+     "start": {
+      "character": 14,
+      "line": 105
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"rdfs\"#5:69",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"rdfs\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 109
+     },
+     "start": {
+      "character": 14,
+      "line": 109
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"schema\"#5:72",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"schema\"",
+    "range": {
+     "end": {
+      "character": 22,
+      "line": 113
+     },
+     "start": {
+      "character": 14,
+      "line": 113
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"sh\"#5:75",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"sh\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 117
+     },
+     "start": {
+      "character": 14,
+      "line": 117
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"skos\"#5:78",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"skos\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 121
+     },
+     "start": {
+      "character": 14,
+      "line": 121
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"stocks\"#3:7",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"stocks\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 15
+     },
+     "start": {
+      "character": 12,
+      "line": 15
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "\"time\"#5:81",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"time\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 125
+     },
+     "start": {
+      "character": 14,
+      "line": 125
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"true\"#1:56",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"true\"^^xsd:boolean",
+    "range": {
+     "end": {
+      "character": 25,
+      "line": 72
+     },
+     "start": {
+      "character": 21,
+      "line": 72
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "\"vann\"#5:84",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"vann\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 129
+     },
+     "start": {
+      "character": 14,
+      "line": 129
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"vcard\"#5:87",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"vcard\"",
+    "range": {
+     "end": {
+      "character": 21,
+      "line": 133
+     },
+     "start": {
+      "character": 14,
+      "line": 133
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"view\"#5:90",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"view\"",
+    "range": {
+     "end": {
+      "character": 20,
+      "line": 137
+     },
+     "start": {
+      "character": 14,
+      "line": 137
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"workspace.shapes.ttl\"#5:27",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"workspace.shapes.ttl\"",
+    "range": {
+     "end": {
+      "character": 41,
+      "line": 53
+     },
+     "start": {
+      "character": 19,
+      "line": 53
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"workspace.skos.ttl\"#5:25",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"workspace.skos.ttl\"",
+    "range": {
+     "end": {
+      "character": 41,
+      "line": 51
+     },
+     "start": {
+      "character": 21,
+      "line": 51
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"ws\"#5:93",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"ws\"",
+    "range": {
+     "end": {
+      "character": 18,
+      "line": 141
+     },
+     "start": {
+      "character": 14,
+      "line": 141
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "\"xsd\"#5:96",
+    "kind": "other",
+    "label": null,
+    "literal": true,
+    "name": "\"xsd\"",
+    "range": {
+     "end": {
+      "character": 19,
+      "line": 145
+     },
+     "start": {
+      "character": 14,
+      "line": 145
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "http://www.example.org/author",
+    "kind": "property",
+    "label": null,
+    "literal": false,
+    "name": "<http://www.example.org/author>",
+    "range": {
+     "end": {
+      "character": 43,
+      "line": 10
+     },
+     "start": {
+      "character": 12,
+      "line": 10
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.example.org/birthDate",
+    "kind": "property",
+    "label": null,
+    "literal": false,
+    "name": "<http://www.example.org/birthDate>",
+    "range": {
+     "end": {
+      "character": 46,
+      "line": 44
+     },
+     "start": {
+      "character": 12,
+      "line": 44
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.example.org/city",
+    "kind": "property",
+    "label": null,
+    "literal": false,
+    "name": "<http://www.example.org/city>",
+    "range": {
+     "end": {
+      "character": 41,
+      "line": 25
+     },
+     "start": {
+      "character": 12,
+      "line": 25
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.example.org/publicationYear",
+    "kind": "property",
+    "label": null,
+    "literal": false,
+    "name": "<http://www.example.org/publicationYear>",
+    "range": {
+     "end": {
+      "character": 52,
+      "line": 35
+     },
+     "start": {
+      "character": 12,
+      "line": 35
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.example.org/stocks",
+    "kind": "property",
+    "label": null,
+    "literal": false,
+    "name": "<http://www.example.org/stocks>",
+    "range": {
+     "end": {
+      "character": 43,
+      "line": 17
+     },
+     "start": {
+      "character": 12,
+      "line": 17
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/1999/02/22-rdf-syntax-ns#nil",
+    "kind": "individual",
+    "label": "nil",
+    "literal": false,
+    "name": "rdf:nil",
+    "range": {
+     "end": {
+      "character": 48,
+      "line": 69
+     },
+     "start": {
+      "character": 41,
+      "line": 69
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/2001/XMLSchema#date",
+    "kind": "class",
+    "label": "date",
+    "literal": false,
+    "name": "xsd:date",
+    "range": {
+     "end": {
+      "character": 24,
+      "line": 43
+     },
+     "start": {
+      "character": 16,
+      "line": 43
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/2001/XMLSchema#integer",
+    "kind": "class",
+    "label": "integer",
+    "literal": false,
+    "name": "xsd:integer",
+    "range": {
+     "end": {
+      "character": 27,
+      "line": 34
+     },
+     "start": {
+      "character": 16,
+      "line": 34
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "http://www.w3.org/2004/02/skos/core#Collection",
+    "kind": "class",
+    "label": "Collection",
+    "literal": false,
+    "name": "skos:Collection",
+    "range": {
+     "end": {
+      "character": 53,
+      "line": 2
+     },
+     "start": {
+      "character": 38,
+      "line": 2
+     }
+    },
+    "uri": "file:///w/workspace.skos.ttl"
+   },
+   {
+    "id": "http://www.w3.org/ns/shacl#IRI",
+    "kind": "individual",
+    "label": "IRI",
+    "literal": false,
+    "name": "sh:IRI",
+    "range": {
+     "end": {
+      "character": 22,
+      "line": 28
+     },
+     "start": {
+      "character": 16,
+      "line": 28
+     }
+    },
+    "uri": "file:///w/workspace.shapes.ttl"
+   },
+   {
+    "id": "https://cristianvasquez.github.io/catenary/vocab/workspace#Workspace",
+    "kind": "class",
+    "label": null,
+    "literal": false,
+    "name": "ws:Workspace",
+    "range": {
+     "end": {
+      "character": 37,
+      "line": 25
+     },
+     "start": {
+      "character": 25,
+      "line": 25
+     }
+    },
+    "uri": "file:///w/workspace.trig"
+   },
+   {
+    "id": "urn:name:Bookshop%20model/p/31d4fb5b181d",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop%20model/p/31d4fb5b181d>",
+    "range": {
+     "end": {
+      "character": 44,
+      "line": 12
+     },
+     "start": {
+      "character": 2,
+      "line": 12
+     }
+    },
+    "uri": "file:///w/views/bookshop-model.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/04c647e16602",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/04c647e16602>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 21
+     },
+     "start": {
+      "character": 2,
+      "line": 21
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/0900cf55c240",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/0900cf55c240>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 25
+     },
+     "start": {
+      "character": 2,
+      "line": 25
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/360b79389761",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/360b79389761>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 45
+     },
+     "start": {
+      "character": 2,
+      "line": 45
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/74343fb0885b",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/74343fb0885b>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 49
+     },
+     "start": {
+      "character": 2,
+      "line": 49
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/7c666b263f37",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/7c666b263f37>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 53
+     },
+     "start": {
+      "character": 2,
+      "line": 53
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/d4266577fdac",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/d4266577fdac>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 82
+     },
+     "start": {
+      "character": 2,
+      "line": 82
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/e18fafd4ac6d",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/e18fafd4ac6d>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 86
+     },
+     "start": {
+      "character": 2,
+      "line": 86
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   },
+   {
+    "id": "urn:name:Bookshop/p/ea2df5ac1c56",
+    "kind": "individual",
+    "label": null,
+    "literal": false,
+    "name": "<urn:name:Bookshop/p/ea2df5ac1c56>",
+    "range": {
+     "end": {
+      "character": 36,
+      "line": 98
+     },
+     "start": {
+      "character": 2,
+      "line": 98
+     }
+    },
+    "uri": "file:///w/views/bookshop.view.trig"
+   }
+  ],
+  "positions": [
+   463.9,
+   -454.9,
+   467.4,
+   -451.5,
+   -327.5,
+   71.3,
+   9,
+   178.3,
+   167.2,
+   286.5,
+   124.5,
+   268.3,
+   -49.5,
+   200.8,
+   -12.1,
+   258,
+   -12.3,
+   378.5,
+   -202.5,
+   -10.7,
+   -3.3,
+   138.1,
+   -13.9,
+   71.7,
+   190.3,
+   157.4,
+   -119.9,
+   325.8,
+   66.5,
+   222.4,
+   32.6,
+   307.6,
+   -299.8,
+   247.6,
+   -337.1,
+   32.6,
+   -279.4,
+   -45.9,
+   -293.3,
+   85.6,
+   -174,
+   165.1,
+   92.1,
+   85.6,
+   172,
+   232.4,
+   148.4,
+   68.4,
+   -445.7,
+   19.7,
+   -456.3,
+   90.9,
+   -208.9,
+   -92.1,
+   -158.7,
+   115.1,
+   -410.7,
+   -95.3,
+   -408.7,
+   -47.6,
+   -403.5,
+   168.6,
+   -327.1,
+   -82.8,
+   -293.1,
+   -105.9,
+   -307.4,
+   5.9,
+   -66.1,
+   -70.7,
+   77.8,
+   -27.3,
+   65.1,
+   310.6,
+   111.4,
+   111.4,
+   37.8,
+   165.2,
+   -204.8,
+   71.6,
+   51.4,
+   -131.9,
+   546.1,
+   -384.9,
+   439.5,
+   -535.7,
+   489.7,
+   -362.6,
+   465.1,
+   -365.6,
+   462.7,
+   -549,
+   392,
+   -406.2,
+   412.1,
+   -537.7,
+   511.7,
+   -387.4,
+   531,
+   -503.8,
+   371.6,
+   -482.3,
+   556.7,
+   -481.5,
+   521.5,
+   -360.7,
+   516.1,
+   -534.1,
+   413.8,
+   -384.4,
+   488.4,
+   -536.1,
+   540.2,
+   -424.8,
+   547,
+   -456.9,
+   390.3,
+   -506.4,
+   380.9,
+   -432.9,
+   366.3,
+   -455.3,
+   377.6,
+   -521.3,
+   438.5,
+   -369.7,
+   563.8,
+   -418,
+   -186.9,
+   24.7,
+   -240.8,
+   225.1,
+   -146.1,
+   239.3,
+   47.7,
+   -23,
+   74.7,
+   -117.4,
+   -13.1,
+   -136,
+   -67.8,
+   102.1,
+   101.1,
+   229.1,
+   28.3,
+   253.4,
+   1.6,
+   226.3,
+   259.2,
+   160.6,
+   253.2,
+   247.9,
+   -473.2,
+   -173.1,
+   169.6,
+   63.6,
+   -24.3,
+   -8.6,
+   -483.1,
+   -99.6,
+   -358.8,
+   316.4,
+   -167.2,
+   73.4,
+   272.3,
+   242,
+   230.3,
+   73.8,
+   251.8,
+   324,
+   254.5,
+   344.8,
+   -11.2,
+   441,
+   3.5,
+   465.8,
+   200.7,
+   263.6,
+   193.2,
+   285.9,
+   -46.5,
+   318.4,
+   -179.6,
+   220.1,
+   -530.5,
+   34,
+   -443.1,
+   241.8,
+   -491.7,
+   -62.4,
+   157.9,
+   32.9,
+   264.8,
+   132.5,
+   -371.1,
+   -145,
+   -321.7,
+   -188.2,
+   -266.4,
+   -119,
+   -398.2,
+   -9.6,
+   -315.9,
+   151.3,
+   -322.1,
+   -48.7,
+   -224.9,
+   -180.9,
+   -482,
+   -155.6,
+   -541.3,
+   88.1,
+   -315.2,
+   330.7,
+   -526.3,
+   -16.5,
+   -349.2,
+   -162.8,
+   -208.2,
+   213.9,
+   132,
+   18.3,
+   248.2,
+   277.2,
+   225.1,
+   21.3,
+   23.2,
+   12.7,
+   -534.8,
+   125.9,
+   -205.1,
+   -165.6,
+   -137.2,
+   71.1,
+   -452.7,
+   -179.3,
+   -539.1,
+   7.1,
+   -487.8,
+   -81.4,
+   -480,
+   201.3,
+   -385.8,
+   -158.2,
+   -228.9,
+   194.6,
+   -136.8,
+   424,
+   -366.1,
+   293.9,
+   -200.3,
+   239,
+   -153,
+   408.3,
+   -196.7,
+   141.5,
+   -335.2,
+   308.2,
+   132.1,
+   43.5,
+   268.6,
+   270.3,
+   2.4,
+   -8.5,
+   -541.9,
+   108.1,
+   -177.9,
+   -170.4,
+   -497.4,
+   -140,
+   -460.2,
+   -107.7,
+   -458.8,
+   227.5,
+   -519.5,
+   10.4,
+   218.3,
+   42.2,
+   -168.8,
+   395.1,
+   -8.2,
+   17.8,
+   -365.8,
+   -176.1,
+   -107,
+   422.5,
+   -340.4,
+   333.1,
+   -522.9,
+   141.8,
+   -124.2,
+   403.7,
+   284.8,
+   172.6,
+   240.2,
+   51.2,
+   -41.8,
+   13.3,
+   282.8,
+   147.4,
+   -478.2,
+   224.3,
+   -198.6,
+   -188.4,
+   -201,
+   111.2,
+   -81.7,
+   234.4,
+   13,
+   91.5,
+   105.5,
+   280.2,
+   -264,
+   302.2,
+   -294.6,
+   -126.5,
+   -309.4,
+   127.4,
+   38.2,
+   102.6,
+   -51.4,
+   148.1,
+   69.4,
+   161.6,
+   -411.6,
+   93.1,
+   113,
+   -91.5,
+   237,
+   353.5,
+   173.7,
+   332.2,
+   -19.6,
+   330.4,
+   -179,
+   309.9,
+   -406.7,
+   11.9,
+   -371.3,
+   -13.5,
+   -290.3,
+   -191.1,
+   -308.5,
+   -204.2,
+   -199.6,
+   -67.1,
+   -173.1,
+   -73.7,
+   -350.6,
+   -47.3,
+   84.8,
+   286.8,
+   -67.9,
+   -147.9,
+   49.5,
+   -206.9,
+   37.9,
+   388.6,
+   -40.9,
+   449.2,
+   621.2,
+   -334.4,
+   -11.1,
+   309.4,
+   144.1,
+   356.9,
+   220.1,
+   376.2,
+   435.4,
+   -417.7,
+   449.7,
+   -488,
+   400.6,
+   -600.5,
+   522.2,
+   -287.6,
+   470.5,
+   -298,
+   465.6,
+   -634.5,
+   334.1,
+   -357.4,
+   355.2,
+   -601.6,
+   502.6,
+   -277.7,
+   305.1,
+   -408.2,
+   320.6,
+   -377.6,
+   547.4,
+   -611,
+   358.7,
+   -332.1,
+   650.7,
+   -399.8,
+   639.8,
+   -493.5,
+   616.2,
+   -470.9,
+   316.4,
+   -541.9,
+   281.5,
+   -471.5,
+   607.5,
+   -316,
+   421.6,
+   -610.3,
+   541.9,
+   -319.3,
+   596.3,
+   -539.3,
+   294.2,
+   -499.2,
+   559.1,
+   -274.5,
+   604.6,
+   -383.1,
+   371.8,
+   -618.3,
+   294.1,
+   -569.5,
+   405.5,
+   -297.6,
+   444,
+   -628.8,
+   514.8,
+   -606.9,
+   565.9,
+   -334,
+   579,
+   -557,
+   286.4,
+   -517.4,
+   463,
+   -278,
+   628.1,
+   -516.7,
+   579.4,
+   -287.7,
+   -21,
+   465.6,
+   567.8,
+   -594.5,
+   378.7,
+   -318.5,
+   490.5,
+   -609.2,
+   614.6,
+   -411.3,
+   624.9,
+   -448.2,
+   59,
+   395.3,
+   333.3,
+   -563,
+   266.1,
+   185.8,
+   307.7,
+   -432.2,
+   280,
+   -449.1,
+   311,
+   -590.5,
+   428.9,
+   -501.7,
+   498.6,
+   -483.8,
+   428.6,
+   -296.7,
+   642.6,
+   -373.4,
+   -55.4,
+   293.5,
+   151,
+   338.4,
+   195.3,
+   378,
+   -52.2,
+   428.5,
+   76,
+   382.7,
+   95.9,
+   -182,
+   192.8,
+   308.6,
+   24.8,
+   464.8,
+   133.3,
+   -74.1,
+   217.1,
+   355.8,
+   410.4,
+   -472.1,
+   68.1,
+   188.5,
+   -386.3,
+   98.8,
+   -395.5,
+   73.6,
+   -399.1,
+   121.1,
+   -405.7,
+   54.1,
+   -360.2,
+   102.3,
+   -377.7,
+   47.7,
+   -352.2,
+   137.3,
+   -374.2,
+   131.9
+  ],
+  "total": {
+   "edges": 310,
+   "nodes": 256
+  }
+ }
+}

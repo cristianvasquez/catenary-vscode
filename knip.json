@@ -1,0 +1,6 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/extension.ts", "src/webview/main.ts", "src/web/main.ts", "src/web/canvas.ts", "src/web/shims/*.ts", "scripts/*.mjs", "test/**"],
+  "project": ["src/**/*.ts", "scripts/*.mjs", "test/**"],
+  "ignoreDependencies": ["monaco-editor", "path-browserify"]
+}

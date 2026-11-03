@@ -1,0 +1,13 @@
+# Allowlist: package only the bundles and the files the Marketplace shows. vsce applies negations last, so list dist files by type.
+**
+!dist/*.js
+!dist/*.css
+!dist/*.ttf
+!dist/*.wasm
+!dist/package.json
+!dist/notations/**
+!package.json
+!readme.md
+!LICENSE
+!CHANGELOG.md
+!images/**

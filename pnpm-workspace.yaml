@@ -1,0 +1,2 @@
+# Stops pnpm from using the workspace file of a parent folder.
+packages: []

@@ -1,0 +1,610 @@
+// Diagram classes and renderers for model data and editable view marks; adapted from Catenary modeler/src/browser/diagram/views.ts.
+
+import {
+    GChildElement, GEdge, GLSPProjectionView, GLabel, GLabelView, GModelElement, GNode, GResizeHandle, GResizeHandleView, GViewportRootElement,
+    IView, IViewArgs, RenderingContext, ResizeHandleLocation, ShapeView, deletableFeature, fadeFeature, hoverFeedbackFeature, moveFeature,
+    resizeFeature, selectFeature, svg
+} from '@eclipse-glsp/client';
+import { inject, injectable } from 'inversify';
+import { MarkdownRenderResult, NoteMarkdown } from './note-markdown';
+import { VNode, h } from 'snabbdom';
+import type { Side } from '../catenary/model/doc';
+import type { AlternativeRow } from '../catenary/model/shapes-schema';
+import {
+    BOX_HALO, COLLECTION_HALO, CollectionMember, MULTI_HALO, NOTE_HALO, ONE_OF_HALO, cardHalo, shapeHalo, colorVars, handlePoint, renderCard, renderCollection, renderHalo, renderPill,
+    renderOneOf, renderShapeCard, renderShapeRow, renderValueSet, resizeHandle, s, vars
+} from './card-chrome';
+import { Pt, edgeGeometry, logicCenter, renderEdge, renderLogic } from './edge-chrome';
+import { FanEdge, fanOut } from './edge-route';
+import { ZoomedRoot, sizeZoom } from './export-zoom';
+import { edgeStyle } from './edge-preferences';
+import type { Part } from './vocabulary-color';
+
+;
+
+// No boundsFeature: the size comes from the model only. With it, the hidden DOM measurement would
+// return the SVG bounding box (badge, handle, long names) and the size would grow on each move.
+// No popupFeature: a hover would request a popup model that no server factory makes.
+export class CardNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [
+        selectFeature, moveFeature, resizeFeature, deletableFeature, hoverFeedbackFeature, fadeFeature
+    ];
+    /** Eight handles, as Reactodia: corners and side middles (GLSP default: corners). */
+    readonly resizeLocations = ResizeHandleLocation.ALL;
+    name = '';
+    className = '';
+    classColor = '';
+    color = '';
+    lines: string[] = [];
+    lineTitles: string[] = [];
+    violationMessage = '';
+    violations = 0;
+    known = true;
+    display = 'detailed';
+    /** Related instances that the view does not show (halo buttons). */
+    hiddenIn = 0;
+    hiddenOut = 0;
+    /** Node shapes with sh:targetSubjectsOf that apply to this instance, outside the view. */
+    hiddenTargets = 0;
+}
+
+export class NoteNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [
+        selectFeature, moveFeature, resizeFeature, deletableFeature, hoverFeedbackFeature, fadeFeature
+    ];
+    /** Eight handles, as Reactodia: corners and side middles (GLSP default: corners). */
+    readonly resizeLocations = ResizeHandleLocation.ALL;
+    text = '';
+    color = '';
+}
+
+export class ViewReferenceNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [
+        selectFeature, moveFeature, resizeFeature, deletableFeature, hoverFeedbackFeature, fadeFeature
+    ];
+    /** Eight handles, as Reactodia: corners and side middles (GLSP default: corners). */
+    readonly resizeLocations = ResizeHandleLocation.ALL;
+    name = '';
+    targetViewId = '';
+    /** File reference: the absolute path; `broken`: not on disk. */
+    targetFile = '';
+    broken = false;
+    color = '';
+}
+
+/**
+ * A container: a box whose parts are rows: a node shape card, an instance collection, a SKOS scheme or collection, the
+ * "one of" box of a property. One behavior for all: select, move, resize (eight handles), Del, hover; the halo of the only selected box.
+ * The kinds differ in their rows and in the effects of their row buttons (CanvasInteractions.containers).
+ */
+abstract class ContainerNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [
+        selectFeature, moveFeature, resizeFeature, deletableFeature, hoverFeedbackFeature, fadeFeature
+    ];
+    readonly resizeLocations = ResizeHandleLocation.ALL;
+    color = '';
+}
+
+export class CollectionNode extends ContainerNode {
+    members: CollectionMember[] = [];
+}
+
+export class GroupNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [
+        selectFeature, moveFeature, resizeFeature, deletableFeature, hoverFeedbackFeature, fadeFeature
+    ];
+    /** Eight handles, as Reactodia: corners and side middles (GLSP default: corners). */
+    readonly resizeLocations = ResizeHandleLocation.ALL;
+    color = '';
+}
+
+export class RelationEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [selectFeature, deletableFeature, hoverFeedbackFeature, fadeFeature];
+    name = '';
+    /** The name in label parts (predicateParts): vocabulary color. */
+    parts: Part[] = [];
+    fromSide: Side | '' = '';
+    toSide: Side | '' = '';
+    /** Bends of the route. */
+    vertices: Pt[] = [];
+    color = '';
+    hidden = false;
+    lane = 0;
+    lanes = 1;
+}
+
+/** Informative arrow from or to a note. View only. */
+export class ArrowEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [selectFeature, deletableFeature, hoverFeedbackFeature, fadeFeature];
+    color = '';
+    lane = 0;
+    lanes = 1;
+}
+
+/** Relations between a collection and another box, with one predicate and direction. Not selectable: expand the collection to edit them. */
+export class BundleEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [fadeFeature];
+    name = '';
+    parts: Part[] = [];
+    count = 1;
+    lane = 0;
+    lanes = 1;
+}
+
+// ------------------------------------------------------------------ shapes views
+
+/** Node shape card: a container whose rows are its property shapes (ShapeRow children). */
+export class ShapeNode extends ContainerNode {
+    className = '';
+    name = '';
+    subtitle = '';
+    closed = false;
+    violations = 0;
+    display = 'detailed';
+    /** Node shapes with a property to this one that the view does not show (halo button). */
+    hiddenSources = 0;
+    /** Checked instances outside this view. */
+    hiddenTargets = 0;
+}
+
+/** A row of the attribute list of a shape card: a property shape. Selectable; its id is the property shape id. */
+export class ShapeRow extends GChildElement {
+    static readonly DEFAULT_FEATURES = [selectFeature, hoverFeedbackFeature];
+    parts: { text: string; color?: string }[] = [];
+    range = '';
+    style = '';
+    card = '';
+    violations = 0;
+    relation = false;
+    selected = false;
+    /** 'head' or 'member' of the row group of an unplaced logical constraint; empty: a property row. */
+    group = '';
+}
+
+/** SKOS concept scheme or collection: its concepts without a card are rows. */
+export class ValueSetNode extends ContainerNode {
+    name = '';
+    kind: 'scheme' | 'collection' = 'scheme';
+    uri = '';
+    members: { uri: string; label: string; broader?: string[]; instance: string }[] = [];
+}
+
+/** "One of" box of a property (sh:or of ranges): its alternatives without a line are rows. Its id: `<property id>_leaf`. */
+export class OneOfNode extends ContainerNode {
+    name = '';
+    members: AlternativeRow[] = [];
+}
+
+/** Property shape drawn as an edge (its id is the property shape id). */
+export class PropertyEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [selectFeature, deletableFeature, hoverFeedbackFeature, fadeFeature];
+    name = '';
+    parts: Part[] = [];
+    card = '';
+    violations = 0;
+    canPutBack = false;
+    fromSide: Side | '' = '';
+    toSide: Side | '' = '';
+    vertices: Pt[] = [];
+    lane = 0;
+    lanes = 1;
+}
+
+/**
+ * Pill: the end of a property line that is not a card. A class without a node shape (shared, placed); the "in" box of a
+ * property (placed by its list); a Pill mark of a datatype, node kind or "any" (placed in the view).
+ */
+export class LeafNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [selectFeature, moveFeature, deletableFeature, hoverFeedbackFeature, fadeFeature];
+    text = '';
+    style = '';
+}
+
+/** The dashed edge of a property shown as a row (`TYPES.LATENT`). Not selectable: its button shows the property as an edge. */
+export class LatentEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [fadeFeature];
+    name = '';
+    parts: { text: string; color?: string }[] = [];
+    lane = 0;
+    lanes = 1;
+}
+
+/** From a "one of" box to the card of an alternative. Not selectable: edit the alternatives on the box. */
+export class AlternativeEdge extends GEdge {
+    static override readonly DEFAULT_FEATURES = [fadeFeature];
+    lane = 0;
+    lanes = 1;
+}
+
+/** Logical constraint (sh:or, sh:xone, sh:and, sh:not): drawn from the geometry of its member edges. */
+export class LogicNode extends GNode {
+    static override readonly DEFAULT_FEATURES = [selectFeature, deletableFeature, hoverFeedbackFeature];
+    operator = '';
+    members: string[] = [];
+}
+
+@injectable()
+export class ShapeCardView extends ShapeView {
+    render(node: Readonly<ShapeNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        const rows = node.children.filter(c => c instanceof ShapeRow).map(c => context.renderElement(c)).filter((v): v is VNode => !!v);
+        return renderShapeCard({
+            width: node.size.width, height: node.size.height, className: node.className, name: node.name, subtitle: node.subtitle, color: node.color,
+            selected: node.selected, hover: node.hoverFeedback, violations: node.violations, closed: node.closed, display: node.display
+        }, rows, renderChildren(node, context, true));
+    }
+}
+
+@injectable()
+export class ShapeRowView implements IView {
+    render(row: Readonly<ShapeRow>, _context: RenderingContext): VNode {
+        return renderShapeRow({ id: row.id, parts: row.parts, range: row.range, style: row.style, card: row.card, violations: row.violations, selected: row.selected, relation: row.relation, group: row.group });
+    }
+}
+
+/** The box props of a member-list container. */
+const memberBox = (node: Readonly<ContainerNode>) => ({ width: node.size.width, height: node.size.height, color: node.color, selected: node.selected, hover: node.hoverFeedback });
+
+@injectable()
+export class ValueSetView extends ShapeView {
+    render(node: Readonly<ValueSetNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        return renderValueSet({ ...memberBox(node), name: node.name, kind: node.kind, uri: node.uri, members: node.members }, renderChildren(node, context, true));
+    }
+}
+
+@injectable()
+export class OneOfView extends ShapeView {
+    render(node: Readonly<OneOfNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        return renderOneOf({ ...memberBox(node), name: node.name, members: node.members }, renderChildren(node, context, true));
+    }
+}
+
+/**
+ * Port offsets of all edges of the diagram (edge-route.ts fanOut), computed once for each state of the boxes and edges: the key has the
+ * zoom, the bounds of the boxes and the ends, sides and bends of the edges. The edges of one side of a box fan out along it.
+ */
+const portCache = new WeakMap<object, { key: string; offsets: Map<string, { from: number; to: number }> }>();
+function offsetsOf(edge: Readonly<GEdge>): { from: number; to: number } | undefined {
+    const root = edge.root;
+    const boxes = new Map<string, { x: number; y: number; width: number; height: number }>();
+    const parts: string[] = [String(zoomOf(root))];
+    for (const c of root.children) {
+        if (c instanceof GNode && !(c instanceof LogicNode)) {
+            const b = c.bounds;
+            boxes.set(c.id, b);
+            parts.push(`${c.id} ${b.x} ${b.y} ${b.width} ${b.height}`);
+        }
+    }
+    const edges: FanEdge[] = [];
+    for (const c of root.children) {
+        if (!(c instanceof GEdge) || c instanceof LatentEdge) continue;
+        const e = c as GEdge & { fromSide?: Side | ''; toSide?: Side | ''; vertices?: Pt[]; name?: string };
+        const sourceBox = boxes.get(e.sourceId), targetBox = boxes.get(e.targetId);
+        if (!sourceBox || !targetBox) continue;
+        const fan: FanEdge = { id: e.id, source: e.sourceId, target: e.targetId, sourceBox, targetBox, fromSide: e.fromSide ?? '', toSide: e.toSide ?? '', vertices: e.vertices ?? [], name: e.name ?? '' };
+        edges.push(fan);
+        parts.push(`${fan.id} ${fan.source} ${fan.target} ${fan.fromSide} ${fan.toSide} ${fan.vertices.map(v => `${v.x},${v.y}`).join(' ')} ${fan.name.length}`);
+    }
+    const key = parts.join('\n');
+    let cached = portCache.get(root);
+    if (cached?.key !== key) {
+        cached = { key, offsets: fanOut(edges, zoomOf(root)) };
+        portCache.set(root, cached);
+    }
+    return cached.offsets.get(edge.id);
+}
+
+@injectable()
+export class PropertyEdgeView implements IView {
+    render(edge: Readonly<PropertyEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        if (!source || !target) return svg('g', null);
+        return renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: edge.fromSide, toSide: edge.toSide, vertices: edge.vertices, lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge), self: source === target,
+            style: edgeStyle(),
+            zoom: zoomOf(edge), name: edge.name, parts: edge.parts, card: edge.card, invalid: edge.violations > 0, canPutBack: edge.canPutBack,
+            color: '', selected: edge.selected, hover: edge.hoverFeedback, hidden: false
+        });
+    }
+}
+
+/** Drawn while its owner card or its target is selected: the default curve, no bends. */
+@injectable()
+export class LatentEdgeView implements IView {
+    render(edge: Readonly<LatentEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        const selected = (n: GNode) => 'selected' in n && !!n.selected;
+        if (!source || !target || !(selected(source) || selected(target))) return svg('g', null);
+        return renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: '', toSide: '', lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge), self: source === target, style: edgeStyle(),
+            zoom: zoomOf(edge), name: edge.name, parts: edge.parts, color: '', selected: false, hover: false, hidden: false, latent: true
+        });
+    }
+}
+
+@injectable()
+export class LeafView extends ShapeView {
+    render(node: Readonly<LeafNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        const v = renderPill({ width: node.size.width, height: node.size.height, text: node.text, style: node.style });
+        v.data!.class = { ...v.data!.class, selected: node.selected };
+        return v;
+    }
+}
+
+/** Label points of the member edges of a logical constraint. */
+function logicMids(node: Readonly<LogicNode>): { x: number; y: number }[] {
+    return node.members.map(id => node.root.index.getById(id)).filter((e): e is PropertyEdge => e instanceof PropertyEdge).flatMap(e => {
+        const source = e.source as GNode | undefined, target = e.target as GNode | undefined;
+        if (!source || !target) return [];
+        return [edgeGeometry({
+            source: source.bounds, target: target.bounds, fromSide: e.fromSide, toSide: e.toSide, vertices: e.vertices, lane: e.lane, lanes: e.lanes, offsets: offsetsOf(e), zoom: zoomOf(e), self: source === target,
+            name: e.name, style: edgeStyle()
+        }).label];
+    });
+}
+
+@injectable()
+export class LogicView implements IView {
+    render(node: Readonly<LogicNode>, _context: RenderingContext): VNode {
+        // The circles before this one (graph order) are placed first; this one keeps clear of them.
+        const taken: { x: number; y: number }[] = [];
+        for (const other of node.root.children) {
+            if (other === node) break;
+            if (!(other instanceof LogicNode)) continue;
+            const c = logicCenter(logicMids(other), zoomOf(other), taken);
+            if (c) taken.push(c);
+        }
+        const mids = logicMids(node);
+        return renderLogic({ mids, center: logicCenter(mids, zoomOf(node), taken), operator: node.operator, zoom: zoomOf(node), selected: node.selected, hover: node.hoverFeedback });
+    }
+}
+
+/** Card: see card-chrome.ts. */
+@injectable()
+export class CardView extends ShapeView {
+    render(node: Readonly<CardNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        return renderCard({
+            width: node.size.width, height: node.size.height, zoom: zoomOf(node), className: node.className, name: node.name, lines: node.lines, lineTitles: node.lineTitles,
+            color: node.color, classColor: node.classColor, selected: node.selected, hover: node.hoverFeedback,
+            violations: node.violations, violationMessage: node.violationMessage, known: node.known, display: node.display
+        }, renderChildren(node, context, true));
+    }
+}
+
+const isBox = (e: GModelElement) => e instanceof CardNode || e instanceof GroupNode || e instanceof NoteNode || e instanceof ViewReferenceNode
+    || e instanceof ContainerNode || e instanceof LeafNode;
+
+/**
+ * Diagram: as GLSP, then the halo of the only selected box (card, group, note, view reference, collection) or of several, after all
+ * elements, so that no element covers it (Reactodia draws it on a layer above the elements). CanvasInteractions handles its buttons
+ * (`data-element`: the only selected box, '' for several).
+ */
+@injectable()
+export class CatenaryGraphView extends GLSPProjectionView {
+    /** No projection bars (GLSP scroll bars at the right and bottom edges): they draw lines over the canvas and the palette. */
+    protected override renderProjections(): VNode[] {
+        return [];
+    }
+
+    override renderSvg(model: Readonly<GViewportRootElement>, context: RenderingContext, args?: IViewArgs): VNode {
+        const vnode = super.renderSvg(model, context, args);
+        const layer = vnode.children?.[0];
+        if (context.targetKind === 'hidden' || !layer || typeof layer === 'string') return vnode;
+        // Selected edges last: their view controls are above the hit paths of the other edges.
+        const selectedEdges = new Set([...model.index.all()].filter(e => e instanceof GEdge && (e as { selected?: boolean }).selected).map(e => e.id));
+        if (selectedEdges.size && layer.children) {
+            const last = (c: VNode | string) => typeof c !== 'string' && selectedEdges.has(String(c.key));
+            layer.children = [...layer.children.filter(c => !last(c)), ...layer.children.filter(last)];
+        }
+        const boxes = [...model.index.all()].filter((e): e is GNode => (e as { selected?: boolean }).selected === true && isBox(e));
+        const k = 1 / zoomOf(model);
+        if (boxes.length === 1) {
+            const node = boxes[0];
+            const { x, y } = node.position, { width, height } = node.size;
+            const actions = node instanceof CardNode ? cardHalo(node.hiddenIn, node.hiddenOut, node.hiddenTargets) : node instanceof CollectionNode ? COLLECTION_HALO
+                : node instanceof ShapeNode ? shapeHalo(node.hiddenSources, node.hiddenTargets) : node instanceof NoteNode ? NOTE_HALO
+                : node instanceof OneOfNode ? ONE_OF_HALO : BOX_HALO;
+            layer.children = [...(layer.children ?? []), svg('g', { 'class-catenary-halo': true, 'data-element': node.id, transform: `translate(${x},${y})` },
+                ...renderHalo(width, height, k, actions))];
+        } else if (boxes.length > 1) {
+            // Several: a dashed frame around their common box, and the halo on it.
+            const x = Math.min(...boxes.map(b => b.position.x)) - 8 * k, y = Math.min(...boxes.map(b => b.position.y)) - 8 * k;
+            const width = Math.max(...boxes.map(b => b.position.x + b.size.width)) + 8 * k - x;
+            const height = Math.max(...boxes.map(b => b.position.y + b.size.height)) + 8 * k - y;
+            layer.children = [...(layer.children ?? []), svg('g', { 'class-catenary-halo': true, 'data-element': '', transform: `translate(${x},${y})` },
+                s('rect', { class: { 'multi-frame': true }, attrs: { width, height, rx: 6 * k, 'stroke-width': 1.5 * k, 'stroke-dasharray': `${6 * k} ${4 * k}` } }),
+                ...renderHalo(width, height, k, MULTI_HALO))];
+        }
+        return vnode;
+    }
+}
+
+/** Children of a node: the resize handles only, or all other children. */
+function renderChildren(node: Readonly<GNode>, context: RenderingContext, handles: boolean): VNode[] {
+    return node.children.filter(c => (c.type === GResizeHandle.TYPE) === handles)
+        .map(c => context.renderElement(c)).filter((v): v is VNode => !!v);
+}
+
+/** Zoom of the diagram of an element, for sizes that are constant on screen. In the export: the zoom of the live canvas (export-zoom.ts). */
+function zoomOf(el: Readonly<GModelElement>): number {
+    return sizeZoom(el.root as unknown as ZoomedRoot);
+}
+
+/** Resize handle: see resizeHandle in card-chrome.ts. The size on screen is the same at every zoom (GLSP draws 5 model units). */
+@injectable()
+export class ResizeHandleView extends GResizeHandleView {
+    override render(handle: Readonly<GResizeHandle>, context: RenderingContext): VNode | undefined {
+        if (context.targetKind === 'hidden') return undefined;
+        const { width, height } = (handle.parent as GNode).size;
+        return resizeHandle(handle.location, handlePoint(width, height, handle.location), 1 / zoomOf(handle),
+            { class: { 'sprotty-resize-handle': true, mouseover: handle.hoverFeedback } });
+    }
+}
+
+/** Floating text note stored only in its view graph. */
+@injectable()
+export class NoteView extends ShapeView {
+    @inject(NoteMarkdown) protected readonly markdown: NoteMarkdown;
+    protected readonly rendered = new WeakMap<Element, { text: string; result: MarkdownRenderResult }>();
+
+    render(node: Readonly<NoteNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        const { width, height } = node.size;
+        const mount = (vnode: VNode) => {
+            const host = vnode.elm as Element;
+            const old = this.rendered.get(host);
+            if (old?.text === node.text) return;
+            old?.result.dispose();
+            const result = this.markdown.render(node.text);
+            host.replaceChildren(result.element);
+            this.rendered.set(host, { text: node.text, result });
+        };
+        const content = h('div', {
+            class: { 'note-body': true },
+            hook: {
+                insert: mount,
+                update: (_old, next) => mount(next),
+                destroy: vnode => {
+                    const host = vnode.elm as Element;
+                    this.rendered.get(host)?.result.dispose();
+                    this.rendered.delete(host);
+                }
+            }
+        });
+        return svg('g', {
+            'class-catenary-note': true, 'class-selected': node.selected, 'class-mouseover': node.hoverFeedback,
+            style: vars(colorVars(node.color))
+        },
+            svg('rect', { 'class-body': true, width, height, rx: 8 }),
+            svg('foreignObject', { 'class-note-fo': true, width, height }, content),
+            ...renderChildren(node, context, false),
+            ...renderChildren(node, context, true)
+        );
+    }
+}
+
+/** Positioned link to another view or to a file. CanvasInteractions opens its target on a plain click. */
+@injectable()
+export class ViewReferenceView extends ShapeView {
+    render(node: Readonly<ViewReferenceNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        const { width, height } = node.size;
+        const file = !!node.targetFile;
+        const content = h('div', { class: { 'view-reference-body': true } }, [
+            h('span', { class: { codicon: true, 'codicon-type-hierarchy': !file, 'codicon-file': file && !node.broken, 'codicon-warning': node.broken } }),
+            h('span', { class: { label: true }, attrs: { title: file ? `${node.targetFile}${node.broken ? '\nNot on disk (moved or removed)' : ''}` : '' } }, node.name)
+        ]);
+        return svg('g', {
+            'class-catenary-view-reference': true, 'class-file-reference': file, 'class-broken': node.broken, 'class-colored': !!node.color,
+            'class-selected': node.selected, 'class-mouseover': node.hoverFeedback,
+            'data-target': node.targetViewId, 'data-file': node.targetFile, style: vars(colorVars(node.color))
+        },
+            svg('rect', { 'class-body': true, width, height, rx: 10 }),
+            svg('foreignObject', { 'class-view-reference-fo': true, width, height }, content),
+            ...context.renderChildren(node)
+        );
+    }
+}
+
+/** Collection: see renderCollection in card-chrome.ts. */
+@injectable()
+export class CollectionView extends ShapeView {
+    render(node: Readonly<CollectionNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        return renderCollection({ ...memberBox(node), members: node.members }, renderChildren(node, context, true));
+    }
+}
+
+/** Group: tinted rectangle with its name above the top-left corner (as JSON Canvas groups). */
+@injectable()
+export class GroupView extends ShapeView {
+    render(node: Readonly<GroupNode>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(node, context)) return undefined;
+        const { width, height } = node.size;
+        return svg('g', {
+            'class-catenary-group': true, 'class-colored': !!node.color, 'class-selected': node.selected, 'class-mouseover': node.hoverFeedback,
+            style: vars(colorVars(node.color))
+        },
+            svg('rect', { 'class-body': true, width, height, rx: 16 }),
+            ...context.renderChildren(node)
+        );
+    }
+}
+
+/** Name label of a group: SVG text above the group. Cards have no label child: they draw the name as HTML (card-chrome.ts). */
+@injectable()
+export class NameLabelView extends GLabelView {
+    override render(label: Readonly<GLabel>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(label, context)) return undefined;
+        return svg('g', { 'class-catenary-name': true, 'class-group-label': true },
+            svg('text', { x: 0, y: 0 }, label.text));
+    }
+}
+
+/** Bundle: an edge whose label has the number of relations. */
+@injectable()
+export class BundleEdgeView implements IView {
+    render(edge: Readonly<BundleEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        if (!source || !target) return svg('g', null);
+        const vnode = renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: '', toSide: '', lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge), zoom: zoomOf(edge), style: edgeStyle(),
+            name: edge.count > 1 ? `${edge.name} ×${edge.count}` : edge.name, color: '', selected: false, hover: false, hidden: false,
+            nameParts: edge.parts.length ? [...edge.parts, ...(edge.count > 1 ? [{ text: ` ×${edge.count}` }] : [])] : undefined
+        });
+        vnode.data!.class = { ...vnode.data!.class, 'catenary-bundle': true };
+        return vnode;
+    }
+}
+
+/** Edge: see edge-chrome.ts. */
+@injectable()
+export class RelationEdgeView implements IView {
+    render(edge: Readonly<RelationEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        if (!source || !target) return svg('g', null);
+        return renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: edge.fromSide, toSide: edge.toSide, vertices: edge.vertices, lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge),
+            self: source === target, style: edgeStyle(),
+            zoom: zoomOf(edge), name: edge.name, nameParts: edge.parts.length ? edge.parts : undefined, color: edge.color, selected: edge.selected, hover: edge.hoverFeedback, hidden: edge.hidden
+        });
+    }
+}
+
+/** From a "one of" card to an alternative: a plain edge without label. */
+@injectable()
+export class AlternativeEdgeView implements IView {
+    render(edge: Readonly<AlternativeEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        if (!source || !target) return svg('g', null);
+        const vnode = renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: '', toSide: '', lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge), zoom: zoomOf(edge), style: edgeStyle(),
+            name: '', color: '', selected: false, hover: false, hidden: false
+        });
+        vnode.data!.class = { ...vnode.data!.class, 'catenary-alternative': true };
+        return vnode;
+    }
+}
+
+/** Arrow: a dashed edge without label or end handles. */
+@injectable()
+export class ArrowEdgeView implements IView {
+    render(edge: Readonly<ArrowEdge>, _context: RenderingContext): VNode {
+        const source = edge.source as GNode | undefined;
+        const target = edge.target as GNode | undefined;
+        if (!source || !target) return svg('g', null);
+        return renderEdge({
+            source: source.bounds, target: target.bounds, fromSide: '', toSide: '', lane: edge.lane, lanes: edge.lanes, offsets: offsetsOf(edge), zoom: zoomOf(edge), style: edgeStyle(),
+            name: '', color: edge.color, selected: edge.selected, hover: edge.hoverFeedback, hidden: false, arrow: true
+        });
+    }
+}

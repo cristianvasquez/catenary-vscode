@@ -1,0 +1,55 @@
+/* The VS Code theme variables that the canvas styles read (src/webview/canvas.css, GLSP glsp-vscode.css). A VS Code webview gets them from
+   the workbench; the page sets them for a light and a dark color scheme. */
+:root {
+  color-scheme: light dark;
+  --vscode-font-family: system-ui, -apple-system, "Segoe UI", Ubuntu, sans-serif;
+  --vscode-code-font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+  --vscode-foreground: #3b3b3b;
+  --vscode-descriptionForeground: #6e6e6e;
+  --vscode-errorForeground: #c72e0f;
+  --vscode-editor-background: #ffffff;
+  --vscode-editor-foreground: #3b3b3b;
+  --vscode-editorWidget-background: #f8f8f8;
+  --vscode-widget-border: #e5e5e5;
+  --vscode-panel-border: #e5e5e5;
+  --vscode-focusBorder: #005fb8;
+  --vscode-textLink-foreground: #005fb8;
+  --vscode-toolbar-hoverBackground: rgba(184, 184, 184, 0.31);
+  --vscode-textCodeBlock-background: #f2f2f2;
+  --vscode-textBlockQuote-border: #e5e5e5;
+  --vscode-quickInput-background: #f8f8f8;
+  --vscode-quickInput-foreground: #3b3b3b;
+  --vscode-quickInputList-focusBackground: #e8e8e8;
+  --vscode-quickInputList-focusForeground: #000000;
+  --vscode-list-activeSelectionBackground: #e8e8e8;
+  --vscode-list-activeSelectionForeground: #000000;
+  --vscode-inputOption-activeBackground: rgba(190, 210, 240, 0.6);
+  --page-side: #f8f8f8;
+  --page-hover: #ececec;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --vscode-foreground: #cccccc;
+    --vscode-descriptionForeground: #9d9d9d;
+    --vscode-errorForeground: #f85149;
+    --vscode-editor-background: #1f1f1f;
+    --vscode-editor-foreground: #cccccc;
+    --vscode-editorWidget-background: #202020;
+    --vscode-widget-border: #313131;
+    --vscode-panel-border: #2b2b2b;
+    --vscode-focusBorder: #0078d4;
+    --vscode-textLink-foreground: #4daafc;
+    --vscode-toolbar-hoverBackground: rgba(90, 93, 94, 0.31);
+    --vscode-textCodeBlock-background: #2b2b2b;
+    --vscode-textBlockQuote-border: #616161;
+    --vscode-quickInput-background: #222222;
+    --vscode-quickInput-foreground: #cccccc;
+    --vscode-quickInputList-focusBackground: #04395e;
+    --vscode-quickInputList-focusForeground: #ffffff;
+    --vscode-list-activeSelectionBackground: #04395e;
+    --vscode-list-activeSelectionForeground: #ffffff;
+    --vscode-inputOption-activeBackground: rgba(36, 137, 219, 0.51);
+    --page-side: #181818;
+    --page-hover: #2a2d2e;
+  }
+}
