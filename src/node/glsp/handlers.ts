@@ -131,9 +131,9 @@ export class RequestExpandHandler implements ActionHandler {
     @inject(ViewSession) protected readonly session: ViewSession;
     readonly actionKinds = [REQUEST_EXPAND];
 
-    execute(action: Action): Action[] {
+    async execute(action: Action): Promise<Action[]> {
         const { from, dir, requestId } = action as RequestExpandAction;
-        const choices = this.session.store.expandChoices(this.session.viewId, from, dir);
+        const choices = await this.session.store.expandChoices(this.session.viewId, from, dir);
         return [{ kind: EXPAND_CHOICES, responseId: requestId, choices } as ExpandChoicesAction];
     }
 }
@@ -157,10 +157,10 @@ export class RequestMembersHandler implements ActionHandler {
     @inject(ViewSession) protected readonly session: ViewSession;
     readonly actionKinds = [REQUEST_MEMBERS];
 
-    execute(action: Action): Action[] {
+    async execute(action: Action): Promise<Action[]> {
         const { collection, text, requestId } = action as RequestMembersAction;
         const store = this.session.store;
-        const values = text === undefined ? store.memberOptions(this.session.viewId, collection) : store.instancesNamed(text);
+        const values = await (text === undefined ? store.memberOptions(this.session.viewId, collection) : store.instancesNamed(text));
         return [{ kind: MEMBER_CHOICES, responseId: requestId, values } as MemberChoicesAction];
     }
 }

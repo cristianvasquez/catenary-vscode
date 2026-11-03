@@ -20,10 +20,10 @@ export interface ViewSource {
     readonly violations?: Violation[];
     /** The schema, the Doc and the figures of the view `viewId` (element id); an empty diagram before the first turtle-lsp answer. */
     diagram(viewId: string, opts: DiagramOptions): Promise<Drawn>;
-    /** The pickers of the halo and of "+ member" (model/choices.ts). */
-    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Choices | undefined;
-    memberOptions(viewId: string, collection: string): string[];
-    instancesNamed(text: string): string[];
+    /** The pickers of the halo and of "+ member" (read/choices.ts). */
+    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined>;
+    memberOptions(viewId: string, collection: string): Promise<string[]>;
+    instancesNamed(text: string): Promise<string[]>;
     onDidChange(listener: () => void): { dispose(): void };
     /** One edit of the view `viewId` (element id) through the ViewStore of its document; refused when no editor has the view open. */
     execute(viewId: string, command: ViewCommand): Result<unknown>;

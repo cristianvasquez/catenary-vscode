@@ -22,7 +22,8 @@ import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDra
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
 import type { ShapesModelRecords } from '../read/shapes';
-import { expandChoices, instancesNamed, memberOptions } from './choices';
+import { expandChoices, instancesNamed, memberOptions } from '../read/choices';
+import type { Choices } from '../catenary/model/prompts';
 import type { ModelPort } from './port';
 
 /** The quads of a view file, as graphOf reads them. */
@@ -41,7 +42,7 @@ export interface OpenView {
 export interface Releasable { dispose(): void }
 
 export abstract class WorkspaceCore implements ViewSource {
-    /** The old graph, for the write path (execute, open view stores) and the pickers until K7 and K10; undefined before the first answer. */
+    /** The old graph, for the write path (execute, open view stores) until K10; undefined before the first answer. */
     graph: ModelGraph | undefined;
     /** The turtle/graph answer: node ranges of the diagnostics. */
     result: GraphResult | undefined;
@@ -197,7 +198,7 @@ export abstract class WorkspaceCore implements ViewSource {
     }
 
     /** The context of the reads; undefined before the first refresh or without a port. */
-    protected context(): ModelContext | undefined {
+    context(): ModelContext | undefined {
         return this.ctx;
     }
 
@@ -207,17 +208,20 @@ export abstract class WorkspaceCore implements ViewSource {
         return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
     }
 
-    /** The pickers on the old graph until K7. */
-    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets') {
-        return this.graph ? expandChoices(this.graph, viewId, from, dir) : undefined;
+    /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh or without a port. */
+    async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
+        const ctx = this.context();
+        return ctx ? expandChoices(ctx, viewId, from, dir) : undefined;
     }
 
-    memberOptions(viewId: string, collection: string): string[] {
-        return this.graph ? memberOptions(this.graph, viewId, collection) : [];
+    async memberOptions(viewId: string, collection: string): Promise<string[]> {
+        const ctx = this.context();
+        return ctx ? memberOptions(ctx, viewId, collection) : [];
     }
 
-    instancesNamed(text: string): string[] {
-        return this.graph ? instancesNamed(this.graph, text) : [];
+    async instancesNamed(text: string): Promise<string[]> {
+        const ctx = this.context();
+        return ctx ? instancesNamed(ctx, text) : [];
     }
 
     /**

@@ -52,7 +52,7 @@ export function inShapesOf(shapes: ShapesModelRecords): (doc: string, s: Term) =
 }
 
 /** The statements (with their document) whose subject or object is one of `iris`, with an IRI or blank node at the other end, without rdf:type and rdfs:label. */
-async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<Row[]> {
+export async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<Row[]> {
     const ask = (end: 's' | 'o') => bindings(end, iris.map(named)).map(async ({ clause, keep }) => (await port.select(`${PREFIXES} SELECT ?g ?s ?p ?o WHERE {
         GRAPH ?g { ?s ?p ?o } FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause} }`, files)).filter(r => keep(r[end])));
     return (await Promise.all([...ask('s'), ...ask('o')])).flat();
