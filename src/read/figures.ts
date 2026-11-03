@@ -8,7 +8,7 @@ import { keyTerm, readNotations } from '../catenary/rdf/notations';
 import type { ModelPort } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
 
-/** The IRI prefix of a blank node in a port answer (port.ts, toEngine): the server cannot be asked about it by name. */
+/** The IRI prefix of a blank node in a port answer (port.ts, toEngine): the server cannot be asked about it by name, only through an anchor. */
 const BLANK = 'urn:skolem:blank:';
 
 const SUBCLASS = NS.rdfs + 'subClassOf';
@@ -86,8 +86,34 @@ export function roleDepth(notes: Notations): number {
 
 const values = (terms: Iterable<string>) => [...terms].map(t => `<${t}>`).join(' ');
 
-/** (c) The statements of the terms as subject or object, over every document (a view reference reads the statements of another view). */
-const NEIGHBOURS = (terms: string[]) => `CONSTRUCT { ?s ?p ?o } WHERE { { VALUES ?s { ${values(terms)} } ?s ?p ?o } UNION { VALUES ?o { ${values(terms)} } ?s ?p ?o } }`;
+/** One statement from a named node to a blank node: `inverse`, the blank node is the subject. */
+interface Step { p: string; inverse: boolean }
+
+/** A blank node as the server can reach it: from an IRI over statements whose other ends are blank nodes. */
+interface Anchor { from: string; steps: Step[] }
+
+/** A pattern that binds `?<end>` to the blank nodes at the end of `anchor`; `n` keeps the variables of two patterns apart. */
+function anchorPattern(anchor: Anchor, end: string, n: number): string {
+    let prev = `<${anchor.from}>`, text = '';
+    anchor.steps.forEach((step, i) => {
+        const v = i === anchor.steps.length - 1 ? `?${end}` : `?b${n}_${i}`;
+        text += `${step.inverse ? `${v} <${step.p}> ${prev}` : `${prev} <${step.p}> ${v}`} . FILTER (isBlank(${v})) `;
+        prev = v;
+    });
+    return text;
+}
+
+/**
+ * (c) The statements of the terms as subject or object, over every document (a view reference reads the statements of another view).
+ * A blank node is reached through its anchor: the server gives it no name that a query can use.
+ */
+function neighbours(terms: string[], blanks: Anchor[]): string {
+    const branches = [
+        ...terms.length ? [`{ VALUES ?s { ${values(terms)} } ?s ?p ?o }`, `{ VALUES ?o { ${values(terms)} } ?s ?p ?o }`] : [],
+        ...blanks.flatMap((a, i) => [`{ ${anchorPattern(a, 's', 2 * i)}?s ?p ?o }`, `{ ${anchorPattern(a, 'o', 2 * i + 1)}?s ?p ?o }`])
+    ];
+    return `CONSTRUCT { ?s ?p ?o } WHERE { ${branches.join(' UNION ')} }`;
+}
 
 /** (d) Every rdfs:subClassOf statement of the model files. */
 const SUBCLASSES = `CONSTRUCT { ?c <${SUBCLASS}> ?d } WHERE { ?c <${SUBCLASS}> ?d }`;
@@ -109,7 +135,7 @@ export type PrefetchedFigures = ViewFigures & { misses: number };
 /**
  * The figures of a view from one prefetch, with `deriveFigures` unchanged (the old viewFiguresOf in catenary/rdf/notations.ts, `keep` false).
  * The prefetch: (a) the view quads; (b) the shapes closure of `shapes`; (c) the statements around the placed terms and `also`, D times
- * outwards (D = roleDepth); (d) rdfs:subClassOf over `modelFiles`; (e) the list cells below the terms of (c).
+ * outwards (D = roleDepth), blank nodes through their anchors; (d) rdfs:subClassOf over `modelFiles`; (e) the list cells below the terms of (c).
  */
 export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = []): Promise<PrefetchedFigures> {
     const notes = readNotations(), depth = roleDepth(notes);
@@ -131,21 +157,32 @@ export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: Sh
         if (q.predicate.startsWith(NS.sh)) covered.predicates.add(q.predicate);
     }
 
-    const neighbours: NQuad[] = [], expanded = new Set<string>();
+    const around: NQuad[] = [], expanded = new Set<string>(), anchors = new Map<string, Anchor>();
     let frontier = [...new Set([viewIri, ...scope.flatMap(iris)])];
     for (let round = 0; round < depth && frontier.length; round++) {
         for (const t of frontier) { expanded.add(t); covered.outAll.add(`<${t}>`); covered.inAll.add(`<${t}>`); }
-        const found = nquads(await port.construct(NEIGHBOURS(frontier)));
-        neighbours.push(...found);
-        // A blank node cannot be named in a query: its statements come from the closure or the list cells, else its reads are misses.
-        const next = new Set<string>();
-        for (const q of found) for (const t of [q.subject, q.object].flatMap(iris)) if (!expanded.has(t) && !t.startsWith(BLANK)) next.add(t);
+        const named = frontier.filter(t => !t.startsWith(BLANK)), blanks = frontier.filter(t => t.startsWith(BLANK)).map(t => anchors.get(t)!);
+        const found = nquads(await port.construct(neighbours(named, blanks)));
+        around.push(...found);
+        // A new blank node gets the anchor of the frontier term at the other end of its statement, one step longer.
+        const inFrontier = new Set(frontier), next = new Set<string>();
+        const anchorOf = (t: string): Anchor => anchors.get(t) ?? { from: t, steps: [] };
+        for (const q of found) for (const [t, other, inverse] of [[q.subject, q.object, true], [q.object, q.subject, false]] as const) {
+            for (const v of iris(t)) {
+                if (expanded.has(v)) continue;
+                if (v.startsWith(BLANK)) {
+                    if (other.termType !== 'NamedNode' || !inFrontier.has(other.value)) continue;
+                    if (!anchors.has(v)) { const a = anchorOf(other.value); anchors.set(v, { from: a.from, steps: [...a.steps, { p: q.predicate, inverse }] }); }
+                }
+                next.add(v);
+            }
+        }
         frontier = [...next];
     }
     const cells = expanded.size ? nquads(await port.construct(LIST_CELLS([...expanded]))) : [];
     for (const q of cells) covered.outP.add(`${nkey(q.subject)} ${q.predicate}`);
 
-    const index = new PrefetchIndex([...viewQuads, ...closure, ...neighbours, ...nquads(subclasses), ...cells], covered);
+    const index = new PrefetchIndex([...viewQuads, ...closure, ...around, ...nquads(subclasses), ...cells], covered);
     const derivation = deriveFigures(index, notes, viewIri, scope, new Map());
     const result = viewFigures(index, notes, viewIri, derivation);
     return { ...result, misses: index.missed.size };
