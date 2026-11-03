@@ -7,6 +7,7 @@ import { rdfsAuthoring } from '../catenary/rdfs/domain-range';
 import { shapePart } from '../catenary/rdf/loader';
 import { buildVocabulary } from '../catenary/rdf/shapes';
 import { readShapes, type ShapesIndex } from '../catenary/rdf/shapes-read';
+import { fileOfGraph } from '../catenary/rdf/graph-names';
 import { rdf, termKey } from '../catenary/rdf/terms';
 import { shaclAuthoring } from '../catenary/shacl/backend/authoring';
 import type { ModelPort, Row } from '../model/port';
@@ -46,12 +47,18 @@ export async function vocabularyOf(port: ModelPort, modelFiles: string[]): Promi
     return (await port.select(VOCABULARY, modelFiles)).map(quadOf);
 }
 
-/** `shapeSubjects`: the subjects of the shapes statements (termKey). `closure`: the shapes statements (shapesClosureOf), each with its document as graph. */
+/**
+ * `shapeSubjects`: the subjects of the shapes statements (termKey). `shapeSubjectsByFile`: the same per document (file path), as shapePart
+ * classifies per file. `files`: the model files read, without the manifest document. `closure`: the shapes statements (shapesClosureOf),
+ * each with its document as graph.
+ */
 export interface ShapesModelRecords {
+    files: string[];
     index: ShapesIndex;
     vocabulary: Pick<Classes, 'schemes' | 'concepts'>;
     meta: Classes;
     shapeSubjects: Set<string>;
+    shapeSubjectsByFile: Map<string, Set<string>>;
     closure: Quad[];
 }
 
@@ -70,5 +77,10 @@ export async function shapesModelOf(port: ModelPort, modelFiles: string[], manif
     const vocabulary = buildVocabulary(rdf.dataset([...closure, ...skos].map(triple)), manifest.language);
     const shacl = shaclAuthoring(closure.map(q => ({ s: q.subject, p: q.predicate, o: q.object })));
     const meta = mergeContributions([{ id: 'shacl', ...shacl }, { id: 'rdfs', ...rdfs }], vocabulary);
-    return { index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))), closure };
+    const shapeSubjectsByFile = new Map<string, Set<string>>();
+    for (const q of closure) {
+        const file = fileOfGraph(q.graph.value);
+        (shapeSubjectsByFile.get(file) ?? shapeSubjectsByFile.set(file, new Set()).get(file)!).add(termKey(q.subject));
+    }
+    return { files, index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))), shapeSubjectsByFile, closure };
 }
