@@ -32,7 +32,8 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 | Kata | Scope | Depends on | State |
 |---|---|---|---|
 | 05rh | `src/read/figures.ts`: miss-driven rounds, closure queries, tests | none | merged (06d4284): 47 queries in 3 rounds, longest 1,857 bytes, 233 tests |
-| bq0e | every query: `files` instead of `GRAPH`; per-file reads for IRI subjects; `ModelContext.views`; `viewFileProblem` from the text | 05rh | open |
+| bq0e | every query: `files` instead of `GRAPH`; per-file reads for IRI subjects; `ModelContext.views`; `viewFileProblem` from the text | 05rh | done on branch `kata/k2-files-not-graphs` (bd71b48, roborev 2309 pass), not merged: 5 tests fail, all blank-node labels compared across file sets; needs-review |
+| round 3 (to write) | A: `targets.ts` walks as one property path from IRIs, `bindings()` without the isBlank clause; `neighbors.ts` brings type and label of a blank object in the same query. B: `view.ts` marks from the view-file answer, delete `BLANK_STATEMENTS`; `facts-of.ts` delete `BLANK_QUERY`; a placed anonymous shape is refused with a reason (edit-commands test rewritten). Worker: pi. | bq0e | planned |
 
 ## Agent contract (short)
 
