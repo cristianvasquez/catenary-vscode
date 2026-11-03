@@ -1,5 +1,6 @@
 // Kata 1rhb: the ModelPort over turtle/query, and the facts of the fork's dataset on test/fixtures/shapes, against the real binary over stdio.
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -79,7 +80,7 @@ describe('the server dataset (fork binary over stdio)', () => {
     test('viewFilesOf gives the two view IRIs with their paths; modelFilesOf the four .ttl files', async () => {
         const rdfFiles = readdirSync(folder).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(file);
         const views = await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig')));
-        expect(views).toEqual(new Map([['urn:name:Bookshop', file('instances.trig')], ['urn:name:Bookshop%20model', file('model.trig')]]));
+        expect(views).toEqual({ views: new Map([['urn:name:Bookshop', file('instances.trig')], ['urn:name:Bookshop%20model', file('model.trig')]]), skipped: [] });
         expect(modelFilesOf(rdfFiles, views)).toEqual(['cities.ttl', 'data.ttl', 'prefixes.ttl', 'shapes.ttl'].map(file));
     });
 
@@ -91,6 +92,31 @@ describe('the server dataset (fork binary over stdio)', () => {
         const rows = await server.port().select('SELECT ?o WHERE { <urn:x:new> <urn:x:p> ?o }');
         expect(rows.map(r => r.o.value)).toEqual(['added']);
         expect(count(await server.port().select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }', [file('data.ttl')]))).toBe(28);
+    });
+});
+
+describe('two view files with the same view IRI (temp folder)', () => {
+    const view = (label: string) => `<urn:x:v> { <urn:x:v> a <${VIEW}View>; <http://www.w3.org/2000/01/rdf-schema#label> "${label}". }\n`;
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>;
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-port-'));
+        writeFileSync(join(dir, 'a.trig'), view('a'));
+        writeFileSync(join(dir, 'b.trig'), view('b'));
+        writeFileSync(join(dir, 'c.trig'), `<urn:x:w> { <urn:x:w> a <${VIEW}View>. }\n`);
+        writeFileSync(join(dir, 'm.ttl'), '<urn:x:s> <urn:x:p> <urn:x:o> .\n');
+        server = await startServer(dir, 6);
+    }, 20000);
+    afterAll(async () => {
+        await server?.stop();
+        if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('both files are skipped and reported; neither is a model file', async () => {
+        const trig = ['a.trig', 'b.trig', 'c.trig'].map(f => join(dir, f));
+        const found = await viewFilesOf(server.port(), trig);
+        expect(found.views).toEqual(new Map([['urn:x:w', join(dir, 'c.trig')]]));
+        expect(found.skipped).toEqual([{ file: join(dir, 'a.trig'), reason: 'duplicate view urn:x:v' }, { file: join(dir, 'b.trig'), reason: 'duplicate view urn:x:v' }]);
+        expect(modelFilesOf([...trig, join(dir, 'm.ttl')], found)).toEqual([join(dir, 'm.ttl')]);
     });
 });
 
