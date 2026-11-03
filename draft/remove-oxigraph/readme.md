@@ -60,6 +60,14 @@ Four rounds (katas ansc, mzg2, 9k26, mh0y, y4mq) changed how quads get into the 
 9. **Tests run the fork binary** over stdio on `test/fixtures/shapes` (helper `test/server.ts`); the recorded `graph.json` and `fixture-graph.ts` go with the old pipeline. The binary path: `TURTLE_LSP` env, default `~/os/rdf/turtle-lsp/target/release/turtle-lsp`.
 10. The branch `turtle-query` of catenary-vscode is not merged. `toEngine` of the `<d>:<n>` labels (y4mq) is taken into K1.
 
+## Known limitations found in the round
+
+- A SPARQL query cannot name a blank node. Every lookup by IRI (`VALUES`) of a model blank node needs a second query with `FILTER(isBlank(…))` matched in code by the port's skolem label. K3, K4, K5 and K9 each do this. Open: a list under a placed blank-node root longer than the figure prefetch depth (5) is cut off (K4, roborev 2266); a declared target that is a blank node does not match (K5). The clean fix is in the fork: a `turtle/query` parameter that binds blank nodes by their `<document>:<n>` label.
+- The blank-node label `<document>:<n>` numbers the documents in URI order. Adding a document can renumber the others, so a view that places a model blank node by its skolem IRI can lose it after a file is added (K3 found the label change when a document was opened). A stable label in the fork (hash of the document URI) would fix it.
+- A model resource named in a legacy `osg://vocab/` namespace is queried by its published IRI and not found (K3, roborev 2267). Only legacy vocabulary terms are affected.
+- `test/fixtures/shapes/graph.json` (the recorded turtle/graph answer of the old pipeline) is stale against `data.ttl`. K11 deletes it.
+- Decision 6 changed these ops to this-view-only (K8): mark statements, `view:arrow`, `view:member`, `placeConnectors`, `pruneArrows`, `createArrow`, `elementIdOf`, `markIri`, `ownedBy`; `uncollect` releases members in IRI order.
+
 ## Katas
 
 Order and dependencies. One kata = one agent session. K1 blocks everything.
