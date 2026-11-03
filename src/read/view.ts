@@ -75,7 +75,7 @@ async function chunked(port: ModelPort, iris: Iterable<string>, query: (values: 
 }
 
 /** The rows with their terms in the published namespaces (readLegacy over the quads of `?g ?s ?p ?o`); the other variables unchanged. */
-function legacyRows(rows: Row[]): Row[] {
+export function legacyRows(rows: Row[]): Row[] {
     const { quads, changed } = readLegacy(rows.map(r => rdf.quad(r.s as Quad['subject'], r.p as Quad['predicate'], r.o as Quad['object'], r.g as Quad['graph'])));
     return changed ? rows.map((r, i) => ({ ...r, s: quads[i].subject, p: quads[i].predicate, o: quads[i].object })) : rows;
 }

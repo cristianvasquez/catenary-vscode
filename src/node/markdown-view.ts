@@ -1,14 +1,14 @@
-// Metadata only: reuse the view-file parser and legacy normalization of the canvas.
-import { parseRdfSync } from '../catenary/rdf-files/oxigraph-store';
-import { readLegacy } from '../catenary/rdf/loader';
-import { viewIriOf } from '../model/graph-input';
+// The views of view files for Insert View and Export Markdown, from turtle/query: the view files (viewFilesOf) and the view labels (viewLabelsOf).
+import { iriId } from '../catenary/model/ids';
+import { viewFilesOf } from '../model/view-files';
+import type { ModelContext } from '../read/diagram';
+import { viewLabelsOf } from '../read/view';
 
 export interface View { iri: string; name?: string }
 
-export function readView(text: string): View {
-    const { quads } = readLegacy(parseRdfSync(text, 'application/trig'));
-    const iri = viewIriOf(text);
-    const name = quads.find(q => q.subject.value === iri && q.graph.value === iri
-        && q.predicate.value === 'http://www.w3.org/2000/01/rdf-schema#label')?.object.value;
-    return { iri, name };
+/** The views of the `.trig` files `trigFiles` (paths) with their files, by file path. A view in two files is in none (viewFilesOf). */
+export async function viewsOf(ctx: ModelContext, trigFiles: string[]): Promise<{ file: string; view: View }[]> {
+    const [{ views }, labels] = await Promise.all([viewFilesOf(ctx.port, trigFiles), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+    return [...views].map(([iri, file]) => ({ file, view: { iri, name: labels[iriId(iri)] } }))
+        .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 }

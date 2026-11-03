@@ -1,16 +1,18 @@
 // The workspace graph of the page: turtle-lsp in a worker (engine.wasm) answers turtle/graph for the open buffers; view files are read
 // from the saved files (FileStore), as the VS Code host reads them from disk. Diagnostics arrive as LSP notifications.
-// The engine has no turtle/query until K13: the page draws from the old graph (model/diagram.ts) and maps diagnostics on it.
+// The engine has no turtle/query until K13: the page draws from the old graph (model/diagram.ts), reads the pickers (model/choices.ts) and maps diagnostics on it.
 import type { Diagnostic } from 'vscode';
 import { iriId } from '../catenary/model/ids';
 import { shapesIndexOf } from '../catenary/rdf/shapes-read';
 import { viewFiguresOf } from '../catenary/rdf/notations';
 import { readView } from '../catenary/rdf/view-read';
+import * as choices from '../model/choices';
 import { diagramOf } from '../model/diagram';
 import { graphPrefixes, isViewFile } from '../model/graph-input';
 import { WorkspaceCore } from '../model/workspace-core';
 import { diagnosticsOf } from '../node/diagnostics';
 import type { GraphResult } from '../node/turtle-api';
+import type { Choices } from '../catenary/model/prompts';
 import { type DiagramOptions, type Drawn, emptyDrawn } from '../read/diagram';
 import { type FileStore, ROOT, pathOf } from './files';
 import type { LspClient, LspDiagnostic } from './turtle-lsp/editor-lsp.js';
@@ -65,6 +67,19 @@ export class WebWorkspace extends WorkspaceCore {
         graphPrefixes(graph);
         const doc = readView(graph, id, shapesIndexOf(graph).model), view = doc.views[id];
         return { schema: diagramOf(graph, id, opts), doc, ...(view ? { figures: viewFiguresOf(graph, view.uri) } : {}) };
+    }
+
+    /** The pickers on the old graph: the engine has no turtle/query until K13. */
+    override async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
+        return this.graph ? choices.expandChoices(this.graph, viewId, from, dir) : undefined;
+    }
+
+    override async memberOptions(viewId: string, collection: string): Promise<string[]> {
+        return this.graph ? choices.memberOptions(this.graph, viewId, collection) : [];
+    }
+
+    override async instancesNamed(text: string): Promise<string[]> {
+        return this.graph ? choices.instancesNamed(this.graph, text) : [];
     }
 
     override async readDiagnostics(): Promise<void> {
