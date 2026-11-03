@@ -17,7 +17,7 @@ interface TestServer {
     port(): ModelPort;
     /** The raw turtle/query answer. */
     query(params: QueryParams): Promise<QueryAnswer>;
-    /** The raw turtle/graph answer (the input of the old pipeline, graphOf). */
+    /** The turtle/graph answer (input of the old pipeline, graphOf). */
     graph(params: GraphParams): Promise<GraphResult>;
     open(uri: string, text: string, languageId?: string): void;
     change(uri: string, text: string): void;
