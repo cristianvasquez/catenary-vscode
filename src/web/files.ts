@@ -17,6 +17,7 @@ export const relOfPath = (path: string) => path.startsWith(ROOT + '/') ? path.sl
 export type FileEvent = { kind: 'change' | 'create' | 'delete'; rel: string };
 
 export class FileStore {
+    readonly unstored = new Set<string>();
     protected readonly listeners = new Set<(e: FileEvent) => void>();
 
     constructor(protected readonly samples: Record<string, string>) {
@@ -34,18 +35,24 @@ export class FileStore {
 
     read(rel: string): string | undefined { return files.get(pathOf(rel)); }
 
-    write(rel: string, text: string): void {
+    write(rel: string, text: string): boolean {
         const kind = this.has(rel) ? 'change' : 'create';
-        if (kind === 'change' && this.read(rel) === text) return;
+        if (kind === 'change' && this.read(rel) === text && !this.unstored.has(rel)) return true;
         files.set(pathOf(rel), text);
-        this.persist();
+        const stored = this.persist();
+        if (stored) this.unstored.clear();
+        else this.unstored.add(rel);
         this.emit({ kind, rel });
+        return stored;
     }
 
-    delete(rel: string): void {
-        if (!files.delete(pathOf(rel))) return;
-        this.persist();
+    delete(rel: string): boolean {
+        if (!files.delete(pathOf(rel))) return true;
+        const stored = this.persist();
+        if (stored) this.unstored.clear();
+        else this.unstored.add(rel);
         this.emit({ kind: 'delete', rel });
+        return stored;
     }
 
     /** Back to the samples: every file is deleted, then the samples are created. */
@@ -63,9 +70,10 @@ export class FileStore {
         for (const l of [...this.listeners]) l(e);
     }
 
-    protected persist(): void {
+    protected persist(): boolean {
         try {
             localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(this.list().map(rel => [rel, this.read(rel)!]))));
-        } catch { /* storage full or blocked: the files stay in memory for this page */ }
+            return true;
+        } catch { return false; /* storage full or blocked: the files stay in memory for this page */ }
     }
 }

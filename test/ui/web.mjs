@@ -100,6 +100,19 @@ try {
   const saved = (await stored())["views/bookshop-model.view.trig"]
   check("Ctrl+S writes the view file to browser storage", !(await dirty(name)) && saved !== sample && saved.includes("view:"), `${saved?.length} chars`)
 
+  // ------------------------------------------------------------------ failed storage and retry
+  await page.evaluate(() => { localStorage.setItem = () => { throw new Error('full') } })
+  await page.keyboard.press("Control+Z")
+  await until(() => dirty(name), (d) => d)
+  await page.keyboard.press("Control+S")
+  const warning = page.locator("#toasts .toast.warning", { hasText: "Not stored" })
+  await warning.waitFor()
+  const notStored = await dirty(name)
+  await page.evaluate(() => { delete localStorage.setItem })
+  await page.keyboard.press("Control+S")
+  const retryClean = await until(() => dirty(name), (d) => !d)
+  check("a failed save warns and stays dirty until a retry succeeds", notStored && !retryClean && (await stored())["views/bookshop-model.view.trig"] !== saved)
+
   // ------------------------------------------------------------------ Insert
   await frameOf().locator('.catenary-tools [data-item="insert"]').click()
   const picker = page.locator("dialog#picker")

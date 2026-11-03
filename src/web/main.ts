@@ -203,7 +203,7 @@ let canvasCount = 0;
 
 const dirtyText = (rel: string) => models.has(rel) && models.get(rel).getValue() !== files.read(rel);
 const dirtyView = (doc: ViewDoc) => doc.depth !== doc.saved;
-const isDirty = (tab: Tab) => tab.kind === 'canvas' ? dirtyView(tab.doc) : dirtyText(tab.rel);
+const isDirty = (tab: Tab) => files.unstored.has(tab.rel) || (tab.kind === 'canvas' ? dirtyView(tab.doc) : dirtyText(tab.rel));
 
 function renderTabs(): void {
     $('tabs').replaceChildren(...tabs.map(tab => {
@@ -337,15 +337,17 @@ function redo(doc: ViewDoc): void {
 
 function save(tab: Tab | undefined = active): void {
     if (!tab) return;
+    let stored = true;
     if (tab.kind === 'canvas') {
         const text = tab.doc.open.store.viewText(tab.doc.iri);
         setBuffer(tab.rel, text);
-        files.write(tab.rel, text);
+        stored = files.write(tab.rel, text);
         tab.doc.saved = tab.doc.depth;
     } else {
         const model = models.get(tab.rel);
-        if (model) files.write(tab.rel, model.getValue());
+        if (model) stored = files.write(tab.rel, model.getValue());
     }
+    if (!stored) toast('Not stored: the browser storage is full or blocked. The file is kept in memory; use Download to keep it.', 'warning');
     renderTabs();
     renderFiles();
 }
@@ -510,7 +512,7 @@ function renderFiles(): void {
     $('files').replaceChildren(...files.list().map(rel => {
         const el = document.createElement('div');
         const view = rel.endsWith('.view.trig');
-        el.className = 'file' + (active?.rel === rel ? ' active' : '') + (dirtyText(rel) || tabs.some(t => t.rel === rel && isDirty(t)) ? ' dirty' : '');
+        el.className = 'file' + (active?.rel === rel ? ' active' : '') + (files.unstored.has(rel) || dirtyText(rel) || tabs.some(t => t.rel === rel && isDirty(t)) ? ' dirty' : '');
         el.draggable = true;
         el.style.paddingLeft = `${8 + 12 * (rel.split('/').length - 1)}px`;
         el.innerHTML = `<span class="codicon codicon-${view ? 'type-hierarchy' : 'file'}"></span><span class="name"></span><span class="count"></span><button class="delete codicon codicon-trash" title="Delete"></button>`;
@@ -610,5 +612,5 @@ async function main(): Promise<void> {
     document.body.dataset.ready = 'true';
 }
 
-window.addEventListener('beforeunload', e => { if (tabs.some(isDirty) || [...models.keys()].some(dirtyText)) e.preventDefault(); });
+window.addEventListener('beforeunload', e => { if (files.unstored.size > 0 || tabs.some(isDirty) || [...models.keys()].some(dirtyText)) e.preventDefault(); });
 void main().catch(e => { toast(`Catenary did not start: ${e instanceof Error ? e.message : String(e)}`, 'warning'); console.error(e); });
