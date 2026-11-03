@@ -46,12 +46,13 @@ export async function vocabularyOf(port: ModelPort, modelFiles: string[]): Promi
     return (await port.select(VOCABULARY, modelFiles)).map(quadOf);
 }
 
-/** `shapeSubjects`: the subjects of the shapes statements (termKey). */
+/** `shapeSubjects`: the subjects of the shapes statements (termKey). `closure`: the shapes statements (shapesClosureOf), each with its document as graph. */
 export interface ShapesModelRecords {
     index: ShapesIndex;
     vocabulary: Pick<Classes, 'schemes' | 'concepts'>;
     meta: Classes;
     shapeSubjects: Set<string>;
+    closure: Quad[];
 }
 
 /**
@@ -69,5 +70,5 @@ export async function shapesModelOf(port: ModelPort, modelFiles: string[], manif
     const vocabulary = buildVocabulary(rdf.dataset([...closure, ...skos].map(triple)), manifest.language);
     const shacl = shaclAuthoring(closure.map(q => ({ s: q.subject, p: q.predicate, o: q.object })));
     const meta = mergeContributions([{ id: 'shacl', ...shacl }, { id: 'rdfs', ...rdfs }], vocabulary);
-    return { index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))) };
+    return { index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))), closure };
 }
