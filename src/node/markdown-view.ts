@@ -8,7 +8,7 @@ export interface View { iri: string; name?: string }
 
 /** The views of the `.trig` files `trigFiles` (paths) with their files, by file path. A view in two files is in none (viewFilesOf). */
 export async function viewsOf(ctx: ModelContext, trigFiles: string[]): Promise<{ file: string; view: View }[]> {
-    const [{ views }, labels] = await Promise.all([viewFilesOf(ctx.port, trigFiles), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+    const { views } = await viewFilesOf(ctx.port, trigFiles), labels = await viewLabelsOf(ctx.port, views, ctx.manifest.language);
     return [...views].map(([iri, file]) => ({ file, view: { iri, name: labels[iriId(iri)] } }))
         .sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : 0));
 }

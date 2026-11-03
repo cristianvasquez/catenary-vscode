@@ -4,7 +4,7 @@ import { RDF, RDFS, SH, iri } from '../catenary/contracts/query';
 import { NodeReference, readNodeReferences } from '../catenary/shacl/backend/node';
 import { focus, term, type QueryTerm, type TargetSelection } from '../catenary/shacl/backend/targets';
 import type { FocusNode, TargetKind, TargetMatch, TargetReason } from '../catenary/shacl/common/index';
-import type { ModelPort } from '../model/port';
+import { byFile, type ModelPort, type Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
 
 /** A target declaration of a shape in the closure: `?shape sh:<kind> ?target`, or an implicit class target (target = the shape). */
@@ -21,13 +21,23 @@ const BLANK = 'urn:skolem:blank:';
  * a query cannot name them) `FILTER (isBlank(…))`, whose rows `keep` narrows to the wanted nodes. Place the clause after the pattern, in its
  * group. One query per clause.
  */
-export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean }[] {
+export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean; blank: boolean }[] {
     const blanks = new Set(nodes.filter(n => n.termType === 'NamedNode' && n.value.startsWith(BLANK)).map(n => n.value));
     const named = [...new Set(nodes.filter(n => !blanks.has(n.value) || n.termType !== 'NamedNode').map(term))];
     return [
-        ...named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true }] : [],
-        ...blanks.size ? [{ clause: `FILTER (isBlank(?${variable}))`, keep: (t: Term | undefined) => !!t && t.termType === 'NamedNode' && blanks.has(t.value) }] : [],
+        ...named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true, blank: false }] : [],
+        ...blanks.size ? [{ clause: `FILTER (isBlank(?${variable}))`, keep: (t: Term | undefined) => !!t && t.termType === 'NamedNode' && blanks.has(t.value), blank: true }] : [],
     ];
+}
+
+/**
+ * The rows of `query(clause)` for each clause of bindings(variable, nodes), narrowed by its `keep`: the VALUES clause per file of `files`
+ * (byFile, each row with its `file`), the isBlank clause once over the whole folder (no `files`, no `file` on its rows): blank-node labels
+ * agree only within one file set.
+ */
+export async function boundRows(port: ModelPort, files: string[], variable: string, nodes: readonly FocusNode[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
+    return (await Promise.all(bindings(variable, nodes).map(async ({ clause, keep, blank }) =>
+        (blank ? await port.select(query(clause)) : await byFile(port, files, query(clause))).filter(r => keep(r[variable]))))).flat();
 }
 
 const DECLARED: Record<string, TargetKind> = Object.fromEntries((['targetClass', 'targetNode', 'targetSubjectsOf', 'targetObjectsOf'] as const).map(k => [SH + k, k]));

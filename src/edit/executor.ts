@@ -2,11 +2,11 @@
 // executeCommand in memory, then the new text of each view that changed: the text patched by tree-sitter (comments, layout and unchanged
 // statements stay byte for byte), else the whole-file text. Nothing is kept between commands; the caller applies the edits.
 import type { Quad } from '@rdfjs/types';
-import { fileURLToPath } from 'node:url';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Parser } from 'n3';
 import type { ViewCommand } from '../catenary/model/commands';
 import type { NTerm } from '../catenary/model/notation-graph';
-import type { ModelPort } from '../model/port';
 import { fail, type Result } from './ops';
 import type { ModelContext } from '../read/diagram';
 import { prefetchFigures } from '../read/figures';
@@ -27,20 +27,26 @@ export interface ViewEdit { uri: string; text: string }
 /** The result of the command and the edits of its view documents (none after a failure or a no-op). */
 export type CommandRun = Result<unknown> & { edits: ViewEdit[] };
 
-/** The quads of the view graph `iri` as the server has them now. */
-async function viewQuadsOf(ctx: ModelContext, iri: string): Promise<ViewQuads> {
+/** The quads of the view `iri` as the server has them now: every statement of its view file `file`, with the view IRI as graph term. */
+async function viewQuadsOf(ctx: ModelContext, iri: string, file: string): Promise<ViewQuads> {
     const g = rdf.namedNode(iri);
-    const rows = await ctx.port.select(`SELECT ?s ?p ?o WHERE { GRAPH <${iri}> { ?s ?p ?o } }`);
+    const rows = await ctx.port.select('SELECT ?s ?p ?o WHERE { ?s ?p ?o }', [file]);
     return new ViewQuads(rows.map(r => rdf.quad(r.s as never, r.p as never, r.o as never, g)), g);
 }
 
 /**
  * Why the canvas cannot edit the view file `file` of the view `iri`: it has statements outside the view graph (another graph, or the
  * default graph of the document), which the whole-file text of the view would delete. Undefined: the file holds the view graph only.
+ * `text`: the open buffer; otherwise read the file asynchronously. Parse as TriG with n3.
  */
-export async function viewFileProblem(port: ModelPort, file: string, iri: string): Promise<string | undefined> {
-    const rows = await port.select('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }', [file]);
-    const other = rows.map(r => r.g?.value).filter(g => g !== iri);
+export async function viewFileProblem(file: string, iri: string, text?: string): Promise<string | undefined> {
+    let quads: Quad[];
+    try {
+        quads = new Parser({ format: 'application/trig', baseIRI: pathToFileURL(file).href }).parse(text ?? await readFile(file, 'utf8'));
+    } catch (e) {
+        return `${file} does not parse as TriG: ${(e as Error).message}`;
+    }
+    const other = [...new Set(quads.filter(q => q.graph.termType !== 'NamedNode' || q.graph.value !== iri).map(q => q.graph.value))];
     return other.length ? `${file} has statements outside the view graph <${iri}> (in ${other.map(g => `<${g}>`).join(', ')}): a view file holds the view graph only.` : undefined;
 }
 
@@ -52,14 +58,14 @@ export async function viewFileProblem(port: ModelPort, file: string, iri: string
  */
 export async function runCommand(ctx: ModelContext, views: ViewInput[], command: ViewCommand, log: (line: string) => void = line => console.warn(line)): Promise<CommandRun> {
     for (const v of views) {
-        const problem = await viewFileProblem(ctx.port, fileURLToPath(v.uri), v.iri);
+        const problem = await viewFileProblem(fileURLToPath(v.uri), v.iri, v.text);
         if (problem) return { ...fail(problem), edits: [] };
     }
-    const quads: Views = Object.fromEntries(await Promise.all(views.map(async v => [v.iri, await viewQuadsOf(ctx, v.iri)] as const)));
+    const quads: Views = Object.fromEntries(await Promise.all(views.map(async v => [v.iri, await viewQuadsOf(ctx, v.iri, fileURLToPath(v.uri))] as const)));
     const reach: NTerm[] = commandIris(ctx.shapes, command, quads).map(value => ({ termType: 'NamedNode', value }));
     const [facts, prefetched] = await Promise.all([
         factsOf(ctx, command, quads),
-        Promise.all(views.map(async v => [v.iri, await prefetchFigures(ctx.port, v.iri, ctx.shapes, ctx.modelFiles, reach)] as const))
+        Promise.all(views.map(async v => [v.iri, await prefetchFigures(ctx.port, v.iri, fileURLToPath(v.uri), ctx.shapes, ctx.modelFiles, reach)] as const))
     ]);
     const readers = new Map(prefetched);
     const figures = (iri: string, also?: NTerm[]) => {

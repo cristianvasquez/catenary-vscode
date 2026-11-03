@@ -142,7 +142,7 @@ describe('Bookshop instances', () => {
 
 describe('read builders', () => {
     test('reads both view labels and the label of an instance of a view', async () => {
-        expect(await viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)).toEqual({ [iriId(modelIri)]: 'Bookshop model', [iriId(instancesIri)]: 'Bookshop' });
+        expect(await viewLabelsOf(ctx.port, ctx.views, ctx.manifest.language)).toEqual({ [iriId(modelIri)]: 'Bookshop model', [iriId(instancesIri)]: 'Bookshop' });
         expect((await scopedDoc(ctx, { views: [iriId(instancesIri)] })).instances[id('Animal%20Farm')].label).toBe('Animal Farm');
     });
 

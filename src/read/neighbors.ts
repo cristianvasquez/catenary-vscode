@@ -2,13 +2,13 @@
 import type { NamedNode, Term } from '@rdfjs/types';
 import { type View, boxes } from '../catenary/model/doc';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH } from '../catenary/rdf/files';
+import { UNION_GRAPH, dataGraphIri, fileOfGraph } from '../catenary/rdf/files';
 import { elementTerm, relationId } from '../catenary/rdf/ids';
 import { termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
 import type { ModelPort, Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
-import { bindings, shapeTargetMatches } from './targets';
+import { boundRows, shapeTargetMatches } from './targets';
 
 /** The hidden neighbours of a card: statements in and out, and the instances that its shape targets. */
 export type NeighborCount = { in: number; out: number; targets?: number };
@@ -23,21 +23,22 @@ const MODEL = '';
 const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
 /**
- * The instance test and the home of each IRI (instancesAmong, homesAmong of rdf/quad-read.ts) from one query: rdf:type, rdfs:label and the
- * SKOS membership statements with their document. A statement of a shape subject of its document (the closure) is in the old shapes graph.
- * `types`: the rdf:type objects of each IRI, in every document.
+ * The instance test and the home of each IRI (instancesAmong, homesAmong of rdf/quad-read.ts): rdf:type, rdfs:label and the SKOS membership
+ * statements with their document (the IRIs per file, the blank nodes once over the folder: boundRows). A statement of a shape subject of its
+ * document (the closure) is in the old shapes graph; its home is `<file URI>#shapes`. `types`: the rdf:type objects of each IRI, in every document.
  */
-export async function factsOf(port: ModelPort, files: string[], inShapes: (doc: string, s: Term) => boolean, iris: Iterable<string>): Promise<{ instance: Set<string>; home: Map<string, string>; types: Map<string, string[]> }> {
+export async function factsOf(port: ModelPort, files: string[], inShapes: InShapes, iris: Iterable<string>): Promise<{ instance: Set<string>; home: Map<string, string>; types: Map<string, string[]> }> {
     const values = [...new Set(iris)].filter(s => s !== UNION_GRAPH);
     const instance = new Set<string>(), home = new Map<string, string>(), types = new Map<string, string[]>();
     if (!values.length || !files.length) return { instance, home, types };
-    const rows = (await Promise.all(bindings('s', values.map(named)).map(async ({ clause, keep }) => (await port.select(`${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE {
-        VALUES ?p { rdf:type rdfs:label skos:inScheme skos:topConceptOf } GRAPH ?g { ?s ?p ?o } ${clause} }`, files)).filter(r => keep(r.s))))).flat();
+    const rows = await boundRows(port, files, 's', values.map(named), clause => `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE {
+        VALUES ?p { rdf:type rdfs:label skos:inScheme skos:topConceptOf } ?s ?p ?o ${clause} }`);
     const inModel = new Set<string>(), vocabulary = new Map<string, string[]>();
-    for (const { g, s, p, o } of rows) {
+    for (const r of rows) {
+        const { s, p, o } = r, doc = inShapes.documentOf(r);
         if (p.value === TYPE) (types.get(s.value) ?? types.set(s.value, []).get(s.value)!).push(o.value);
-        if (!inShapes(g.value, s)) { if (p.value === TYPE || p.value === LABEL) inModel.add(s.value); continue; }
-        if ((p.value === TYPE && SKOS_TYPES.has(o.value)) || SKOS_MEMBERSHIP.has(p.value)) (vocabulary.get(s.value) ?? vocabulary.set(s.value, []).get(s.value)!).push(g.value + '#shapes');
+        if (doc === undefined || !inShapes(doc, s)) { if (p.value === TYPE || p.value === LABEL) inModel.add(s.value); continue; }
+        if ((p.value === TYPE && SKOS_TYPES.has(o.value)) || SKOS_MEMBERSHIP.has(p.value)) (vocabulary.get(s.value) ?? vocabulary.set(s.value, []).get(s.value)!).push(dataGraphIri(doc) + '#shapes');
     }
     for (const s of values) {
         const graphs = vocabulary.get(s)?.sort((a, b) => a < b ? -1 : a > b ? 1 : 0);
@@ -47,17 +48,35 @@ export async function factsOf(port: ModelPort, files: string[], inShapes: (doc: 
     return { instance, home, types };
 }
 
-/** The test of factsOf: `s` is a shape subject in the document `doc` (graph name of the closure). */
-export function inShapesOf(shapes: ShapesModelRecords): (doc: string, s: Term) => boolean {
-    const keys = new Set(shapes.closure.map(q => q.graph.value + ' ' + termKey(q.subject)));
-    return (doc, s) => keys.has(doc + ' ' + termKey(s));
+/**
+ * The test of factsOf: `s` is a shape subject in the document `doc` (a file path; the closure has its file URI as graph). `documentOf(r)`:
+ * the document of a row, its `file` (byFile); a row without a file (read over the whole folder) is in the first document (by path) where its
+ * subject is a shape, else in none.
+ */
+export interface InShapes {
+    (doc: string, s: Term): boolean;
+    documentOf(r: Row & { file?: string }): string | undefined;
 }
 
-/** The statements (with their document) whose subject or object is one of `iris`, with an IRI or blank node at the other end, without rdf:type and rdfs:label. */
-export async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<Row[]> {
-    const ask = (end: 's' | 'o') => bindings(end, iris.map(named)).map(async ({ clause, keep }) => (await port.select(`${PREFIXES} SELECT ?g ?s ?p ?o WHERE {
-        GRAPH ?g { ?s ?p ?o } FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause} }`, files)).filter(r => keep(r[end])));
-    return (await Promise.all([...ask('s'), ...ask('o')])).flat();
+export function inShapesOf(shapes: ShapesModelRecords): InShapes {
+    const docs = new Map<string, string[]>();
+    for (const q of shapes.closure) {
+        const k = termKey(q.subject), file = fileOfGraph(q.graph.value), files = docs.get(k) ?? docs.set(k, []).get(k)!;
+        if (!files.includes(file)) files.push(file);
+    }
+    for (const files of docs.values()) files.sort();
+    return Object.assign((doc: string, s: Term) => docs.get(termKey(s))?.includes(doc) ?? false,
+        { documentOf: (r: Row & { file?: string }) => r.file ?? docs.get(termKey(r.s))?.[0] });
+}
+
+/**
+ * The statements (with their document: `file` for the IRI ends, none for the blank-node ends, boundRows) whose subject or object is one of
+ * `iris`, with an IRI or blank node at the other end, without rdf:type and rdfs:label.
+ */
+export async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<(Row & { file?: string })[]> {
+    const ask = (end: 's' | 'o') => boundRows(port, files, end, iris.map(named), clause => `${PREFIXES} SELECT ?s ?p ?o WHERE {
+        ?s ?p ?o FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause} }`);
+    return (await Promise.all([ask('s'), ask('o')])).flat();
 }
 
 /**
@@ -97,20 +116,21 @@ export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[]
     for (const b of boxes(view, 'card')) for (const m of model.valueSets[b.element]?.members ?? []) shownIris.add(m.uri);
     const placedEdges = new Set(view.edges.filter(e => !e.hidden).map(e => e.relation));
     const neighbors = new Map<string, { in: Set<string>; out: Set<string> }>();
-    const consider = (doc: string, subject: Term, p: Term, object: Term, dir: 'in' | 'out') => {
+    const consider = (doc: string | undefined, subject: Term, p: Term, object: Term, dir: 'in' | 'out') => {
         const [self, other] = dir === 'out' ? [subject, object] : [object, subject];
         if (!cards.has(self.value) || other.termType !== 'NamedNode') return;
         // A relation is a statement of the graph of its subject: the model graph, or the shapes graph of a SKOS subject.
-        const owner = facts.home.get(subject.value) ?? MODEL, shapesPart = inShapes(doc, subject);
-        if (owner === MODEL ? shapesPart : !shapesPart || doc + '#shapes' !== owner) return;
+        const owner = facts.home.get(subject.value) ?? MODEL, shapesPart = doc !== undefined && inShapes(doc, subject);
+        if (owner === MODEL ? shapesPart : !shapesPart || dataGraphIri(doc) + '#shapes' !== owner) return;
         if (shownIris.has(other.value) && placedEdges.has(relationId(subject as NamedNode, p as NamedNode, object as NamedNode))) return;
         if (other.value === self.value || !facts.instance.has(other.value)) return;
         const o = neighbors.get(self.value) ?? neighbors.set(self.value, { in: new Set(), out: new Set() }).get(self.value)!;
         o[dir].add(other.value);
     };
-    for (const { g, s, p, o } of around) {
-        consider(g.value, s, p, o, 'out');
-        consider(g.value, s, p, o, 'in');
+    for (const r of around) {
+        const doc = inShapes.documentOf(r);
+        consider(doc, r.s, r.p, r.o, 'out');
+        consider(doc, r.s, r.p, r.o, 'in');
     }
     for (const [self, id] of cards) { const c = neighbors.get(self); if (c) out.set(id, { in: c.in.size, out: c.out.size }); }
     const shownShapes = new Set(boxes(view, 'card').map(c => c.element));

@@ -5,9 +5,9 @@ import type { ViewCommand } from '../catenary/model/commands';
 import { LABEL_PREDICATES, pickLabel } from '../catenary/model/labels';
 import type { Range } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH } from '../catenary/rdf/files';
+import { UNION_GRAPH, fileOfGraph } from '../catenary/rdf/files';
 import { labelFromIri, labelLiterals, SKOS_MEMBERSHIP, SKOS_TYPES } from '../catenary/rdf/vocabulary';
-import type { ModelPort, Row } from '../model/port';
+import { byFile, type ModelPort, type Row } from '../model/port';
 import type { ManifestRecords } from '../read/manifest';
 import type { ShapesModelRecords } from '../read/shapes';
 import { commandIds, resolveIds, type Views } from './commands';
@@ -20,6 +20,8 @@ export interface FactsContext {
     modelFiles: string[];
     shapes: ShapesModelRecords;
     manifest: ManifestRecords;
+    /** View IRI → file path of its view file (ModelContext.views). */
+    views: Map<string, string>;
 }
 
 /** The IRI prefix of a blank node in a port answer (port.ts): a query cannot name it; it is fetched with an isBlank pattern and kept by its label. */
@@ -75,52 +77,59 @@ export function commandIris(shapes: ShapesModelRecords, command: ViewCommand, vi
 }
 
 /**
- * The model query. Each row is a statement of a model document `?g` and the branch `?b` that found it: `a` the statements of a named IRI,
- * `t` rdf:type and rdfs:label of their objects, `x` every statement of a blank node subject (kept by label in code), `y` rdf:type and
- * rdfs:label of the objects of blank nodes, `v` every statement of a subject with a SKOS type.
+ * The model query, in two parts. Each row is a statement and the branch `?b` that found it. The IRI part, per model document (byFile, each
+ * row with its `file`): `a` the statements of a named IRI, `t` rdf:type and rdfs:label of their objects, `v` every statement of an IRI subject
+ * with a SKOS type. The blank part, once over the whole folder (no `file`): `x` every statement of a blank node subject (kept by label in
+ * code), `y` rdf:type and rdfs:label of the objects of blank nodes.
  */
-function modelQuery(named: string[], blank: boolean, vocabulary: boolean): string {
-    const typing = `FILTER (?p IN (<${RDF_TYPE}>, <${RDFS_LABEL}>))`;
+function namedQuery(named: string[], vocabulary: boolean): string {
     const branches = [
         ...named.length ? [
-            `{ VALUES ?s { ${values(named)} } GRAPH ?g { ?s ?p ?o } BIND ("a" AS ?b) }`,
-            `{ VALUES ?i { ${values(named)} } GRAPH ?h { ?i ?q ?s } GRAPH ?g { ?s ?p ?o } ${typing} BIND ("t" AS ?b) }`
+            `{ VALUES ?s { ${values(named)} } ?s ?p ?o BIND ("a" AS ?b) }`,
+            `{ VALUES ?i { ${values(named)} } ?i ?q ?s . ?s ?p ?o ${TYPING} BIND ("t" AS ?b) }`
         ] : [],
-        ...blank ? [
-            `{ GRAPH ?g { ?s ?p ?o } FILTER (isBlank(?s)) BIND ("x" AS ?b) }`,
-            `{ GRAPH ?h { ?i ?q ?s } FILTER (isBlank(?i)) GRAPH ?g { ?s ?p ?o } ${typing} BIND ("y" AS ?b) }`
-        ] : [],
-        ...vocabulary ? [`{ ?s a ?t VALUES ?t { ${values(SKOS_TYPES.map(t => t.value))} } GRAPH ?g { ?s ?p ?o } BIND ("v" AS ?b) }`] : []
+        ...vocabulary ? [`{ ?s a ?t VALUES ?t { ${values(SKOS_TYPES.map(t => t.value))} } ?s ?p ?o FILTER (isIRI(?s)) BIND ("v" AS ?b) }`] : []
     ];
-    return `SELECT DISTINCT ?g ?s ?p ?o ?b WHERE { ${branches.join(' UNION ')} }`;
+    return `SELECT DISTINCT ?s ?p ?o ?b WHERE { ${branches.join(' UNION ')} }`;
 }
 
-/** The view query: the IRIs among `iris` that name a graph with a view:View, and the label statements of each in its own graph. */
+const TYPING = `FILTER (?p IN (<${RDF_TYPE}>, <${RDFS_LABEL}>))`;
+
+const BLANK_QUERY = `SELECT DISTINCT ?s ?p ?o ?b WHERE { { ?s ?p ?o FILTER (isBlank(?s)) BIND ("x" AS ?b) }
+    UNION { ?i ?q ?s FILTER (isBlank(?i)) ?s ?p ?o ${TYPING} BIND ("y" AS ?b) } }`;
+
+/** The label statements of each view of `iris` (the view IRI as subject), from its view file. */
 function viewQuery(iris: string[]): string {
     const labels = LABEL_PREDICATES.map(p => `<${p}>`).join(', ');
-    return `SELECT ?g ?p ?l WHERE { VALUES ?g { ${values(iris)} } GRAPH ?g { ?v a <${NS.view}View> } OPTIONAL { GRAPH ?g { ?g ?p ?l FILTER (?p IN (${labels})) } } }`;
+    return `SELECT ?v ?p ?l WHERE { VALUES ?v { ${values(iris)} } ?v ?p ?l FILTER (?p IN (${labels})) }`;
 }
 
-const quadOf = ({ g, s, p, o }: Row): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], g as Quad['graph']);
+const quadOf = ({ s, p, o }: Row): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object']);
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * The facts of `command` on `views` (the views it edits, as they are before it): the model query over `ctx.modelFiles` without the manifest,
- * and the view query over every document, in parallel. A fact about an IRI that the prefetch did not ask about answers as for an IRI
+ * The facts of `command` on `views` (the views it edits, as they are before it): the model query over `ctx.modelFiles` without the manifest
+ * (the blank part over the folder), and the view label query over the view files, in parallel. `isView`: the IRI is a view of `ctx.views`. A fact about an IRI that the prefetch did not ask about answers as for an IRI
  * without statements.
  */
 export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Views): Promise<Facts> {
     const iris = commandIris(ctx.shapes, command, views);
     const named = iris.filter(i => !i.startsWith(BLANK)), blanks = new Set(iris.filter(i => i.startsWith(BLANK)));
     const files = ctx.modelFiles.filter(f => f !== ctx.manifest.file), vocabulary = DOC_KINDS.has(command.kind);
-    const [modelRows, viewRows] = await Promise.all([
-        named.length || blanks.size || vocabulary ? ctx.port.select(modelQuery(named, blanks.size > 0, vocabulary), files) : [],
-        named.length ? ctx.port.select(viewQuery(named)) : []
+    const viewIris = named.filter(i => ctx.views.has(i));
+    const [namedRows, blankRows, viewRows] = await Promise.all([
+        named.length || vocabulary ? byFile(ctx.port, files, namedQuery(named, vocabulary)) : [],
+        blanks.size && files.length ? ctx.port.select(BLANK_QUERY) : [],
+        viewIris.length ? ctx.port.select(viewQuery(viewIris), viewIris.map(v => ctx.views.get(v)!)) : []
     ]);
+    const modelRows: (Row & { file?: string })[] = [...namedRows, ...blankRows];
 
     // The shapes part: the statements of the shapes closure (K2), by subject; a statement of a document outside it is a model statement.
-    const shapeKeys = new Set(ctx.shapes.closure.map(q => `${q.graph.value} ${termKey(q.subject)}`));
+    // A row without a file (the blank part, read over the folder): a shape statement when its subject is a shape in any document.
+    const shapeKeys = new Set(ctx.shapes.closure.map(q => `${fileOfGraph(q.graph.value)} ${termKey(q.subject)}`));
+    const shapeSubjects = new Set(ctx.shapes.closure.map(q => termKey(q.subject)));
+    const isShapeRow = (r: Row & { file?: string }, q: Quad) => r.file === undefined ? shapeSubjects.has(termKey(q.subject)) : shapeKeys.has(`${r.file} ${termKey(q.subject)}`);
     const shapesBySubject = new Map<string, Quad[]>();
     for (const q of ctx.shapes.closure) (shapesBySubject.get(q.subject.value) ?? shapesBySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);
 
@@ -129,7 +138,7 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
     for (const r of modelRows) {
         const q = quadOf(r), b = r.b?.value;
         if (b === 'x' && !blanks.has(q.subject.value)) continue;
-        if (shapeKeys.has(`${q.graph.value} ${termKey(q.subject)}`)) continue;
+        if (isShapeRow(r, q)) continue;
         const s = q.subject.value, t = rdf.quad(q.subject, q.predicate, q.object);
         (model.get(s) ?? model.set(s, new Map()).get(s)!).set(tripleKey(t), t);
         if (b === 'a' || b === 'x' || b === 'v') full.add(s);
@@ -139,8 +148,8 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
     const typedOrLabelled = (t: Term) => t.termType === 'NamedNode' && [...model.get(t.value)?.values() ?? []].some(q => q.predicate.value === RDF_TYPE || q.predicate.value === RDFS_LABEL);
     const inModel = (iri: string) => typedOrLabelled(rdf.namedNode(iri));
 
-    const viewGraphs = new Map<string, Row[]>();
-    for (const r of viewRows) (viewGraphs.get(r.g.value) ?? viewGraphs.set(r.g.value, []).get(r.g.value)!).push(r);
+    const viewLabels = new Map<string, Row[]>();
+    for (const r of viewRows) (viewLabels.get(r.v.value) ?? viewLabels.set(r.v.value, []).get(r.v.value)!).push(r);
 
     const shapesMatch = (s: string | null, p: string | null, o?: string | null): Quad[] => {
         const rows = s !== null ? shapesBySubject.get(s) ?? [] : ctx.shapes.closure;
@@ -156,8 +165,8 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         language: ctx.manifest.language,
         isInstance: iri => iri !== UNION_GRAPH && (inModel(iri) || vocabularyGraph(iri) !== undefined),
         label: iri => pickLabel(labelLiterals(p => rowsOf(iri).filter(q => q.predicate.value === p).map(q => q.object)), ctx.manifest.language) ?? labelFromIri(iri),
-        isView: iri => viewGraphs.has(iri),
-        viewLabel: iri => pickLabel(labelLiterals(p => (viewGraphs.get(iri) ?? []).filter(r => r.p?.value === p).map(r => r.l)), ctx.manifest.language) ?? labelFromIri(iri),
+        isView: iri => ctx.views.has(iri),
+        viewLabel: iri => pickLabel(labelLiterals(p => (viewLabels.get(iri) ?? []).filter(r => r.p?.value === p).map(r => r.l)), ctx.manifest.language) ?? labelFromIri(iri),
         has: (s, p, o) => {
             const graph = !inModel(s) && vocabularyGraph(s);
             const key = tripleKey({ subject: rdf.namedNode(s), predicate: rdf.namedNode(p), object: rdf.namedNode(o) });

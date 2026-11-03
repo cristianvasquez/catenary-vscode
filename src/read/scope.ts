@@ -3,15 +3,15 @@ import type { NamedNode, Term } from '@rdfjs/types';
 import { type Doc, type View, emptyDoc } from '../catenary/model/doc';
 import { idIri } from '../catenary/model/ids';
 import { NS } from '../catenary/model/terms';
-import { fileOfGraph } from '../catenary/rdf/files';
+import { dataGraphIri, fileOfGraph } from '../catenary/rdf/files';
 import { elementId, elementTerm, relationTriple } from '../catenary/rdf/ids';
 import { type Plain, type Statements, instanceRecords } from '../catenary/rdf/records';
 import { rdf, termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
-import type { Row } from '../model/port';
+import { byFile, type Row } from '../model/port';
 import type { ModelContext } from './diagram';
 import { factsOf, inShapesOf, statementsAround } from './neighbors';
-import { bindings } from './targets';
+import { bindings, boundRows } from './targets';
 import { legacyRows, viewDocOf, viewLabelsOf } from './view';
 
 /** What scopedDoc reads (DocScope of rdf/scoped-doc.ts, deleted with it in K11). */
@@ -42,11 +42,10 @@ const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 /** A view entry with its label only. */
 const labelOnly = (id: string, label: string): View => ({ id, label, uri: elementTerm(id)?.value ?? '', boxes: [], edges: [], arrows: [] });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES, and the isBlank query for blank nodes), on the model documents. */
-async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string): Promise<Row[]> {
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document, the isBlank query over the folder: boundRows). */
+async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
     if (!iris.length || !ctx.modelFiles.length) return [];
-    return (await Promise.all(bindings(variable, iris.map(named)).map(async ({ clause, keep }) =>
-        (await ctx.port.select(query(clause), ctx.modelFiles)).filter(r => keep(r[variable]))))).flat();
+    return boundRows(ctx.port, ctx.modelFiles, variable, iris.map(named), query);
 }
 
 /** scopedDoc of rdf/scoped-doc.ts: the view labels, the views of `scope` (in full or for the selected elements), the instances of `scope.elements`. */
@@ -55,14 +54,14 @@ export async function scopedDoc(ctx: ModelContext, scope: DocScope): Promise<Doc
     const inShapes = inShapesOf(shapes);
     const doc = emptyDoc();
     doc.shapes = shapes.index.model;
-    for (const [id, label] of Object.entries(await viewLabelsOf(port, modelFiles, manifest.language))) doc.views[id] = labelOnly(id, label);
+    for (const [id, label] of Object.entries(await viewLabelsOf(port, ctx.views, manifest.language))) doc.views[id] = labelOnly(id, label);
     const read = new Set<string>();
     const readPart = async (viewId: string, elements?: string[]) => {
         if (read.has(viewId) || !doc.views[viewId]) return;
         read.add(viewId);
         const iri = idIri(viewId);
         if (!iri) return;
-        const part = await viewDocOf(port, iri, shapes, manifest, elements ? { elements } : {});
+        const part = await viewDocOf(port, ctx.views, iri, shapes, manifest, elements ? { elements } : {});
         if (part.views[viewId]) doc.views[viewId] = part.views[viewId];
         for (const [id, i] of Object.entries(part.instances)) doc.instances[id] ??= i;
         for (const [id, r] of Object.entries(part.relations)) doc.relations[id] ??= r;
@@ -110,14 +109,17 @@ async function neighbors(ctx: ModelContext, subjects: string[]): Promise<string[
 async function records(ctx: ModelContext, doc: Doc, iris: string[]): Promise<void> {
     const inShapes = inShapesOf(ctx.shapes);
     const [facts, rows] = await Promise.all([factsOf(ctx.port, ctx.modelFiles, inShapes, iris),
-        rowsOf(ctx, 's', iris, clause => `SELECT ?g ?s ?p ?o WHERE { GRAPH ?g { ?s ?p ?o } ${clause} }`)]);
-    const bySubject = new Map<string, Row[]>();
+        rowsOf(ctx, 's', iris, clause => `SELECT ?s ?p ?o WHERE { ?s ?p ?o ${clause} }`)]);
+    const bySubject = new Map<string, (Row & { file?: string })[]>();
     for (const r of rows) (bySubject.get(r.s.value) ?? bySubject.set(r.s.value, []).get(r.s.value)!).push(r);
     const files = new Map<string, string>();
     const subjects: Statements[] = [];
     for (const s of iris) {
         const home = facts.home.get(s) ?? MODEL;
-        const own = (bySubject.get(s) ?? []).filter(r => home === MODEL ? !inShapes(r.g.value, r.s) : inShapes(r.g.value, r.s) && r.g.value + '#shapes' === home);
+        const own = (bySubject.get(s) ?? []).filter(r => {
+            const doc = inShapes.documentOf(r), shapesPart = doc !== undefined && inShapes(doc, r.s);
+            return home === MODEL ? !shapesPart : shapesPart && dataGraphIri(doc) + '#shapes' === home;
+        });
         const seen = new Set<string>(), out: Statements['rows'] = [];
         for (const r of legacyRows(own)) {
             const k = `${termKey(r.p)} ${termKey(r.o)}`;
@@ -152,8 +154,9 @@ function showingTerms(doc: Doc, elements: string[], instances: string[]): string
 /** The views (ids among `views`) with a placement of one of `terms`, sorted. */
 async function viewsPlacing(ctx: ModelContext, terms: string[], views: Set<string>): Promise<string[]> {
     if (!terms.length) return [];
-    const found = (await Promise.all(bindings('e', terms.map(named)).map(async ({ clause, keep }) => (await ctx.port.select(`${PREFIXES} SELECT DISTINCT ?g ?e WHERE {
-        GRAPH ?g { ?n a ?t ; ?element ?e FILTER (?t IN (view:Placement, oview:Placement) && ?element IN (view:element, oview:element)) } ${clause} }`)).filter(r => keep(r.e))))).flat();
-    const ids = new Set(found.filter(r => r.g.termType === 'NamedNode').map(r => elementId(r.g as NamedNode)).filter(id => views.has(id)));
+    const viewOf = new Map([...ctx.views].map(([iri, file]) => [file, iri]));
+    const found = (await Promise.all(bindings('e', terms.map(named)).map(async ({ clause, keep }) => (await byFile(ctx.port, [...ctx.views.values()], `${PREFIXES} SELECT DISTINCT ?e WHERE {
+        ?n a ?t ; ?element ?e FILTER (?t IN (view:Placement, oview:Placement) && ?element IN (view:element, oview:element)) ${clause} }`)).filter(r => keep(r.e))))).flat();
+    const ids = new Set(found.flatMap(r => { const v = viewOf.get(r.file); return v ? [elementId(rdf.namedNode(v))] : []; }).filter(id => views.has(id)));
     return [...ids].sort(cmp);
 }

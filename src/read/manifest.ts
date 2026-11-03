@@ -3,10 +3,10 @@ import type { Quad } from '@rdfjs/types';
 import { DEFAULT_PREFIXES, setPrefixes } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
 import { readManifest } from '../catenary/rdf/files';
-import { fileOfGraph } from '../catenary/rdf/files';
+import { dataGraphIri } from '../catenary/rdf/files';
 import { readLegacy } from '../catenary/rdf/loader';
 import { rdf } from '../catenary/rdf/terms';
-import type { ModelPort } from '../model/port';
+import { byFile, type ModelPort } from '../model/port';
 
 /** `file`: the path of the manifest document; undefined: the model files have none. */
 export interface ManifestRecords {
@@ -16,14 +16,16 @@ export interface ManifestRecords {
 }
 
 // The legacy namespace of ws: too (LEGACY_NAMESPACES of model/terms.ts): a manifest in an old namespace is a manifest.
-const MANIFEST = `SELECT ?g ?s ?p ?o WHERE { GRAPH ?g { ?w a ?t . VALUES ?t { <${NS.ws}Workspace> <osg://vocab/workspace#Workspace> } ?s ?p ?o } }`;
+const MANIFEST = `SELECT ?s ?p ?o WHERE { ?w a ?t . VALUES ?t { <${NS.ws}Workspace> <osg://vocab/workspace#Workspace> } ?s ?p ?o }`;
 
-/** The manifest among `modelFiles`: every statement of each document with a ws:Workspace; the first document by path wins. */
+/**
+ * The manifest among `modelFiles`: every statement of each document with a ws:Workspace (one query per document, byFile); the first
+ * document by path wins. Its blank nodes (sh:declare) come from the answer of that one document.
+ */
 export async function manifestOf(port: ModelPort, modelFiles: string[]): Promise<ManifestRecords> {
     const docs = new Map<string, Quad[]>();
-    for (const { g, s, p, o } of await port.select(MANIFEST, modelFiles)) {
-        const file = fileOfGraph(g.value);
-        (docs.get(file) ?? docs.set(file, []).get(file)!).push(rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], g as Quad['graph']));
+    for (const { file, s, p, o } of await byFile(port, modelFiles, MANIFEST)) {
+        (docs.get(file) ?? docs.set(file, []).get(file)!).push(rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], rdf.namedNode(dataGraphIri(file))));
     }
     const file = [...docs.keys()].sort((a, b) => a < b ? -1 : a > b ? 1 : 0)[0];
     if (file === undefined) return {};

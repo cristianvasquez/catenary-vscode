@@ -51,7 +51,7 @@ const run = async (c: ViewCommand) => {
 };
 const note = () => run({ kind: 'createNote', view: vid, text: 'note', at });
 const keys = (v: ViewQuads) => v.quads().map(tripleKey).sort();
-const figuresOf = (iri: string) => viewFiguresOf(ctx.port, iri, ctx.shapes, ctx.modelFiles);
+const figuresOf = (iri: string) => viewFiguresOf(ctx.port, iri, ctx.views.get(iri)!, ctx.shapes, ctx.modelFiles);
 
 /**
  * Runs the op on the server quads of view `iri` with the facts of the command `c` (factsOf), and compares its result and the change of the

@@ -31,13 +31,14 @@ describe('shapeTargetMatches and hiddenNeighborCounts on test/fixtures/shapes', 
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
         const rdfFiles = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(file);
-        const modelFiles = modelFilesOf(rdfFiles, await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig'))));
+        const viewFiles = await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig')));
+        const modelFiles = modelFilesOf(rdfFiles, viewFiles);
         const manifest = await manifestOf(server.port(), modelFiles);
         // The model documents without the manifest document (ModelContext.modelFiles).
         files = modelFiles.filter(f => f !== manifest.file);
         now = await shapesModelOf(server.port(), modelFiles, manifest);
         model = now.index.model;
-        for (const v of VIEWS) views.set(v, (await viewDocOf(server.port(), v, now, manifest)).views[iriId(v)]);
+        for (const v of VIEWS) views.set(v, (await viewDocOf(server.port(), viewFiles.views, v, now, manifest)).views[iriId(v)]);
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
@@ -117,6 +118,8 @@ ex:leaf rdfs:label "leaf" .
     });
 
     const node = (value: string) => ({ termType: 'NamedNode' as const, value });
+    /** The recorded value with the IRI of the old blank-node label (`<document>:<n>`, 0:1) replaced by the IRI of the label that the server gives now. */
+    const recordedBlank = (name: string) => JSON.parse(JSON.stringify(R(name)).replaceAll('urn:skolem:blank:000000-00000001', blank));
 
     test('the blank node of the port is a skolem IRI', () => {
         expect(blank).toMatch(/^urn:skolem:blank:/);
@@ -131,13 +134,13 @@ ex:leaf rdfs:label "leaf" .
     ] as [string, number, () => TargetSelection][])('%s equals the recorded old one (%i matches)', async (name, count, selection) => {
         const result = await shapeTargetMatches(server.port(), files, now, selection());
         expect(result).toHaveLength(count);
-        expect(json(result)).toEqual(R(name));
+        expect(json(result)).toEqual(recordedBlank(name));
     });
 
     test('hiddenNeighborCounts counts the blank neighbour as the old one did', async () => {
-        const view = (await viewDocOf(server.port(), viewIri, now, {})).views[iriId(viewIri)];
+        const view = (await viewDocOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
         const result = await hiddenNeighborCounts(server.port(), files, now, view);
         expect(result.get(iriId(`${EX}root`))?.out).toBe(1);
-        expect(json([...result])).toEqual(R('hidden blank'));
+        expect(json([...result])).toEqual(recordedBlank('hidden blank'));
     });
 });

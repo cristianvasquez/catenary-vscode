@@ -12,31 +12,30 @@ import { rdf } from '../catenary/rdf/terms';
 import { labelFromIri, labelLiterals } from '../catenary/rdf/vocabulary';
 import { reasonText } from '../catenary/shacl/common';
 import type { FocusNode } from '../catenary/shacl/common/index';
-import type { Row } from '../model/port';
+import { byFile, type Row } from '../model/port';
 import type { ModelContext } from './diagram';
 import { applyPrefixes } from './manifest';
 import { factsOf, inShapesOf } from './neighbors';
 import { scopedDoc } from './scope';
-import { bindings, shapeTargetMatches } from './targets';
+import { boundRows, shapeTargetMatches } from './targets';
 import { legacyRows, viewDocOf } from './view';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos: <${NS.skos}> PREFIX sh: <${NS.sh}>`;
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label', PATH = NS.sh + 'path';
 const SKOS_TYPES = new Set(['ConceptScheme', 'Concept', 'Collection'].map(t => NS.skos + t));
 const SKOS_MEMBERSHIP = new Set(['inScheme', 'topConceptOf'].map(p => NS.skos + p));
-/** The statements that make a subject an instance, and its label statements, with their document. */
-const INSTANCE_ROWS = `${PREFIXES} SELECT ?g ?s ?p ?o WHERE { GRAPH ?g { ?s ?p ?o
-    VALUES ?p { rdf:type rdfs:label skos:prefLabel sh:name skos:inScheme skos:topConceptOf } } }`;
+/** The statements that make an IRI subject an instance, and its label statements, in one model document (byFile). */
+const INSTANCE_ROWS = `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
+    VALUES ?p { rdf:type rdfs:label skos:prefLabel sh:name skos:inScheme skos:topConceptOf } FILTER (isIRI(?s)) }`;
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES, and the isBlank query for blank nodes), on the model documents. */
-async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string, files = ctx.modelFiles): Promise<Row[]> {
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document, the isBlank query over the folder: boundRows). */
+async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string, files = ctx.modelFiles): Promise<(Row & { file?: string })[]> {
     if (!iris.length || !files.length) return [];
-    return (await Promise.all(bindings(variable, iris.map(named)).map(async ({ clause, keep }) =>
-        (await ctx.port.select(query(clause), files)).filter(r => keep(r[variable]))))).flat();
+    return boundRows(ctx.port, files, variable, iris.map(named), query);
 }
 
 /**
@@ -46,14 +45,17 @@ async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query
  */
 export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: boolean } = {}): Promise<Map<string, string>> {
     const inShapes = inShapesOf(ctx.shapes);
-    const rows = ctx.modelFiles.length ? legacyRows(await ctx.port.select(INSTANCE_ROWS, ctx.modelFiles)) : [];
-    const modelRows = rows.filter(r => !inShapes(r.g.value, r.s));
+    const rows = legacyRows(await byFile(ctx.port, ctx.modelFiles, INSTANCE_ROWS));
+    const modelRows = rows.filter(r => !inShapes(r.file, r.s));
     const instances = new Set(modelRows.filter(r => r.p.value === TYPE || r.p.value === LABEL).map(r => r.s.value));
     const inUnion = new Set(modelRows.map(r => r.s.value));
-    const vocabulary = new Set(rows.filter(r => inShapes(r.g.value, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
+    const vocabulary = new Set(rows.filter(r => inShapes(r.file, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
     // A SKOS subject of the shapes counts when it has a statement outside the shapes (the old pipeline reads the subjects of the model graph).
     const open = [...vocabulary].filter(s => !instances.has(s) && !inUnion.has(s));
-    for (const r of await rowsOf(ctx, 's', open, clause => `SELECT DISTINCT ?g ?s WHERE { GRAPH ?g { ?s ?p ?o } ${clause} }`)) if (!inShapes(r.g.value, r.s)) inUnion.add(r.s.value);
+    for (const r of await rowsOf(ctx, 's', open, clause => `SELECT DISTINCT ?s WHERE { ?s ?p ?o ${clause} }`)) {
+        const doc = inShapes.documentOf(r);
+        if (doc === undefined || !inShapes(doc, r.s)) inUnion.add(r.s.value);
+    }
     for (const s of vocabulary) if (inUnion.has(s)) instances.add(s);
     const shapesOnly = options.vocabulary ? new Set([...vocabulary].filter(s => !instances.has(s))) : new Set<string>();
     for (const s of shapesOnly) instances.add(s);
@@ -68,8 +70,8 @@ export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: 
 
 /** Label of each of `iris` from its statements in the model documents (labels of rdf/quad-read.ts): a label predicate, else the sh:path, else the IRI. */
 async function labelsOf(ctx: ModelContext, iris: string[]): Promise<Map<string, string>> {
-    const rows = legacyRows((await rowsOf(ctx, 's', iris, clause => `${PREFIXES} SELECT ?g ?s ?p ?o WHERE { GRAPH ?g { ?s ?p ?o
-        VALUES ?p { rdfs:label skos:prefLabel sh:name sh:path } } ${clause} }`)));
+    const rows = legacyRows((await rowsOf(ctx, 's', iris, clause => `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
+        VALUES ?p { rdfs:label skos:prefLabel sh:name sh:path } ${clause} }`)));
     return new Map(iris.map(s => {
         const own = rows.filter(r => r.s.value === s);
         const paths = own.filter(r => r.p.value === PATH && !r.o.value.startsWith('urn:skolem:')).map(r => r.o.value).sort();
@@ -131,7 +133,7 @@ export async function expandChoices(ctx: ModelContext, viewId: string, from: str
 /** Labels of the instances that are not members of the entity group `collection` of `viewId` (for "+ member"), sorted. */
 export async function memberOptions(ctx: ModelContext, viewId: string, collection: string): Promise<string[]> {
     const iri = idIri(viewId);
-    const [doc, labels] = await Promise.all([iri ? viewDocOf(ctx.port, iri, ctx.shapes, ctx.manifest) : undefined, instanceLabels(ctx)]);
+    const [doc, labels] = await Promise.all([iri ? viewDocOf(ctx.port, ctx.views, iri, ctx.shapes, ctx.manifest) : undefined, instanceLabels(ctx)]);
     const box = doc?.views[viewId]?.boxes.find(b => b.kind === 'collection' && b.id === collection);
     const members = new Set(box?.kind === 'collection' ? box.members : []);
     return [...new Set([...labels].filter(([s]) => !members.has(elementId(rdf.namedNode(s)))).map(([, label]) => label))].sort();

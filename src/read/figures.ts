@@ -193,11 +193,11 @@ const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.objec
 
 /**
  * The figures of a view from one prefetch, with `deriveFigures` unchanged (the old viewFiguresOf in catenary/rdf/notations.ts, `keep` false).
- * The prefetch: (a) the view quads; (b) the shapes closure of `shapes`; (c) the statements of the placed terms and `also`; (d) rdfs:subClassOf
+ * The prefetch: (a) the view quads (every statement of `viewFile`); (b) the shapes closure of `shapes`; (c) the statements of the placed terms and `also`; (d) rdfs:subClassOf
  * over `modelFiles`; (e) rounds of bounded queries for the reads that the derivation misses, blank nodes with the IRI that reaches them.
  */
-export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = []): Promise<PrefetchedFigures> {
-    const prefetch = await prefetchFigures(port, viewIri, shapes, modelFiles, also);
+export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = []): Promise<PrefetchedFigures> {
+    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also);
     return prefetch.figures(prefetch.view, also);
 }
 
@@ -208,10 +208,10 @@ const MAX_ROUNDS = 16;
  * The prefetch of viewFiguresOf, read before a command: `reach` are terms that the command can place (their statements are read as those
  * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them).
  */
-export async function prefetchFigures(port: ModelPort, viewIri: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = []): Promise<FiguresPrefetch> {
+export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = []): Promise<FiguresPrefetch> {
     const notes = readNotations();
     const [view, subclasses] = await Promise.all([
-        port.construct(`CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <${viewIri}> { ?s ?p ?o } }`),
+        port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [viewFile]),
         port.construct(SUBCLASSES, modelFiles)
     ]);
     const viewQuads = nquads(view);
