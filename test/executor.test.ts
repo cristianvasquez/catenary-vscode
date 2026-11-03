@@ -33,7 +33,10 @@ describe('a model blank node', () => {
             `  <${view}/p/b> a view:Placement ; view:element <http://example.org/b> ; view:view <${view}> ; view:x 0 ; view:y 0 ; view:width 300 ; view:height 150 .`,
             '}', ''
         ].join('\n'));
-        server = await startServer(dir, 14);
+        writeFileSync(join(dir, 'mixed.trig'), [
+            `@prefix view: <${VIEW}> .`, '<urn:name:Mixed> { <urn:name:Mixed> a view:View . }', '<urn:name:Other> { <urn:x:s> <urn:x:p> <urn:x:o> . }', ''
+        ].join('\n'));
+        server = await startServer(dir, 16);
         ctx = (await modelContextOf(server.port(), readdirSync(dir).sort().map(f => join(dir, f)))).ctx;
     }, 20000);
     afterAll(async () => {
@@ -53,6 +56,13 @@ describe('a model blank node', () => {
         expect(quads.some(k => k.endsWith(`<${VIEW}element> <${blank}>`))).toBe(true);
         // The statement between the blank node and the placed card is drawn (placeConnectors): the facts have the blank node's statements.
         expect(quads.some(k => k.includes(`<<( <${blank}> <http://example.org/knows> <http://example.org/b> )>>`))).toBe(true);
+    });
+
+    test('a view file with statements outside its view graph is refused: the whole-file text would delete them', async () => {
+        const uri = pathToFileURL(join(dir, 'mixed.trig')).href, mixed = 'urn:name:Mixed';
+        const r = await runCommand(ctx, [{ iri: mixed, uri }], { kind: 'createNote', view: iriId(mixed), text: 'n', at });
+        expect(r).toMatchObject({ ok: false, edits: [] });
+        expect((r as { error: string }).error).toContain('has statements outside the view graph <urn:name:Mixed> (in <urn:name:Other>)');
     });
 
     test('a blank node that the server does not have is not placed: no edit', async () => {

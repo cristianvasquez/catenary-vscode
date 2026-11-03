@@ -8,7 +8,7 @@ import type { ViewCommand } from '../catenary/model/commands';
 import { idIri } from '../catenary/model/ids';
 import type { ModelGraph } from '../catenary/rdf/graph';
 import type { Violation } from '../catenary/model/validation';
-import { runCommand, type ViewEdit, type ViewInput } from '../edit/executor';
+import { runCommand, type ViewEdit, type ViewInput, viewFileProblem } from '../edit/executor';
 import { fail, type Result } from '../edit/ops';
 import { graphOf } from './graph-input';
 import type { ViewSource } from '../node/glsp/view-session';
@@ -123,7 +123,13 @@ export abstract class WorkspaceCore implements ViewSource {
             views.push({ iri: v, ...document });
         }
         const { edits, ...r } = await runCommand(ctx, views, command);
-        if (r.ok && edits.length && !await this.applyEdits(edits)) return fail('The editor refused the edit of the view file.');
+        if (!r.ok || !edits.length) return r;
+        // A change of a document during the queries (a text editor, an undo) wins: the edit would replace it with text of the older state.
+        for (const v of views) {
+            const now = await this.documentOf(this.viewFiles.get(v.iri) ?? '', v.iri !== iri);
+            if (now?.text !== v.text) return fail('The view file changed during the command. Do it again.');
+        }
+        if (!await this.applyEdits(edits)) return fail('The editor refused the edit of the view file.');
         return r;
     }
 
@@ -175,12 +181,18 @@ export abstract class WorkspaceCore implements ViewSource {
         return undefined;
     }
 
-    /** True when the server has a view:View graph in the document `file`, also when the folder skipped it (a duplicate). */
-    async holdsView(file: string): Promise<boolean> {
+    /**
+     * The view of the document `file` as the server has it now (the open buffer wins over the saved file): its IRI, or why the canvas cannot
+     * edit it. Undefined: the document has no view:View graph (a model file).
+     */
+    async viewOfDocument(file: string): Promise<{ iri: string } | { problem: string } | undefined> {
         const ctx = this.context();
-        if (!ctx) return false;
-        const { views, skipped } = await viewFilesOf(ctx.port, [file]);
-        return views.size > 0 || skipped.length > 0;
+        if (!ctx) return { problem: this.error ?? 'The model is not read yet.' };
+        const iris = [...(await viewFilesOf(ctx.port, [file])).views.keys()];
+        if (!iris.length) return undefined;
+        if (iris.length > 1) return { problem: `${file} has ${iris.length} view graphs: a view file holds one.` };
+        const problem = await viewFileProblem(ctx.port, file, iris[0]);
+        return problem ? { problem } : { iri: iris[0] };
     }
 
     /** The diagram of the view `viewId` from turtle/query: the open buffer of its document wins over the saved file. */

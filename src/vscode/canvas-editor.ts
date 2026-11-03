@@ -68,7 +68,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         const uri = tab.input.uri, model = this.modelOf(uri);
         if (!model) return;
         await model.ready();
-        if (!model.viewOfFile(uri.fsPath) && !await model.holdsView(uri.fsPath)) return;
+        if (!await model.viewOfDocument(uri.fsPath)) return;
         const index = group.tabs.indexOf(tab);
         await vscode.commands.executeCommand('vscode.openWith', uri, CANVAS_EDITOR, { viewColumn: group.viewColumn, preview: false });
         if (group.tabs.includes(tab)) await vscode.window.tabGroups.close(tab);
@@ -202,22 +202,20 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         protected readonly log: (line: string) => void) {}
 
     /**
-     * The view of a text document: its view IRI from the view files of its folder (viewFilesOf over the open buffers), read again once when
-     * the document is not one of them (a view written in the text and not saved). Undefined: the document holds no view:View (a model file).
+     * The view of a text document: its view IRI as the server reads the document now (the open buffer), checked against the view files of
+     * its folder; the folder is read again when they do not have it (a view written in the text and not saved, a view IRI changed in the
+     * text). Undefined: the document holds no view:View (a model file).
      */
     async viewDocumentOf(text: vscode.TextDocument): Promise<ViewDocument | undefined> {
         const file = text.uri.fsPath, model = this.modelOf(text.uri);
         if (!model) return new ViewDocument(text, undefined, undefined, `${file} is not in a workspace folder.`);
         await model.ready();
-        let iri = model.viewOfFile(file);
-        if (!iri) {
-            await model.refresh();
-            iri = model.viewOfFile(file);
-        }
-        if (iri) return new ViewDocument(text, model, iri);
-        if (model.error) return new ViewDocument(text, model, undefined, `${file}: ${model.error}`);
-        if (!await model.holdsView(file)) return undefined;
-        return new ViewDocument(text, model, undefined, `${file} was skipped: invalid or duplicate view file. See the Catenary output.`);
+        const found = await model.viewOfDocument(file);
+        if (!found) return undefined;
+        if ('problem' in found) return new ViewDocument(text, model, undefined, `${file}: ${found.problem}`);
+        if (model.viewFiles.get(found.iri) !== file) await model.refresh();
+        if (model.viewFiles.get(found.iri) !== file) return new ViewDocument(text, model, undefined, `${file} was skipped: invalid or duplicate view file. See the Catenary output.`);
+        return new ViewDocument(text, model, found.iri);
     }
 
     async resolveCustomTextEditor(text: vscode.TextDocument, panel: vscode.WebviewPanel, _token?: vscode.CancellationToken, exportToken?: string): Promise<void> {

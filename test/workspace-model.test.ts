@@ -115,6 +115,13 @@ test('a canvas command is one edit of the open view document; the next draw read
         fake.type(uri, readFileSync(file, 'utf8'));
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
 
+        // A text change during the queries wins over the command.
+        const documentOf = vi.spyOn(model as unknown as { documentOf(file: string, load: boolean): Promise<unknown> }, 'documentOf');
+        const text = readFileSync(file, 'utf8');
+        documentOf.mockResolvedValueOnce({ uri, text }).mockResolvedValueOnce({ uri, text: text + '\n' });
+        expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The view file changed during the command. Do it again.' });
+        expect(fake.edits).toHaveLength(1);
+
         fake.refuse = true;
         expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The editor refused the edit of the view file.' });
     } finally {
@@ -155,18 +162,23 @@ test('a skipped duplicate cannot open as the accepted view document', async () =
     const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
     model.viewFiles.set('urn:name:Bookshop', file);
     vi.spyOn(model, 'ready').mockResolvedValue();
-    vi.spyOn(model, 'refresh').mockResolvedValue();
-    const holdsView = vi.spyOn(model, 'holdsView').mockResolvedValue(true);
+    const refresh = vi.spyOn(model, 'refresh').mockResolvedValue();
+    const viewOf = vi.spyOn(model, 'viewOfDocument').mockResolvedValue({ iri: 'urn:name:Bookshop' });
     const provider = new CanvasEditorProvider({} as Uri, () => model, () => undefined);
     try {
         const text = (fsPath: string) => ({ uri: { fsPath } }) as unknown as TextDocument;
         const accepted = await provider.viewDocumentOf(text(file));
         expect(accepted?.iri).toBe('urn:name:Bookshop');
+        expect(refresh).not.toHaveBeenCalled();
+        // The folder does not have this file for the view: it is read again; still not: a skipped duplicate.
         const duplicate = await provider.viewDocumentOf(text('/elsewhere/duplicate.trig'));
+        expect(refresh).toHaveBeenCalledOnce();
         expect(duplicate?.iri).toBeUndefined();
         expect(duplicate?.problem).toContain('skipped: invalid or duplicate view file');
+        viewOf.mockResolvedValue({ problem: 'two view graphs' });
+        expect((await provider.viewDocumentOf(text(file)))?.problem).toBe(`${file}: two view graphs`);
         // A .trig document without a view:View is a model file: no view document, the text editor opens it.
-        holdsView.mockResolvedValue(false);
+        viewOf.mockResolvedValue(undefined);
         expect(await provider.viewDocumentOf(text('/elsewhere/model.trig'))).toBeUndefined();
     } finally {
         provider.dispose();
