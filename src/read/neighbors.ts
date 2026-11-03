@@ -6,9 +6,10 @@ import { UNION_GRAPH } from '../catenary/rdf/graph-names';
 import { elementTerm, relationId } from '../catenary/rdf/ids';
 import type { NeighborCount } from '../catenary/rdf/scoped-doc';
 import { termKey } from '../catenary/rdf/terms';
-import type { ModelPort } from '../model/port';
+import type { FocusNode } from '../catenary/shacl/common/index';
+import type { ModelPort, Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
-import { shapeTargetMatches } from './targets';
+import { bindings, shapeTargetMatches } from './targets';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos: <${NS.skos}>`;
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label';
@@ -17,7 +18,7 @@ const SKOS_MEMBERSHIP = new Set(['inScheme', 'topConceptOf'].map(p => NS.skos + 
 /** The home of a subject in the model graph (homeOf of rdf/vocabulary.ts). */
 const MODEL = '';
 
-const iri = (s: string) => `<${s}>`;
+const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
 /**
  * The instance test and the home of each IRI (instancesAmong, homesAmong of rdf/quad-read.ts) from one query: rdf:type, rdfs:label and the
@@ -27,8 +28,8 @@ async function factsOf(port: ModelPort, files: string[], inShapes: (doc: string,
     const values = [...new Set(iris)].filter(s => s !== UNION_GRAPH);
     const instance = new Set<string>(), home = new Map<string, string>();
     if (!values.length || !files.length) return { instance, home };
-    const rows = await port.select(`${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { VALUES ?s { ${values.map(iri).join(' ')} }
-        VALUES ?p { rdf:type rdfs:label skos:inScheme skos:topConceptOf } GRAPH ?g { ?s ?p ?o } }`, files);
+    const rows = (await Promise.all(bindings('s', values.map(named)).map(async ({ clause, keep }) => (await port.select(`${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE {
+        VALUES ?p { rdf:type rdfs:label skos:inScheme skos:topConceptOf } GRAPH ?g { ?s ?p ?o } ${clause} }`, files)).filter(r => keep(r.s))))).flat();
     const inModel = new Set<string>(), vocabulary = new Map<string, string[]>();
     for (const { g, s, p, o } of rows) {
         if (!inShapes(g.value, s)) { if (p.value === TYPE || p.value === LABEL) inModel.add(s.value); continue; }
@@ -40,6 +41,13 @@ async function factsOf(port: ModelPort, files: string[], inShapes: (doc: string,
         home.set(s, inModel.has(s) ? MODEL : graphs?.[0] ?? MODEL);
     }
     return { instance, home };
+}
+
+/** The statements (with their document) whose subject or object is one of `iris`, with an IRI or blank node at the other end, without rdf:type and rdfs:label. */
+async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<Row[]> {
+    const ask = (end: 's' | 'o') => bindings(end, iris.map(named)).map(async ({ clause, keep }) => (await port.select(`${PREFIXES} SELECT ?g ?s ?p ?o WHERE {
+        GRAPH ?g { ?s ?p ?o } FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause} }`, files)).filter(r => keep(r[end])));
+    return (await Promise.all([...ask('s'), ...ask('o')])).flat();
 }
 
 /**
@@ -59,11 +67,8 @@ export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[]
     // Independent reads at once: the targets of the placed shapes, the shapes of every card IRI, the statements around every card IRI.
     const [shapeTargets, cardMatches, around] = await Promise.all([
         placedShapes.length ? shapeTargetMatches(port, modelFiles, shapes, { shapes: placedShapes.map(s => s.uri) }) : [],
-        candidates.length ? shapeTargetMatches(port, modelFiles, shapes, { nodes: candidates.map(value => ({ termType: 'NamedNode', value })) }) : [],
-        candidates.length && modelFiles.length ? port.select(`${PREFIXES} SELECT ?g ?s ?p ?o WHERE { GRAPH ?g {
-            { VALUES ?s { ${candidates.map(iri).join(' ')} } ?s ?p ?o FILTER (isIRI(?o) || isBlank(?o)) }
-            UNION { VALUES ?o { ${candidates.map(iri).join(' ')} } ?s ?p ?o } }
-            FILTER (?p NOT IN (rdf:type, rdfs:label)) }`, modelFiles) : [],
+        candidates.length ? shapeTargetMatches(port, modelFiles, shapes, { nodes: candidates.map(named) }) : [],
+        candidates.length && modelFiles.length ? statementsAround(port, modelFiles, candidates) : [],
     ]);
     const targets = shapeTargets.filter(m => m.node.termType === 'NamedNode' && !placedIris.has(m.node.value));
     const others = around.flatMap(r => [r.s.value, r.o.value]);

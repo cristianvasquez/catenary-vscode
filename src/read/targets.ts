@@ -13,6 +13,23 @@ interface Declaration { shape: string; kind: TargetKind; target: Term }
 /** What one call reads once: the data documents, the declarations and the node references of the closure. */
 interface Context { port: ModelPort; files: string[]; declarations: Declaration[]; refs: NodeReference[] }
 
+/** The prefix of the IRI that the port gives for a blank node (port.ts, toEngine of model/nquads.ts). */
+const BLANK = 'urn:skolem:blank:';
+
+/**
+ * The clauses that bind `variable` to `nodes`: `VALUES` for the terms a query can name; for the blank nodes (the port gives them as IRIs,
+ * a query cannot name them) `FILTER (isBlank(…))`, whose rows `keep` narrows to the wanted nodes. Place the clause after the pattern, in its
+ * group. One query per clause.
+ */
+export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean }[] {
+    const blanks = new Set(nodes.filter(n => n.termType === 'NamedNode' && n.value.startsWith(BLANK)).map(n => n.value));
+    const named = [...new Set(nodes.filter(n => !blanks.has(n.value) || n.termType !== 'NamedNode').map(term))];
+    return [
+        ...named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true }] : [],
+        ...blanks.size ? [{ clause: `FILTER (isBlank(?${variable}))`, keep: (t: Term | undefined) => !!t && t.termType === 'NamedNode' && blanks.has(t.value) }] : [],
+    ];
+}
+
 const DECLARED: Record<string, TargetKind> = Object.fromEntries((['targetClass', 'targetNode', 'targetSubjectsOf', 'targetObjectsOf'] as const).map(k => [SH + k, k]));
 
 /** The target declarations of the closure. Implicit class: a shape typed sh:NodeShape and rdfs:Class in the same document. */
@@ -58,10 +75,10 @@ async function targetMatches(c: Context, selection: TargetSelection): Promise<Ta
         const v = values([...kinds]);
         return v.length ? [`{ VALUES (?shape ?kind ?target) { ${v.join(' ')} } ${pattern} }`] : [];
     });
-    if (groups.length) {
-        const found = await c.port.select(`PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}> SELECT ?shape ?node ?kind ?target WHERE {
-            ${selection.nodes ? `VALUES ?node { ${selection.nodes.map(term).join(' ')} }` : ''}
-            { ${groups.join(' UNION ')} } }`, c.files);
+    const clauses = selection.nodes ? bindings('node', selection.nodes) : [{ clause: '', keep: () => true }];
+    if (groups.length) for (const { clause, keep } of clauses) {
+        const found = (await c.port.select(`PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}> SELECT ?shape ?node ?kind ?target WHERE {
+            { ${groups.join(' UNION ')} } ${clause} }`, c.files)).filter(r => keep(r.node));
         for (const r of found) rows.push({ shape: r.shape.value, node: focus(r.node as QueryTerm), kind: r.kind.value as TargetKind, target: focus(r.target as QueryTerm) });
     }
     const wanted = selection.nodes && new Set(selection.nodes.map(term));
@@ -85,13 +102,12 @@ async function targetMatches(c: Context, selection: TargetSelection): Promise<Ta
 /** The values of `predicates` from each of `nodes` (reverse: to each of `nodes`): one CONSTRUCT on the port. */
 async function traverse(c: Context, nodes: readonly FocusNode[], predicates: readonly string[], reverse: boolean): Promise<{ node: FocusNode; predicate: string; value: FocusNode }[]> {
     const byTerm = new Map(nodes.map(n => [term(n), n]));
-    const values = `VALUES ?node { ${[...byTerm.keys()].join(' ')} } VALUES ?p { ${predicates.map(iri).join(' ')} }`;
     const pattern = reverse ? '?value ?p ?node' : '?node ?p ?value';
-    const quads = await c.port.construct(`CONSTRUCT { ${pattern} } WHERE { ${values} ${pattern} }`, c.files);
     const out: { node: FocusNode; predicate: string; value: FocusNode }[] = [];
-    for (const q of quads) {
+    for (const { clause, keep } of bindings('node', nodes)) for (const q of await c.port.construct(`CONSTRUCT { ${pattern} } WHERE {
+        VALUES ?p { ${predicates.map(iri).join(' ')} } ${pattern} ${clause} }`, c.files)) {
         const [n, v] = reverse ? [q.object, q.subject] : [q.subject, q.object];
-        if (v.termType !== 'NamedNode' && v.termType !== 'Literal') continue;
+        if (!keep(n) || (v.termType !== 'NamedNode' && v.termType !== 'Literal')) continue;
         const key = targetTerm(n), node = key && byTerm.get(key);
         if (node) out.push({ node, predicate: q.predicate.value, value: focus(v as QueryTerm) });
     }
@@ -128,8 +144,8 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
         for (const [path, nodes] of byPath) {
             for (const node of nodes.values()) paths.set(JSON.stringify([path, node, reverse]), []);
             const seen = new Set<string>();
-            for (const r of await c.port.select(`SELECT ?node ?value WHERE { VALUES ?node { ${[...nodes.values()].map(term).join(' ')} }
-                ${reverse ? `?value ${path} ?node` : `?node ${path} ?value`} }`, c.files)) {
+            for (const { clause, keep } of bindings('node', [...nodes.values()])) for (const r of (await c.port.select(`SELECT ?node ?value WHERE {
+                ${reverse ? `?value ${path} ?node` : `?node ${path} ?value`} ${clause} }`, c.files)).filter(r => keep(r.node))) {
                 const node = focus(r.node as QueryTerm), value = focus(r.value as QueryTerm), key = JSON.stringify([path, node, reverse]);
                 if (seen.has(key + JSON.stringify(value))) continue;
                 seen.add(key + JSON.stringify(value));
