@@ -239,6 +239,10 @@ function activate(tab: Tab): void {
 
 function closeTab(tab: Tab, force = false): boolean {
     if (!force && tab.kind === 'canvas' && dirtyView(tab.doc) && !confirm(`Discard the changes of the view ${tab.rel}?`)) return false;
+    if (!force && tab.kind === 'text' && dirtyText(tab.rel)) {
+        if (!confirm(`Discard the changes of ${tab.rel}?`)) return false;
+        models.get(tab.rel)!.setValue(files.read(tab.rel) ?? '');
+    }
     const i = tabs.indexOf(tab);
     tabs.splice(i, 1);
     if (tab.kind === 'canvas') {
@@ -606,5 +610,5 @@ async function main(): Promise<void> {
     document.body.dataset.ready = 'true';
 }
 
-window.addEventListener('beforeunload', e => { if (tabs.some(isDirty)) e.preventDefault(); });
+window.addEventListener('beforeunload', e => { if (tabs.some(isDirty) || [...models.keys()].some(dirtyText)) e.preventDefault(); });
 void main().catch(e => { toast(`Catenary did not start: ${e instanceof Error ? e.message : String(e)}`, 'warning'); console.error(e); });

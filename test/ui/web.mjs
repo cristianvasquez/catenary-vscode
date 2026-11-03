@@ -52,7 +52,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   page.setDefaultTimeout(15000)
   page.on("pageerror", (e) => errors.push(e.message))
-  page.on("dialog", (d) => d.accept())
+  const acceptDialog = (d) => d.accept()
+  page.on("dialog", acceptDialog)
   await page.goto(url)
   await page.locator("body[data-ready=true]").waitFor({ timeout: 60000 })
 
@@ -131,6 +132,28 @@ try {
   await tab(name).click()
   const renamed = await until(state, (s) => s.boxes.includes("Writer shape"))
   check("a saved model edit reaches the open canvas", renamed?.boxes.includes("Writer shape") && !renamed.boxes.includes("Author shape"), JSON.stringify(renamed?.boxes))
+
+  // ------------------------------------------------------------------ closing a dirty text tab
+  const shapesName = "workspace.shapes.ttl"
+  await tab(shapesName).click()
+  await page.evaluate(() => {
+    const model = window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("workspace.shapes.ttl"))
+    const match = model.findMatches('"Writer shape"', false, false, true, null, false)[0]
+    model.pushEditOperations([], [{ range: match.range, text: '"Writer shape 2"' }], () => null)
+  })
+  page.off("dialog", acceptDialog)
+  page.once("dialog", (d) => d.dismiss())
+  await tab(shapesName).locator(".close").click()
+  page.on("dialog", acceptDialog)
+  check("canceling a dirty text tab close keeps the tab and its changes", await tab(shapesName).count() === 1 && await dirty(shapesName))
+
+  await tab(shapesName).locator(".close").click()
+  const closed = await tab(shapesName).count() === 0
+  const shapesFile = page.locator("#files .file", { hasText: shapesName })
+  await shapesFile.click()
+  const reverted = await page.evaluate(() => window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("workspace.shapes.ttl")).getValue())
+  check("discarding a dirty text tab restores the saved model and clears the file's dirty mark", closed && !reverted.includes("Writer shape 2") && reverted.includes("Writer shape") && !(await shapesFile.getAttribute("class")).includes("dirty"))
+  await tab(shapesName).locator(".close").click()
 
   // ------------------------------------------------------------------ reload: the files persist
   await page.reload()
