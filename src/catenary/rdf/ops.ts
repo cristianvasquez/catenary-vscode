@@ -38,7 +38,7 @@ export function instanceTerm(g: ModelGraph, id: string): NamedNode | undefined {
 /** A node shape, value set or property shape with an IRI: drawn as a shape element. */
 function shapeCardTerm(g: ModelGraph, id: string): NamedNode | undefined {
     const t = elementTerm(id);
-    return t?.termType === 'NamedNode' && g.match(t).some(q => g.isShapesGraph(q.graph)) ? shapesCardTerm(g, id) : undefined;
+    return t?.termType === 'NamedNode' && g.match(t).some(q => g.isShapesQuad(q)) ? shapesCardTerm(g, id) : undefined;
 }
 
 /** The element of a card in a view: a shape element, else an instance, else a class pill, else a list figure. A shape wins when the same IRI is both. */
@@ -329,7 +329,7 @@ const isInstanceTerm = (g: ModelGraph, t: Term): t is NamedNode =>
 
 /** A statement of the model graph that the read model shows as a relation: both ends are instances, not rdf:type or rdfs:label. */
 function isRelation(g: ModelGraph, q: Quad): boolean {
-    return g.isDataGraph(q.graph) && !q.predicate.equals(P.type) && !q.predicate.equals(P.label)
+    return g.isDataQuad(q) && !q.predicate.equals(P.type) && !q.predicate.equals(P.label)
         && isInstanceTerm(g, q.subject) && isInstanceTerm(g, q.object) && g.has(q);
 }
 
@@ -349,7 +349,7 @@ export function placeConnectors(g: ModelGraph): void {
         if (c.op !== 'add') continue;
         const q = c.quad;
         if (q.predicate.equals(V.element) && q.object.termType === 'NamedNode' && q.graph.termType === 'NamedNode') placed.push({ view: q.graph, s: q.object });
-        else if (g.isDataGraph(q.graph) || q.predicate.equals(V.arrow)) relations.push(q);
+        else if (g.isDataQuad(q) || q.predicate.equals(V.arrow)) relations.push(q);
     }
     for (const { view, s } of placed) {
         if (!nodeOf(g, view, s)) continue;

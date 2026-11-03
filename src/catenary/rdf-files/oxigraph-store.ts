@@ -22,6 +22,7 @@ export class OxigraphStore implements QuadStore {
     has(q: Quad): boolean { return this.store.has(q as ox.Quad); }
     add(q: Quad): void { this.store.add(q as ox.Quad); }
     delete(q: Quad): void { this.store.delete(q as ox.Quad); }
+    load(text: string, mediaType: string): void { this.store.load(text, { format: mediaType }); }
 
     match(s?: Term | null, p?: Term | null, o?: Term | null, g?: Term | null): Quad[] {
         return this.store.match(s as ox.Term ?? null, p as ox.Term ?? null, o as ox.Term ?? null, g as ox.Term ?? null) as unknown as Quad[];

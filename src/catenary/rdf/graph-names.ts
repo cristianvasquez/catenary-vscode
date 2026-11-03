@@ -1,4 +1,5 @@
 // Define graph identities and encode file graph names; adapted from Catenary packages/rdf/src/graph-names.ts.
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { GraphNames } from '../rdf-core/graph';
 
 
@@ -12,28 +13,20 @@ export const UNION_GRAPH = 'urn:name:model';
 export const REPORT_GRAPH = 'urn:catenary:report';
 
 
-/** Store graph of a file: the prefix and the encoded absolute path. */
-const SHAPES_GRAPH_PREFIX = 'urn:shapes:';
+/** Store graph of a file: its file URI, as turtle-lsp names the document. */
+export const fileGraphIri = (file: string) => pathToFileURL(file).href;
 
-const DATA_GRAPH_PREFIX = 'urn:data:';
-
-export const dataGraphIri = (file: string) => DATA_GRAPH_PREFIX + encodeURI(file);
-
-export const shapesGraphIri = (file: string) => SHAPES_GRAPH_PREFIX + encodeURI(file);
-
-/** File of a store graph (its path), or the graph IRI when it has no path. */
+/** File of a store graph (its path), or the graph IRI when it is not a file URI. */
 export const fileOfGraph = (graph: string) => {
-    const prefix = [SHAPES_GRAPH_PREFIX, DATA_GRAPH_PREFIX].find(p => graph.startsWith(p));
-    const rest = prefix ? graph.slice(prefix.length) : graph;
-    try { return decodeURI(rest); } catch { return rest; }
+    if (!graph.startsWith('file:')) return graph;
+    try { return fileURLToPath(graph); } catch { return graph; }
 };
 
 
 export const CATENARY_GRAPH_NAMES: GraphNames = {
     union: UNION_GRAPH,
     report: REPORT_GRAPH,
-    data: dataGraphIri,
-    shapes: shapesGraphIri,
-    fileOf: graph => [SHAPES_GRAPH_PREFIX, DATA_GRAPH_PREFIX].some(p => graph.startsWith(p)) ? fileOfGraph(graph) : undefined
+    file: fileGraphIri,
+    fileOf: graph => graph.startsWith('file:') ? fileOfGraph(graph) : undefined
 };
 

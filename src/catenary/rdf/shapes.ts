@@ -9,9 +9,9 @@ import { rdf } from './terms';
 import { P, SKOS_TYPES } from './vocabulary';
 
 
-/** Quads of all shapes graphs, with their graphs. */
+/** The shapes statements of the file graphs, with their graphs. */
 function shapesQuads(g: ModelGraph): Quad[] {
-    return g.shapesGraphs().flatMap(sg => g.match(null, null, null, sg));
+    return g.shapesGraphs().flatMap(sg => g.match(null, null, null, sg)).filter(q => g.isShapesQuad(q));
 }
 
 

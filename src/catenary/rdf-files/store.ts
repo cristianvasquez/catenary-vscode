@@ -10,6 +10,8 @@ export interface QuadStore {
     has(q: Quad): boolean;
     add(q: Quad): void;
     delete(q: Quad): void;
+    /** Add the quads of RDF text at once (for example application/n-quads). No change events. */
+    load(text: string, mediaType: string): void;
     /** Quads that match the pattern. null or undefined: any term. */
     match(s?: Term | null, p?: Term | null, o?: Term | null, g?: Term | null): Quad[];
     /** Result rows of a SPARQL SELECT. */

@@ -393,10 +393,10 @@ const shapesIndex = shapesIndexOf;
 export function nodeShapeTerm(g: ModelGraph, id: string): NamedNode | undefined {
     const t = elementTerm(id);
     if (t?.termType !== 'NamedNode') return undefined;
-    const quads = g.match(t).filter(q => g.isShapesGraph(q.graph));
+    const quads = g.match(t).filter(q => g.isShapesQuad(q));
     if (quads.some(q => q.predicate.equals(S.path))) return undefined;
     return (quads.some(q => (q.predicate.equals(S.type) && q.object.equals(S.NodeShape)) || [S.targetClass, S.targetSubjectsOf, S.targetObjectsOf, S.targetNode, S.node, S.property, S.or, S.xone, S.and, S.not].some(p => p.equals(q.predicate)))
-        || (quads.length > 0 && g.match(null, S.node, t).some(q => g.isShapesGraph(q.graph))))
+        || (quads.length > 0 && g.match(null, S.node, t).some(q => g.isShapesQuad(q))))
         ? t : undefined;
 }
 

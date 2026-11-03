@@ -8,13 +8,15 @@ import { skolemize } from '../catenary/rdf-core/skolem';
 import { OxigraphStore, parseRdfSync } from '../catenary/rdf-files/oxigraph-store';
 import { readManifest } from '../catenary/rdf/files';
 import type { ModelGraph } from '../catenary/rdf/graph';
-import { dataGraphIri, shapesGraphIri } from '../catenary/rdf/graph-names';
+import { cmp } from '../catenary/rdf-core/graph';
+import { fileGraphIri } from '../catenary/rdf/graph-names';
 import { readLegacy, shapePart, viewProblem } from '../catenary/rdf/loader';
 import { newModelGraph } from '../catenary/rdf/model-graph';
-import { rdf, termKey } from '../catenary/rdf/terms';
+import { rdf } from '../catenary/rdf/terms';
 import { P } from '../catenary/rdf/vocabulary';
 import { quadsOf, type NTerm } from '../node/quads';
 import type { GraphResult } from '../node/turtle-api';
+import { nquadsOf, toEngine } from './nquads';
 
 const prefixTables = new WeakMap<ModelGraph, Record<string, string>>();
 
@@ -30,14 +32,7 @@ function term(t: NTerm): Term {
     return rdf.namedNode(t.termType === 'BlankNode' ? toEngine(t.value) : t.value);
 }
 
-// Preserve blank-node document order when assigning engine IRIs.
-const BLANK = 'urn:skolem:blank:';
-const pad = (n: string, w: number) => n.padStart(w, '0');
-export function toEngine(id: string): string {
-    if (!id.startsWith('_:')) return id;
-    const m = /^_:(\d+):(\d+)$/.exec(id);
-    return m && m[1].length <= 6 && m[2].length <= 8 ? `${BLANK}${pad(m[1], 6)}-${pad(m[2], 8)}` : `${BLANK}x${encodeURIComponent(id.slice(2))}`;
-}
+export { toEngine };
 
 /** The normalized view graph IRI; invalid or empty view files are rejected. */
 export function viewIriOf(text: string): string {
@@ -57,34 +52,38 @@ export function isViewFile(file: string, text: string | undefined): boolean {
     }
 }
 
-/** Model documents from turtle/graph, plus view-file paths read as TriG. No model file is parsed here. */
+/** Model documents from turtle/graph, plus view-file paths read as TriG. No model file is parsed here.
+ * The model quads go to the store in one N-Quads load: one graph per file, its file URI. */
 export function graphOf(result: GraphResult, viewFiles: string[]): { graph: ModelGraph; views: Map<string, string>; skipped: { file: string; reason: string }[] } {
-    const files = new Map<string, Quad[]>(), viewSet = new Set(viewFiles);
+    const viewSet = new Set(viewFiles), fileOf = new Map<string, string>(), read: Quad[] = [];
     quadsOf(result).forEach((q, i) => {
         const uri = result.edges[i].uri;
         const file = uri.startsWith('file:') ? fileURLToPath(uri) : uri;
         if (viewSet.has(file)) return;
-        const quad = rdf.quad(term(q.subject) as Quad['subject'], rdf.namedNode(q.predicate), term(q.object) as Quad['object']);
-        (files.get(file) ?? files.set(file, []).get(file)!).push(quad);
+        const g = uri.startsWith('file:') ? fileGraphIri(file) : uri;
+        fileOf.set(g, file);
+        read.push(rdf.quad(term(q.subject) as Quad['subject'], rdf.namedNode(q.predicate), term(q.object) as Quad['object'], rdf.namedNode(g)));
     });
-    const manifest = [...files].filter(([, quads]) => quads.some(q => q.predicate.equals(P.type) && q.object.value === NS.ws + 'Workspace'))
-        .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)[0];
-    if (manifest) files.delete(manifest[0]);
-    const settings = manifest ? readManifest(manifest[1], manifest[0]) : undefined;
-    const graph = newModelGraph(new OxigraphStore());
+    const store = new OxigraphStore();
+    store.load(nquadsOf(readLegacy(read).quads), 'application/n-quads');
+    const manifest = [...new Set(store.match(null, P.type, rdf.namedNode(NS.ws + 'Workspace')).map(q => q.graph.value))]
+        .filter(g => fileOf.has(g)).sort((a, b) => cmp(fileOf.get(a)!, fileOf.get(b)!))[0];
+    let settings: ReturnType<typeof readManifest> | undefined;
+    if (manifest) {
+        const quads = store.match(null, null, null, rdf.namedNode(manifest));
+        settings = readManifest(quads, fileOf.get(manifest)!);
+        for (const q of quads) store.delete(q);
+        fileOf.delete(manifest);
+    }
+    const graph = newModelGraph(store);
     prefixTables.set(graph, settings?.prefixes ?? DEFAULT_PREFIXES);
     graphPrefixes(graph);
     graph.language = settings?.language;
-    const modelFiles = [...files.keys()].sort();
+    const modelGraphs = [...fileOf.keys()].map(g => rdf.namedNode(g));
     const views = new Map<string, string>(), skipped: { file: string; reason: string }[] = [];
     graph.update(() => {
-        graph.setDataGraphs(modelFiles.map(f => rdf.namedNode(dataGraphIri(f))));
-        for (const [file, read] of files) {
-            const { quads } = readLegacy(read);
-            const shapes = shapePart(quads), sg = rdf.namedNode(shapesGraphIri(file)), dg = rdf.namedNode(dataGraphIri(file));
-            for (const q of quads) graph.add(q.subject, q.predicate, q.object, shapes.has(termKey(q.subject)) ? sg : dg);
-        }
-        graph.setShapesGraphs(modelFiles.map(f => rdf.namedNode(shapesGraphIri(f))));
+        graph.setFileGraphs(modelGraphs);
+        graph.setShapeSubjects(modelGraphs.flatMap(g => [...shapePart(store.match(null, null, null, g))]));
         for (const file of viewFiles) {
             try {
                 const text = readFileSync(file, 'utf8'), view = viewIriOf(text);

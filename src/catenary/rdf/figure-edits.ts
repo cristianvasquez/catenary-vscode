@@ -91,7 +91,7 @@ function rekeyLists(g: ModelGraph): void {
     const removedQuads = g.changes().filter(c => c.op === 'remove').map(c => c.quad);
     const touched = new Map<string, { holder: NamedNode; predicate: NamedNode; added: Set<string>; removed: Set<string> }>();
     for (const { op, quad: q } of g.changes()) {
-        if (!g.isShapesGraph(q.graph) || ![S.xone, S.or, S.and, S.in].some(p => q.predicate.equals(p)) || q.subject.termType !== 'NamedNode') continue;
+        if (!g.isShapesQuad(q) || ![S.xone, S.or, S.and, S.in].some(p => q.predicate.equals(p)) || q.subject.termType !== 'NamedNode') continue;
         const k = `${q.subject.value} ${q.predicate.value}`;
         const t = touched.get(k) ?? touched.set(k, { holder: q.subject, predicate: q.predicate as NamedNode, added: new Set(), removed: new Set() }).get(k)!;
         (op === 'add' ? t.added : t.removed).add(q.object.value);
@@ -159,8 +159,8 @@ export function syncFigures(g: ModelGraph, arrivals: boolean): void {
     for (const { op, quad: q } of g.changes()) {
         if ((q.predicate.equals(V.element) || q.predicate.equals(P.reifies)) && q.graph.termType === 'NamedNode')
             placed[op].set(q.graph.value + ' ' + q.subject.value, { view: q.graph, element: q.object });
-        else if (q.predicate.equals(S.path) && g.isShapesGraph(q.graph)) paths[op].push({ s: q.subject.value, path: key(q.object) });
-        if (g.isShapesGraph(q.graph) && LIST_PREDICATES.some(p => q.predicate.equals(p))) lists = true;
+        else if (q.predicate.equals(S.path) && g.isShapesQuad(q)) paths[op].push({ s: q.subject.value, path: key(q.object) });
+        if (g.isShapesQuad(q) && LIST_PREDICATES.some(p => q.predicate.equals(p))) lists = true;
     }
     const byView = (op: 'add' | 'remove') => {
         const other = placed[op === 'add' ? 'remove' : 'add'], out = new Map<string, { view: NamedNode; keys: string[] }>();
