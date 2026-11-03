@@ -39,9 +39,6 @@
   "activationEvents": [
     "onCustomEditor:catenary.view"
   ],
-  "extensionDependencies": [
-    "abhishekkundu25.turtle-language-server"
-  ],
   "contributes": {
     "configuration": {
       "title": "Catenary",

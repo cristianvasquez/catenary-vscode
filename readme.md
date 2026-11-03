@@ -4,7 +4,7 @@ Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads 
 
 ## Requirements
 
-VS Code 1.101 or later. The extension depends on the [Turtle RDF language server](https://marketplace.visualstudio.com/items?itemName=abhishekkundu25.turtle-language-server) (`abhishekkundu25.turtle-language-server`); VS Code installs it with Catenary.
+VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turtle-language-server`). On VS Code, Catenary offers to install it from the Marketplace at first use. On VSCodium and other editors without the Marketplace, install the vsix of your platform from https://github.com/abhishekkundu25/turtle-lsp/releases first.
 
 ## Features
 

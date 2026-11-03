@@ -8,12 +8,28 @@ import { MarkdownSvgRenderer } from './vscode/markdown-svg';
 import { newView } from './vscode/new-view';
 
 const TURTLE_EXTENSION = 'abhishekkundu25.turtle-language-server';
+let shown = false;
 
 /** The turtle-lsp API, read when used: `idle()` first activates the extension. */
-function turtleApi(): TurtleApi {
+function turtleApi(log: (line: string) => void): TurtleApi {
     const ext = () => {
         const found = vscode.extensions.getExtension<TurtleApi>(TURTLE_EXTENSION);
-        if (!found) throw new Error(`${TURTLE_EXTENSION} is not installed`);
+        if (!found) {
+            const message = `${TURTLE_EXTENSION} is not installed`;
+            log(message);
+            if (!shown) {
+                shown = true;
+                void vscode.window.showErrorMessage('Catenary needs the Turtle RDF language server (abhishekkundu25.turtle-language-server).', 'Install').then(async choice => {
+                    if (choice !== 'Install') return;
+                    try {
+                        await vscode.commands.executeCommand('workbench.extensions.installExtension', TURTLE_EXTENSION);
+                    } catch {
+                        await vscode.env.openExternal(vscode.Uri.parse('https://github.com/abhishekkundu25/turtle-lsp/releases'));
+                    }
+                }).then(undefined, error => log(String(error)));
+            }
+            throw new Error(message);
+        }
         return found;
     };
     return {
@@ -25,7 +41,7 @@ function turtleApi(): TurtleApi {
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('Catenary');
     const log = (line: string) => output.appendLine(line);
-    const api = turtleApi();
+    const api = turtleApi(log);
     const models = new Map<string, WorkspaceModel>();
     const modelOf = (uri: vscode.Uri) => {
         const folder = vscode.workspace.getWorkspaceFolder(uri);
