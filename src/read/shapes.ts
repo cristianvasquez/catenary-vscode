@@ -14,7 +14,7 @@ import { applyPrefixes, type ManifestRecords } from './manifest';
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX sh: <${NS.sh}> PREFIX skos: <${NS.skos}>`;
 
 /** The predicates from a shape to the nodes of its shape: nested shapes, paths, lists. */
-const CLOSURE_PATH = '(sh:property|sh:node|sh:or|sh:xone|sh:and|sh:not|sh:in|sh:path|sh:inversePath|sh:alternativePath|sh:zeroOrMorePath|sh:oneOrMorePath|sh:zeroOrOnePath|sh:languageIn|rdf:first|rdf:rest)*';
+const CLOSURE_PATH = '(sh:property|sh:node|sh:or|sh:xone|sh:and|sh:not|sh:in|sh:path|sh:inversePath|sh:alternativePath|sh:zeroOrMorePath|sh:oneOrMorePath|sh:zeroOrOnePath|sh:languageIn|sh:ignoredProperties|rdf:first|rdf:rest)*';
 
 /**
  * The statements of the shapes of each document (`?g`): the roots are the subjects with an sh: predicate or an sh: shape type (as shapePart
@@ -51,12 +51,13 @@ export interface ShapesModelRecords {
 /**
  * The shapes model of `modelFiles` without the manifest document (graphOf does not load it). As shapesIndexOf, buildVocabulary and
  * authoringMetamodel on the old pipeline: SHACL first, then RDFS over the model files. Sets the prefix table of the manifest (applyPrefixes)
- * first: the texts of the index use it.
+ * before the derivation: the texts of the index use it.
  */
 export async function shapesModelOf(port: ModelPort, modelFiles: string[], manifest: ManifestRecords): Promise<ShapesModelRecords> {
     const files = modelFiles.filter(f => f !== manifest.file);
-    applyPrefixes(manifest);
     const [closure, skos, rdfs] = await Promise.all([shapesClosureOf(port, files), vocabularyOf(port, files), rdfsAuthoring(query => port.select(query, files))]);
+    // After the queries: an overlapping call with another manifest cannot change the table during the synchronous derivation below.
+    applyPrefixes(manifest);
     const index = readShapes([...closure, ...skos], manifest.language);
     const triple = (q: Quad) => rdf.quad(q.subject, q.predicate, q.object);
     const vocabulary = buildVocabulary(rdf.dataset([...closure, ...skos].map(triple)), manifest.language);
