@@ -63,6 +63,8 @@ export function graphOf(result: GraphResult, viewFiles: string[]): { graph: Mode
         const quad = rdf.quad(term(q.subject) as Quad['subject'], rdf.namedNode(q.predicate), term(q.object) as Quad['object']);
         (files.get(file) ?? files.set(file, []).get(file)!).push(quad);
     });
+    // Legacy terms are normalized first: a manifest in an old namespace is a manifest too.
+    for (const [file, read] of files) files.set(file, readLegacy(read).quads);
     const manifest = [...files].filter(([, quads]) => quads.some(q => q.predicate.equals(P.type) && q.object.value === NS.ws + 'Workspace'))
         .sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)[0];
     if (manifest) files.delete(manifest[0]);
@@ -71,8 +73,7 @@ export function graphOf(result: GraphResult, viewFiles: string[]): { graph: Mode
     const dataGraph = (file: string) => fileUri.get(file) ? dataGraphIri(file) : file;
     const shapesGraph = (file: string) => fileUri.get(file) ? shapesGraphIri(file) : file + '#shapes';
     const placed: Quad[] = [];
-    for (const [file, read] of files) {
-        const { quads } = readLegacy(read);
+    for (const [file, quads] of files) {
         const shapes = shapePart(quads), sg = rdf.namedNode(shapesGraph(file)), dg = rdf.namedNode(dataGraph(file));
         for (const q of quads) placed.push(rdf.quad(q.subject, q.predicate, q.object, shapes.has(termKey(q.subject)) ? sg : dg));
     }
