@@ -4,6 +4,9 @@ import type { QueryAnswer } from './sparql-endpoint'
 const GRAPH_METHOD = 'turtle/graph'
 const QUERY_METHOD = 'turtle/query'
 
+/** The message when the server does not have turtle/query. */
+export const QUERY_MISSING = 'turtle/query is not available: set turtle.server.path to a build of the turtle-lsp fork (branch turtle-query)'
+
 /** The language client surface used here (vscode-languageclient LanguageClient). */
 interface GraphClient {
   isRunning(): boolean
