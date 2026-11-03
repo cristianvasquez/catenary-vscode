@@ -1,5 +1,6 @@
 // Kata 1sx9: the Doc of a view from turtle/query (fork binary over stdio) equals readView of the old pipeline on test/fixtures/shapes.
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Doc } from '../src/catenary/model/doc';
@@ -81,6 +82,43 @@ describe('viewDocOf on test/fixtures/shapes', () => {
     });
 
     test('viewLabelsOf equals viewLabels', async () => {
-        expect(await viewLabelsOf(server.port(), manifest.language)).toEqual(viewLabels(graph));
+        expect(await viewLabelsOf(server.port(), shapes.files, manifest.language)).toEqual(viewLabels(graph));
+    });
+});
+
+describe('viewDocOf on blank-node marks and a file: view IRI (temp folder)', () => {
+    const VIEW = 'file:///views/notes';
+    const data = `<urn:x:a> a <urn:x:T> ; <http://www.w3.org/2000/01/rdf-schema#label> "A" .\n`;
+    const view = `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+<${VIEW}> { <${VIEW}> a view:View ; rdfs:label "Notes" .
+  <urn:x:p1> a view:Placement ; view:view <${VIEW}> ; view:element _:n ; view:x 10 ; view:y 20 .
+  _:n a view:Note ; view:text "hello" ; view:arrow <urn:x:a> .
+  <urn:x:p2> a view:Placement ; view:view <${VIEW}> ; view:element <urn:x:a> ; view:x 300 .
+  <urn:x:p3> a view:Placement ; view:view <${VIEW}> ; rdf:reifies <<( _:n view:arrow <urn:x:a> )>> . }
+`;
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>;
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-view-'));
+        writeFileSync(join(dir, 'data.ttl'), data);
+        writeFileSync(join(dir, 'notes.trig'), view);
+        server = await startServer(dir, 19);
+    }, 20000);
+    afterAll(async () => {
+        await server?.stop();
+        if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('the note (a blank node), its arrow and the card show; the view is named by its file: IRI', async () => {
+        const files = [join(dir, 'data.ttl')];
+        const shapes = await shapesModelOf(server.port(), files, {});
+        const doc = await viewDocOf(server.port(), VIEW, shapes, {});
+        const v = doc.views[iriId(VIEW)];
+        expect(v.label).toBe('Notes');
+        expect(v.boxes.map(b => b.kind).sort()).toEqual(['card', 'note']);
+        expect(v.boxes.find(b => b.kind === 'note')).toMatchObject({ id: iriId('urn:x:p1'), text: 'hello', x: 10, y: 20 });
+        expect(v.arrows).toEqual([{ id: iriId('urn:x:p3'), from: iriId('urn:x:p1'), to: iriId('urn:x:p2') }]);
+        expect(Object.keys(doc.instances)).toEqual([iriId('urn:x:a')]);
+        expect(await viewLabelsOf(server.port(), files)).toEqual({ [iriId(VIEW)]: 'Notes' });
     });
 });

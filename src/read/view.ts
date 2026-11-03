@@ -3,7 +3,7 @@ import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import { type Doc, emptyDoc } from '../catenary/model/doc';
 import { pickLabel } from '../catenary/model/labels';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH, fileOfGraph } from '../catenary/rdf/graph-names';
+import { UNION_GRAPH, dataGraphIri, fileOfGraph } from '../catenary/rdf/graph-names';
 import { elementId, elementTerm, relationTriple } from '../catenary/rdf/ids';
 import { type Plain, type Resource, type Statements, cardIdsOf, first, instanceRecords, key, projectView } from '../catenary/rdf/records';
 import { rdf, termKey } from '../catenary/rdf/terms';
@@ -29,12 +29,15 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const plain = (t: Term): Plain => ({ termType: t.termType, value: t.value, term: t });
 
-/** Every view graph (not a document: its IRI is not a file URI) with its view:View subjects, their labels and the view:description of the graph. */
+/** Every graph with a view:View subject, with its view:View subjects, their labels and the view:description of the graph. */
 const VIEW_GRAPHS = `${PREFIXES} SELECT ?g ?v ?l ?d WHERE { GRAPH ?g { ?v a view:View OPTIONAL { ?v rdfs:label ?l } OPTIONAL { ?g view:description ?d } }
-    FILTER (isIRI(?g) && !STRSTARTS(STR(?g), "file:")) }`;
+    FILTER (isIRI(?g)) }`;
 
-/** The marks among `?s` in every graph, with their content. */
-const marksQuery = (values: string) => `${PREFIXES} SELECT ?g ?s ?mt ?label ?text ?file ?member WHERE { VALUES ?s { ${values} } GRAPH ?g { ?s a ?mt FILTER (?mt IN (${MARK_TYPES}))
+/**
+ * The marks of every graph, with their content. No VALUES: a blank-node mark comes back as a skolem IRI (answerPort) that a VALUES IRI does
+ * not match on the server; the rows are matched in code.
+ */
+const MARKS_ALL = `${PREFIXES} SELECT ?g ?s ?mt ?label ?text ?file ?member WHERE { GRAPH ?g { ?s a ?mt FILTER (?mt IN (${MARK_TYPES}))
     OPTIONAL { ?s rdfs:label ?label } OPTIONAL { ?s view:text ?text } OPTIONAL { ?s view:file ?file } OPTIONAL { ?s view:member ?member } } }`;
 
 /** The statements of `?s` in each model document; `?known`: the object has an rdf:type or an rdfs:label in the model documents. */
@@ -46,11 +49,11 @@ const SKOS = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE {
     { ?s a ?t VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } } UNION { ?s skos:inScheme|skos:topConceptOf ?x }
     GRAPH ?g { ?s ?p ?o } }`;
 
-/** The collections with `?m` as member, in every graph. */
-const membersQuery = (values: string) => `${PREFIXES} SELECT ?g ?c ?m WHERE { VALUES ?m { ${values} } GRAPH ?g { ?c view:member ?m } }`;
+/** The view:member statements of every graph (matched in code, as MARKS_ALL). */
+const MEMBERS_ALL = `${PREFIXES} SELECT ?g ?c ?m WHERE { GRAPH ?g { ?c view:member ?m } }`;
 
-/** The arrow statements `?s view:arrow ?o` among the pairs, in every graph. */
-const arrowsQuery = (values: string) => `${PREFIXES} SELECT DISTINCT ?g ?s ?o WHERE { VALUES (?s ?o) { ${values} } GRAPH ?g { ?s view:arrow ?o } }`;
+/** The arrow statements `?s view:arrow ?o` of every graph (matched in code, as MARKS_ALL). */
+const ARROWS_ALL = `${PREFIXES} SELECT DISTINCT ?g ?s ?o WHERE { GRAPH ?g { ?s view:arrow ?o } }`;
 
 /** One query per CHUNK IRIs (named nodes only: VALUES of `<iri>`), the rows concatenated. */
 async function chunked(port: ModelPort, iris: Iterable<string>, query: (values: string) => string, files?: string[]): Promise<Row[]> {
@@ -62,10 +65,12 @@ async function chunked(port: ModelPort, iris: Iterable<string>, query: (values: 
 
 type ViewGraph = { subjects: Map<string, { v: Term; labels: Term[] }>; description?: Term };
 
-/** The view graphs by IRI (VIEW_GRAPHS). */
-async function viewGraphsOf(port: ModelPort): Promise<Map<string, ViewGraph>> {
+/** The view graphs by IRI (VIEW_GRAPHS), without the graphs of the model documents `modelFiles` (their file URIs). */
+async function viewGraphsOf(port: ModelPort, modelFiles: string[]): Promise<Map<string, ViewGraph>> {
     const out = new Map<string, ViewGraph>();
+    const documents = new Set(modelFiles.map(dataGraphIri));
     for (const r of await port.select(VIEW_GRAPHS)) {
+        if (documents.has(r.g.value)) continue;
         let e = out.get(r.g.value);
         if (!e) out.set(r.g.value, e = { subjects: new Map() });
         let v = e.subjects.get(termKey(r.v));
@@ -82,9 +87,9 @@ function viewLabel(graph: ViewGraph, language?: string): string {
     return pickLabel(labelLiterals(p => p === LABEL ? subject.labels : []), language) ?? labelFromIri(subject.v.value);
 }
 
-/** Label of every view (view id → label), as viewLabels of view-read.ts. */
-export async function viewLabelsOf(port: ModelPort, language?: string): Promise<Record<string, string>> {
-    const graphs = await viewGraphsOf(port);
+/** Label of every view (view id → label), as viewLabels of view-read.ts. `modelFiles`: the model documents, not views (ShapesModelRecords.files). */
+export async function viewLabelsOf(port: ModelPort, modelFiles: string[], language?: string): Promise<Record<string, string>> {
+    const graphs = await viewGraphsOf(port, modelFiles);
     return Object.fromEntries([...graphs].sort((a, b) => cmp(a[0], b[0])).map(([graph, e]) => [elementId(rdf.namedNode(graph)), viewLabel(e, language)]));
 }
 
@@ -113,7 +118,7 @@ export async function viewDocOf(port: ModelPort, viewIri: string, shapes: Shapes
     const { elements, warnings = [] } = options;
     const language = manifest.language, modelFiles = shapes.files, model = shapes.index.model;
     const isShape = (t: Term) => shapes.shapeSubjects.has(termKey(t));
-    const [viewGraphs, viewRows] = await Promise.all([viewGraphsOf(port), port.select(`SELECT ?s ?p ?o WHERE { GRAPH <${viewIri}> { ?s ?p ?o } }`)]);
+    const [viewGraphs, viewRows] = await Promise.all([viewGraphsOf(port, modelFiles), port.select(`SELECT ?s ?p ?o WHERE { GRAPH <${viewIri}> { ?s ?p ?o } }`)]);
     if (!viewGraphs.has(viewIri)) return emptyDoc();
     const inView = (r: Row) => viewGraphs.has(r.g.value);
     const vq = viewQuadsOf(viewRows);
@@ -121,7 +126,11 @@ export async function viewDocOf(port: ModelPort, viewIri: string, shapes: Shapes
     const isPlacement = (s: string) => objects(s, TYPE).some(t => t.value === NS.view + 'Placement');
     /** The placements of the view graph, or the placements among `scope`. */
     const placementsIn = (scope?: Set<string>) => [...vq.keys()].filter(s => isPlacement(s) && (!scope || scope.has(s))).sort(cmp);
-    const marksOf = async (subjects: Iterable<string>) => (await chunked(port, subjects, marksQuery)).filter(inView);
+    let allMarks: Promise<Row[]> | undefined;
+    const marksOf = async (subjects: Iterable<string>) => {
+        const wanted = new Set(subjects);
+        return (await (allMarks ??= port.select(MARKS_ALL))).filter(r => inView(r) && wanted.has(r.s.value));
+    };
 
     const doc = emptyDoc();
     doc.shapes = model;
@@ -131,9 +140,10 @@ export async function viewDocOf(port: ModelPort, viewIri: string, shapes: Shapes
     for (const set of Object.values(model.valueSets)) for (const m of set.members) setsOfMember.set(m.uri, [...setsOfMember.get(m.uri) ?? [], set.uri]);
     const memberOf = new Map<string, string[]>();
     const readMembers = async (terms: Iterable<string>) => {
-        const missing = [...new Set(terms)].filter(t => !memberOf.has(t));
+        const missing = new Set([...terms].filter(t => !memberOf.has(t)));
         for (const t of missing) memberOf.set(t, []);
-        for (const r of (await chunked(port, missing, membersQuery)).filter(inView)) memberOf.get(r.m.value)!.push(r.c.value);
+        if (!missing.size) return;
+        for (const r of await port.select(MEMBERS_ALL)) if (inView(r) && missing.has(r.m.value)) memberOf.get(r.m.value)!.push(r.c.value);
     };
     const add = (id: string) => {
         const part = model.properties[id] ?? model.constraints[id];
@@ -273,9 +283,9 @@ export async function viewDocOf(port: ModelPort, viewIri: string, shapes: Shapes
     // Views that the part names: this view, the targets of its view references, the graphs of the marks and arrows it places.
     const scopedElements = [...new Set(scoped.flatMap(pl => objects(pl, ELEMENT).map(o => o.value)))];
     const scopedMarks = elements ? await marksOf(scopedElements) : markRows;
-    const arrowPairs = scoped.flatMap(pl => objects(pl, REIFIES).flatMap(o => o.termType === 'Quad' && o.predicate.value === ARROW
-        && o.subject.termType === 'NamedNode' && o.object.termType === 'NamedNode' ? [`(<${o.subject.value}> <${o.object.value}>)`] : []));
-    const arrowRows = arrowPairs.length ? (await port.select(arrowsQuery([...new Set(arrowPairs)].join(' ')))).filter(inView) : [];
+    const arrowPairs = new Set(scoped.flatMap(pl => objects(pl, REIFIES).flatMap(o => o.termType === 'Quad' && o.predicate.value === ARROW
+        ? [`${termKey(o.subject)} ${termKey(o.object)}`] : [])));
+    const arrowRows = arrowPairs.size ? (await port.select(ARROWS_ALL)).filter(r => inView(r) && arrowPairs.has(`${termKey(r.s)} ${termKey(r.o)}`)) : [];
     const named = new Set([viewIri, ...scopedElements, ...scopedMarks.map(r => r.g.value), ...arrowRows.map(r => r.g.value)].filter(g => viewGraphs.has(g)));
     const viewIds = new Map([...named].map(graph => [graph, elementId(rdf.namedNode(graph))]));
 
