@@ -1,32 +1,26 @@
-// Kata 8twe: the diagram of each fixture view from turtle/query (fork binary over stdio), against the expected schemas and against
-// diagramOf of the old pipeline. The read builders of the old pipeline keep their tests on the recorded graph.json until K11.
+// Kata 8twe: the diagram of each fixture view from turtle/query (fork binary over stdio), against the expected schemas and against the
+// schemas of diagramOf of the old pipeline (recorded before K11 deleted it: test/fixtures/expected/diagram.json).
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { graphOf } from '../src/model/graph-input';
-import { diagramOf as oldDiagramOf } from '../src/model/diagram';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
 import type { ElementSchema } from '../src/catenary/model/diagram-schema';
-import type { ModelGraph } from '../src/catenary/rdf/graph';
 import { iriId } from '../src/catenary/model/ids';
-import { NS } from '../src/catenary/model/terms';
-import { rdf } from '../src/catenary/rdf/terms';
-import { readView, viewLabels } from '../src/catenary/rdf/view-read';
-import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
-import { hiddenNeighborCounts, scopedDoc } from '../src/catenary/rdf/scoped-doc';
-import { homesAmong, inModelAmong, instancesAmong, labels } from '../src/catenary/rdf/quad-read';
-import { dataGraphIri } from '../src/catenary/rdf/graph-names';
-import { FIXTURE, fixtureGraph } from './fixture-graph';
-import { startServer } from './server';
+import { hiddenNeighborCounts } from '../src/read/neighbors';
+import { scopedDoc } from '../src/read/scope';
+import { viewLabelsOf } from '../src/read/view';
+import { recorded } from './expected';
+import { FIXTURE, startServer } from './server';
 
-const result = fixtureGraph();
-const viewFiles = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
+const R = recorded('diagram');
+
 const modelIri = 'urn:name:Bookshop%20model', instancesIri = 'urn:name:Bookshop';
 /** Triples of the six fixture documents (port.test.ts). */
 const TRIPLES = 282;
 const id = (local: string) => iriId(`urn:name:${local}`);
 let server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
-let graph: ModelGraph, model: ElementSchema[], instances: ElementSchema[];
+let model: ElementSchema[], instances: ElementSchema[];
 const named = (elements: ElementSchema[], name: string): ElementSchema => {
     const element = elements.find(e => e.name === name);
     expect(element, name).toBeDefined();
@@ -38,16 +32,12 @@ beforeAll(async () => {
     ctx = (await modelContextOf(server.port(), readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(FIXTURE, f)))).ctx;
     model = (await diagramOf(ctx, modelIri)).schema.children!;
     instances = (await diagramOf(ctx, instancesIri)).schema.children!;
-    graph = graphOf(result, viewFiles).graph;
 }, 20000);
 afterAll(async () => { await server?.stop(); });
 
-describe('the old pipeline as oracle', () => {
-    test.each([modelIri, instancesIri])('%s: the schema is byte-identical to diagramOf of the old pipeline on the same files', async iri => {
-        // The old graph from the live turtle/graph answer of the same server, not from graph.json (recorded before data.ttl changed).
-        const live = graphOf(await server.graph({ literals: true, types: true, maxNodes: 20000, layout: { iterations: 0 } }), viewFiles).graph;
-        const before = JSON.stringify(oldDiagramOf(live, iri));
-        expect(JSON.stringify((await diagramOf(ctx, iri)).schema)).toBe(before);
+describe('the recorded schemas of the old pipeline', () => {
+    test.each([modelIri, instancesIri])('%s: the schema is byte-identical to the recorded diagramOf of the old pipeline on the same files', async iri => {
+        expect(JSON.stringify((await diagramOf(ctx, iri)).schema)).toBe(R(iri));
     });
 
     test('the context reads its documents only: a view file of another folder is not drawn', async () => {
@@ -106,7 +96,7 @@ describe('Bookshop instances', () => {
     test('seven cards retain their model ids, classes, labels and row texts', () => {
         const expected = [
             ['Alice’s Adventures in Wonderland', 'Alice%E2%80%99s%20Adventures%20in%20Wonderland', 'Book', ['publication year: 1865']],
-            // data.ttl: "nineteen forty-five" (the SHACL error of the sample); graph.json still has 1945.
+            // data.ttl: "nineteen forty-five" (the SHACL error of the sample).
             ['Animal Farm', 'Animal%20Farm', 'Book', ['publication year: nineteen forty-five']],
             ['Nineteen Eighty-Four', 'Nineteen%20Eighty-Four', 'Book', ['publication year: 1949']],
             ['George Orwell', 'George%20Orwell', 'Author', ['birth date: 1903-06-25']],
@@ -151,33 +141,23 @@ describe('Bookshop instances', () => {
 });
 
 describe('read builders', () => {
-    test('registers shapes and data separately, and reads both view labels', () => {
-        expect(graph.shapesGraphs().length).toBeGreaterThan(0);
-        expect(graph.match(rdf.namedNode('urn:name:Bookshop%20shape')).every(q => graph.isShapesGraph(q.graph))).toBe(true);
-        expect(graph.match(rdf.namedNode('urn:name:Animal%20Farm')).some(q => graph.isDataGraph(q.graph))).toBe(true);
-        expect(viewLabels(graph)).toEqual({ [iriId(modelIri)]: 'Bookshop model', [iriId(instancesIri)]: 'Bookshop' });
-        expect(scopedDoc({ g: graph, shapes: shapesIndexOf(graph).model }, { views: [iriId(instancesIri)] }).instances[id('Animal%20Farm')].label).toBe('Animal Farm');
+    test('reads both view labels and the label of an instance of a view', async () => {
+        expect(await viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)).toEqual({ [iriId(modelIri)]: 'Bookshop model', [iriId(instancesIri)]: 'Bookshop' });
+        expect((await scopedDoc(ctx, { views: [iriId(instancesIri)] })).instances[id('Animal%20Farm')].label).toBe('Animal Farm');
     });
 
-    test('quad helpers exclude views from instances and retain SKOS homes and label fallbacks', () => {
-        const animal = 'urn:name:Animal%20Farm', city = 'urn:name:Tangamandapio';
-        expect(inModelAmong(graph, [animal, modelIri])).toEqual(new Set([animal]));
-        expect(instancesAmong(graph, [animal, city, modelIri])).toEqual(new Set([animal, city]));
-        expect(homesAmong(graph, [animal]).get(animal)).toBe(graph.union.value);
-        expect(labels(graph, [animal, city, 'urn:name:Absent']).get(animal)).toBe('Animal Farm');
-        expect(labels(graph, [city, 'urn:name:Absent'])).toEqual(new Map([[city, 'Tangamandapio'], ['urn:name:Absent', 'Absent']]));
-    });
-
-    test('hidden-neighbour read includes a data change', () => {
-        const g = graphOf(result, viewFiles).graph, shapes = shapesIndexOf(g).model;
-        const view = readView(g, iriId(instancesIri), shapes).views[iriId(instancesIri)];
-        const hidden = rdf.namedNode('urn:test:hidden'), animal = rdf.namedNode('urn:name:Animal%20Farm');
-        g.update(() => {
-            g.add(hidden, rdf.namedNode(NS.rdf + 'type'), rdf.namedNode('urn:example:bookshop:Book'), rdf.namedNode(dataGraphIri(`${FIXTURE}/data.ttl`)));
-            g.add(hidden, rdf.namedNode('http://www.example.org/author'), animal, rdf.namedNode(dataGraphIri(`${FIXTURE}/data.ttl`)));
-        });
-        const full = hiddenNeighborCounts(g, shapes, view);
-        expect(full.get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
+    test('hidden-neighbour read includes a data change (the open buffer of data.ttl)', async () => {
+        const uri = pathToFileURL(join(FIXTURE, 'data.ttl')).href, text = readFileSync(join(FIXTURE, 'data.ttl'), 'utf8');
+        const view = (await diagramOf(ctx, iriId(instancesIri))).doc.views[iriId(instancesIri)];
+        const before = await hiddenNeighborCounts(ctx.port, ctx.modelFiles, ctx.shapes, view);
+        expect(before.get(id('Animal%20Farm'))).toMatchObject({ in: 0 });
+        server.open(uri, text);
+        server.change(uri, `${text}\n<urn:test:hidden> a <urn:example:bookshop:Book> ; <http://www.example.org/author> <urn:name:Animal%20Farm> .\n`);
+        try {
+            expect((await hiddenNeighborCounts(ctx.port, ctx.modelFiles, ctx.shapes, view)).get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
+        } finally {
+            server.change(uri, text);
+        }
     });
 
     test('accepts a view id without changing placements', async () => {

@@ -1,10 +1,32 @@
-// Read workspace manifest settings and file paths; adapted from Catenary packages/rdf/src/files.ts.
+// Read workspace manifest settings and file paths, and name the documents of a workspace; adapted from Catenary packages/rdf/src/files.ts.
 import { NS } from '../model/terms';
 import { VALIDATION_MODES, ValidationMode } from '../model/snapshot';
 import type { Quad } from '@rdfjs/types';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import * as path from 'path';
-import { PathApi, resolveStored } from '../rdf-files/paths';
 import { rdf } from './terms';
+
+type PathApi = path.PlatformPath;
+
+/** A relative path from a file, resolved against `dir`. Accepts `\` as separator too (files written by earlier Windows builds). */
+function resolveStored(dir: string, stored: string, p: PathApi = path): string {
+    return p.resolve(dir, stored.replace(/\\/g, '/'));
+}
+
+/**
+ * The model resource (subject of dct:conformsTo and the label of the model, in the data file), and the graph name of the data in TriG text
+ * (workspace files, test fixtures). Files contain this value: do not change it.
+ */
+export const UNION_GRAPH = 'urn:name:model';
+
+/** The graph of a model document as turtle-lsp names it: its file URI. */
+export const dataGraphIri = (file: string) => pathToFileURL(file).href;
+
+/** The file of a document graph (its path), or the graph IRI when it is not a file URI. */
+export const fileOfGraph = (graph: string) => {
+    if (!graph.startsWith('file:')) return graph;
+    try { return fileURLToPath(graph); } catch { return graph; }
+};
 
 
 const WS = {

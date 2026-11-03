@@ -5,7 +5,7 @@ import type { ViewCommand } from '../catenary/model/commands';
 import { LABEL_PREDICATES, pickLabel } from '../catenary/model/labels';
 import type { Range } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH } from '../catenary/rdf/graph-names';
+import { UNION_GRAPH } from '../catenary/rdf/files';
 import { labelFromIri, labelLiterals, SKOS_MEMBERSHIP, SKOS_TYPES } from '../catenary/rdf/vocabulary';
 import type { ModelPort, Row } from '../model/port';
 import type { ManifestRecords } from '../read/manifest';
@@ -16,7 +16,7 @@ import { elementTerm, P, rdf, relationTriple, termKey, tripleKey, V } from './te
 
 export interface FactsContext {
     port: ModelPort;
-    /** The model documents (modelFilesOf); the manifest document is left out of the model, as in graphOf. */
+    /** The model documents (modelFilesOf); the manifest document is left out of the model. */
     modelFiles: string[];
     shapes: ShapesModelRecords;
     manifest: ManifestRecords;

@@ -16,8 +16,8 @@ import { shapesModelOf, type ShapesModelRecords } from './shapes';
 import { viewDocOf } from './view';
 
 /**
- * What a read of the model needs. `modelFiles`: the model documents WITHOUT the manifest document (`shapes.files`): the old store never
- * loads the manifest, and shapeTargetMatches, hiddenNeighborCounts and viewFiguresOf do not remove it themselves.
+ * What a read of the model needs. `modelFiles`: the model documents WITHOUT the manifest document (`shapes.files`): the manifest is not
+ * part of the model, and shapeTargetMatches, hiddenNeighborCounts and viewFiguresOf do not remove it themselves.
  */
 export interface ModelContext {
     port: ModelPort;

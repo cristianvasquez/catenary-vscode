@@ -1,5 +1,4 @@
 // Field rules and provider contract; adapted from Catenary packages/contracts/src/fields.ts.
-import type { QueryPort } from './query';
 
 
 /** A value of a closed list (sh:in). A literal without a datatype is an xsd:string (or an rdf:langString with a language). */
@@ -28,11 +27,3 @@ export interface FieldRule {
     maxCount?: number;
     order?: number;
 }
-
-
-export interface FieldsProvider {
-    /** The plugin (`shacl`, `rdfs`): the same id in all its providers. */
-    id: string;
-    fields(port: QueryPort): FieldRule[];
-}
-

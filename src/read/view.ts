@@ -3,7 +3,7 @@ import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import { type Doc, emptyDoc } from '../catenary/model/doc';
 import { pickLabel } from '../catenary/model/labels';
 import { NS, publishedIri } from '../catenary/model/terms';
-import { UNION_GRAPH, dataGraphIri, fileOfGraph } from '../catenary/rdf/graph-names';
+import { UNION_GRAPH, dataGraphIri, fileOfGraph } from '../catenary/rdf/files';
 import { elementId, elementTerm, relationTriple } from '../catenary/rdf/ids';
 import { readLegacy } from '../catenary/rdf/loader';
 import { type Plain, type Resource, type Statements, cardIdsOf, first, instanceRecords, key, projectView } from '../catenary/rdf/records';

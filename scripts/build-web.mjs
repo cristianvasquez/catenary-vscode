@@ -3,7 +3,6 @@
 //   canvas.js, canvas.css  one canvas iframe (src/web/canvas.ts): the GLSP client of src/webview
 //   turtle-lsp/            the turtle-lsp browser engine and modules (scripts/fetch-turtle-lsp.mjs, pinned by SHA-256)
 //   vendor/monaco/         the Monaco editor (npm monaco-editor, minified AMD build)
-//   oxigraph_bg.wasm       Oxigraph for the browser (npm oxigraph)
 // The shared code runs unchanged: node:fs, node:url, node:path and node:crypto map to browser shims (src/web/shims) over an in-memory file system.
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
@@ -44,7 +43,7 @@ const web = {
         b.onLoad({ filter: /.*/, namespace: 'catenary' }, async args => {
             const files = args.path === 'catenary:notations'
                 ? await textFiles('src/catenary/rdf/notations', rel => !rel.endsWith('.ttl'))
-                : await textFiles('test/fixtures/shapes', rel => rel === 'graph.json');
+                : await textFiles('test/fixtures/shapes');
             return { contents: `export default ${JSON.stringify(files)};`, loader: 'js' };
         });
     }
@@ -63,7 +62,6 @@ await Promise.all([
 
 for (const f of ['index.html', 'canvas.html', 'app.css', 'theme.css']) await copyFile(path.join('web', f), path.join(out, f));
 await copyFile('LICENSE', path.join(out, 'LICENSE'));
-await copyFile('node_modules/oxigraph/web_bg.wasm', path.join(out, 'oxigraph_bg.wasm'));
 // Monaco: the minified AMD build, without other UI languages and the language services that the page never starts.
 const unused = /\/vs\/language\/(typescript|css|html)(\/|$)|nls\.messages\.[\w-]+\.js$/;
 await cp('node_modules/monaco-editor/min/vs', path.join(out, 'vendor/monaco/vs'), { recursive: true, filter: src => !unused.test(src.split(path.sep).join('/')) });

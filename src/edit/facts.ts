@@ -1,6 +1,6 @@
 // The model facts that a view edit reads: plain lookups, filled by one prefetch query per command (facts-of.ts). No graph, no store.
 import type { NamedNode, Quad } from '@rdfjs/types';
-import type { ShapesIndex } from '../catenary/rdf/shapes-read';
+import type { ShapesIndex } from '../read/shapes-index';
 import { NS } from '../catenary/model/terms';
 import { elementTerm, rdf } from './terms';
 
@@ -19,7 +19,7 @@ export interface Facts {
     viewLabel(iri: string): string;
     /** The model has the statement `s p o` (in the file that holds `s`). */
     has(s: string, p: string, o: string): boolean;
-    /** The shape card of an id (shapes-read.ts `shapesCardTerm`) when the IRI of the id has a statement in a shapes file. */
+    /** The shape card of an id (the old shapesCardTerm) when the IRI of the id has a statement in a shapes file. */
     shapesCard(id: string): NamedNode | undefined;
     /** The relations among `iris`: statements of the model whose subject and object are both in `iris` and are instances (type or label), not rdf:type or rdfs:label. */
     statementsAmong(iris: string[]): Quad[];
@@ -38,7 +38,7 @@ const SH = NS.sh;
 
 const SHAPE_PREDICATES = ['targetClass', 'targetSubjectsOf', 'targetObjectsOf', 'targetNode', 'node', 'property', 'or', 'xone', 'and', 'not'].map(p => SH + p);
 
-/** A node shape by its id, over the shapes statements (shapes-read.ts `nodeShapeTerm`). */
+/** A node shape by its id, over the shapes statements (the old nodeShapeTerm). */
 export function nodeShapeTerm(facts: Facts, id: string): NamedNode | undefined {
     const t = elementTerm(id);
     if (!t) return undefined;

@@ -1,4 +1,4 @@
-// Local rdf-ext types for graph operations; adapted from Catenary packages/rdf-core/src/shims.d.ts.
+// Local rdf-ext types; adapted from Catenary packages/rdf-core/src/shims.d.ts.
 
 declare module 'rdf-ext' {
     import type { BlankNode, DataFactory, DatasetCore, NamedNode, Quad, Term } from '@rdfjs/types';

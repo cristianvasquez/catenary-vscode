@@ -117,80 +117,6 @@ export class TripleIndex {
 }
 
 
-/** What a store gives a LazyTripleIndex: the triples of a subject, of an object (one predicate or all), or of a predicate. */
-export interface TripleSource {
-    outgoing(s: NTerm): NQuad[];
-    incoming(o: NTerm, p?: string): NQuad[];
-    withPredicate(p: string): NQuad[];
-}
-
-
-/**
- * A triple index that reads a store on demand: each subject, object or predicate once. The figures of a view read only the triples
- * around its elements, so a view costs what it shows, not the size of the workspace. Read-only: a change of the store needs a new one,
- * or `forget` of what it changed.
- */
-export class LazyTripleIndex extends TripleIndex {
-    protected readonly outs = new Map<string, Map<string, NTerm[]>>();
-    protected readonly ins = new Map<string, Map<string, TermJSON[]>>();
-    protected readonly allIns = new Set<string>();
-    protected readonly byPredicate = new Map<string, { s: TermJSON[]; o: NTerm[] }>();
-
-    constructor(protected readonly source: TripleSource) { super(); }
-
-    override add(): void { throw new Error('LazyTripleIndex is read-only'); }
-    override delete(): void { throw new Error('LazyTripleIndex is read-only'); }
-
-    protected outOf(s: NTerm): Map<string, NTerm[]> {
-        const k = nkey(s);
-        let m = this.outs.get(k);
-        if (!m) {
-            m = new Map();
-            for (const x of this.source.outgoing(s)) (m.get(x.predicate) ?? m.set(x.predicate, []).get(x.predicate)!).push(x.object);
-            for (const [p, vs] of m) m.set(p, uniq(vs).sort(byKey));
-            this.outs.set(k, m);
-        }
-        return m;
-    }
-
-    protected inOf(o: NTerm, p?: string): Map<string, TermJSON[]> {
-        const k = nkey(o);
-        const m = this.ins.get(k) ?? this.ins.set(k, new Map()).get(k)!;
-        if (this.allIns.has(k) || (p !== undefined && m.has(p))) return m;
-        const found = new Map<string, TermJSON[]>(p === undefined ? [] : [[p, []]]);
-        for (const x of this.source.incoming(o, p)) (found.get(x.predicate) ?? found.set(x.predicate, []).get(x.predicate)!).push(x.subject);
-        for (const [q, ss] of found) m.set(q, uniq(ss).sort(byKey));
-        if (p === undefined) this.allIns.add(k);
-        return m;
-    }
-
-    /**
-     * Forget what the index read about these keys (nkey) and predicates, after a change of the store: the next call reads them again.
-     * A caller that keeps one index across changes forgets the subject, the object and the predicate of each changed triple.
-     */
-    forget(subjects: Iterable<string>, objects: Iterable<string>, predicates: Iterable<string>): void {
-        for (const k of subjects) this.outs.delete(k);
-        for (const k of objects) { this.ins.delete(k); this.allIns.delete(k); }
-        for (const p of predicates) this.byPredicate.delete(p);
-    }
-
-    override objects(s: NTerm, p: string): NTerm[] { return this.outOf(s).get(p) ?? []; }
-    override subjects(p: string, o: NTerm): TermJSON[] { return this.inOf(o, p).get(p) ?? []; }
-    override predicates(s: NTerm): string[] { return [...this.outOf(s).keys()]; }
-    override incoming(o: NTerm): [string, TermJSON[]][] { return [...this.inOf(o)].filter(([, ss]) => ss.length); }
-
-    protected ofPredicate(p: string): { s: TermJSON[]; o: NTerm[] } {
-        let e = this.byPredicate.get(p);
-        if (!e) {
-            const xs = this.source.withPredicate(p);
-            e = { s: uniq(xs.map(x => x.subject)).sort(byKey), o: uniq(xs.map(x => x.object)).sort(byKey) };
-            this.byPredicate.set(p, e);
-        }
-        return e;
-    }
-    override subjectsOfP(p: string): TermJSON[] { return this.ofPredicate(p).s; }
-    override objectsOfP(p: string): NTerm[] { return this.ofPredicate(p).o; }
-}
 
 
 function push<T>(m: Map<string, Map<string, T[]>>, k: string, p: string, v: T): void {
@@ -345,4 +271,3 @@ export function conforms(D: TripleIndex, N: TripleIndex, shape: NTerm, focus: NT
     }
     return true;
 }
-

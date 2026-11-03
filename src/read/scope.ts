@@ -3,7 +3,7 @@ import type { NamedNode, Term } from '@rdfjs/types';
 import { type Doc, type View, emptyDoc } from '../catenary/model/doc';
 import { idIri } from '../catenary/model/ids';
 import { NS } from '../catenary/model/terms';
-import { fileOfGraph } from '../catenary/rdf/graph-names';
+import { fileOfGraph } from '../catenary/rdf/files';
 import { elementId, elementTerm, relationTriple } from '../catenary/rdf/ids';
 import { type Plain, type Statements, instanceRecords } from '../catenary/rdf/records';
 import { rdf, termKey } from '../catenary/rdf/terms';

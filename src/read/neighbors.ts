@@ -2,14 +2,16 @@
 import type { NamedNode, Term } from '@rdfjs/types';
 import { type View, boxes } from '../catenary/model/doc';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH } from '../catenary/rdf/graph-names';
+import { UNION_GRAPH } from '../catenary/rdf/files';
 import { elementTerm, relationId } from '../catenary/rdf/ids';
-import type { NeighborCount } from '../catenary/rdf/scoped-doc';
 import { termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
 import type { ModelPort, Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
 import { bindings, shapeTargetMatches } from './targets';
+
+/** The hidden neighbours of a card: statements in and out, and the instances that its shape targets. */
+export type NeighborCount = { in: number; out: number; targets?: number };
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos: <${NS.skos}>`;
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label';

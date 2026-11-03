@@ -6,6 +6,8 @@ Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads 
 
 VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turtle-language-server`). On VS Code, Catenary offers to install it from the Marketplace at first use. On VSCodium and other editors without the Marketplace, install the vsix of your platform from https://github.com/abhishekkundu25/turtle-lsp/releases first.
 
+Catenary keeps no copy of the model: it asks every question with the `turtle/query` request of the language server. Until upstream has this request, set `turtle.server.path` to a build of the fork [turtle-lsp, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query) (`cargo build --release --locked`, then `target/release/turtle-lsp`). Without it, the refresh of the workspace fails and the canvas draws nothing.
+
 ## Features
 
 - Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
@@ -59,11 +61,13 @@ Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at 
 ```sh
 pnpm install
 pnpm build          # dist/extension.js, dist/webview.js
-pnpm verify         # typecheck, knip, unit tests and source citation check
+pnpm verify         # typecheck, knip, unit tests and source citation check (the tests need the fork binary, see below)
 pnpm ui             # real mouse and keys in headless VS Code
 pnpm ui -- --section bookshop   # one section of the UI checks (model, bookshop)
 pnpm ui:markdown    # export a Markdown document with an embedded view
 ```
+
+The unit tests start the fork binary over stdio on `test/fixtures/shapes` (`test/server.ts`): `TURTLE_LSP` sets its path, default `~/os/rdf/turtle-lsp/target/release/turtle-lsp`. The values that the old in-memory pipeline gave are recorded under `test/fixtures/expected/` (one JSON line per value); the tests compare the results over `turtle/query` with them.
 
 ### Browser page
 
@@ -74,7 +78,8 @@ The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages
 - turtle-lsp runs as WebAssembly in a worker. `scripts/fetch-turtle-lsp.mjs` downloads `engine.wasm` and its modules from the turtle-lsp GitHub Pages site and checks the SHA-256 pinned in the script (turtle-lsp 0.13.1). turtle-lsp publishes no versioned web build: when upstream deploys again, a build without the cache in `.cache/turtle-lsp-web/` fails until the pins are updated with `--pin`.
 - The GLSP server runs in the page (`src/web/server.ts`), one server instance per canvas over a `MessagePort`. Each canvas is an iframe (`src/web/canvas.ts`), as a VS Code webview is.
 - The shared code is not changed for the browser: the web build maps `node:fs`, `node:url`, `node:path` and `node:crypto` to shims (`src/web/shims/`) over an in-memory file system. The SHA-256 shim gives the same placement IRIs as Node.
-- `src/model/workspace-core.ts` holds the workspace graph logic of both hosts; `src/node/workspace-model.ts` (VS Code) and `src/web/workspace.ts` (page) supply the graph, the view files and the diagnostics.
+- `src/model/workspace-core.ts` holds the workspace logic of both hosts; `src/node/workspace-model.ts` (VS Code) and `src/web/workspace.ts` (page) supply the `turtle/query` port, the documents and the diagnostics.
+- The engine of the page is the upstream build, without `turtle/query`: the port of the page fails with "needs the fork engine", so the page reads no model, its canvas draws nothing and it runs no command. The engine built from the fork replaces it (planned).
 - Not in the page: Markdown export, Insert View, New View from a folder, and the Catenary settings (the defaults of `package.json` apply).
 
 The UI scripts build and launch a development host; this repository has no F5 launch configuration. A full `pnpm ui` run takes about 90 s; it stops with a failure after 300 s (`CATENARY_UI_DEADLINE_MS`), and a single Playwright action fails after 15 s. `pnpm package` writes the `.vsix` file.

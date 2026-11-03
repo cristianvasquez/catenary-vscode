@@ -10,7 +10,7 @@ export interface ViewChange { op: 'add' | 'remove'; quad: Quad }
 
 /**
  * The statements of one view graph. Every quad has the graph `graph`. Terms compare by `termKey`, so terms of other factories
- * (Oxigraph, the turtle/query answer) match. `steps()` gives every add and remove in order; `changes()` the net change since the start.
+ * (n3, the turtle/query answer) match. `steps()` gives every add and remove in order; `changes()` the net change since the start.
  */
 export class ViewQuads {
     readonly graph: NamedNode;

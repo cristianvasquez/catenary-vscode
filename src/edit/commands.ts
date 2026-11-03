@@ -1,6 +1,5 @@
-// The view commands over the quads of the views they edit and the model facts: pure, synchronous, no graph, no store.
-// Oracle until the cutover: the old store (test/view-store.ts) with src/catenary/rdf/commands.ts. A command edits the views of `views`
-// only (decision 6); the post-steps run on the views that it changed.
+// The view commands over the quads of the views they edit and the model facts: pure, synchronous, no graph, no store. A command edits
+// the views of `views` only (decision 6); the post-steps run on the views that it changed.
 import type { NamedNode } from '@rdfjs/types';
 import { centered, gridPositions, isViewClip, Point, ViewClip, ViewCommand } from '../catenary/model/commands';
 import { Box, boxes, DEFAULT_COLLECTION_SIZE, DEFAULT_SIZE, DEFAULT_VIEW_REFERENCE_SIZE } from '../catenary/model/doc';

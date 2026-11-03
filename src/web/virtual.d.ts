@@ -6,7 +6,7 @@ declare module 'catenary:notations' {
     export default files;
 }
 
-/** The sample workspace (test/fixtures/shapes, without graph.json) by relative path. */
+/** The sample workspace (test/fixtures/shapes) by relative path. */
 declare module 'catenary:samples' {
     const files: Record<string, string>;
     export default files;

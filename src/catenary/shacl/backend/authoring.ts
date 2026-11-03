@@ -1,8 +1,8 @@
 // Derive palette, field and link metadata from SHACL; adapted from Catenary packages/shacl/src/backend/authoring.ts.
-import type { FieldRule, FieldValue, FieldsProvider } from '../../contracts/fields';
-import type { LinkRule, LinksProvider } from '../../contracts/links';
-import type { PaletteClass, PaletteProvider } from '../../contracts/palette';
-import { OWL, QueryPort, RDF, RDFS, SH, XSD } from '../../contracts/query';
+import type { FieldRule, FieldValue } from '../../contracts/fields';
+import type { LinkRule } from '../../contracts/links';
+import type { PaletteClass } from '../../contracts/palette';
+import { OWL, RDF, RDFS, SH, XSD } from '../../contracts/query';
 
 
 const SKOS = 'http://www.w3.org/2004/02/skos/core#';
@@ -127,19 +127,6 @@ function valueSetOf(t: Triples, shape: Node): LinkRule['valueSet'] {
 interface Authoring { classes: PaletteClass[]; links: LinkRule[]; fields: FieldRule[] }
 
 
-const read = new WeakMap<QueryPort, Authoring>();
-
-
-/** The palette classes, links and fields of the shapes, read once for each port. */
-function authoring(port: QueryPort): Authoring {
-    const cached = read.get(port);
-    if (cached) return cached;
-    const out = shaclAuthoring(port.select(`SELECT ?s ?p ?o WHERE { ${port.graph('?s ?p ?o')} }`) as { s: Node; p: Node; o: Node }[]);
-    read.set(port, out);
-    return out;
-}
-
-
 /** The palette classes, links and fields of the shapes triples `rows` (`?s ?p ?o`). */
 export function shaclAuthoring(rows: Iterable<{ s: Node; p: Node; o: Node }>): Authoring {
     const t = new Triples(rows);
@@ -234,11 +221,3 @@ function localName(iri: string): string {
     const m = /[#/:]([^#/:]+)[#/]?$/.exec(iri);
     return m ? decodeURIComponent(m[1]) : iri;
 }
-
-
-export const shaclPalette: PaletteProvider = { id: 'shacl', classes: port => authoring(port).classes };
-
-export const shaclLinks: LinksProvider = { id: 'shacl', links: port => authoring(port).links };
-
-export const shaclFields: FieldsProvider = { id: 'shacl', fields: port => authoring(port).fields };
-

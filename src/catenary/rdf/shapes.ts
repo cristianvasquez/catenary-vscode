@@ -2,40 +2,9 @@
 import { ConceptDef, SchemeDef } from '../model/metamodel';
 import { NS, localName } from '../model/terms';
 import { pickLabel } from '../model/labels';
-import type { Quad, Quad_Subject, Term } from '@rdfjs/types';
+import type { Term } from '@rdfjs/types';
 import type { Dataset } from 'rdf-ext';
-import { ModelGraph } from './graph';
 import { rdf } from './terms';
-import { P, SKOS_TYPES } from './vocabulary';
-
-
-/** Quads of all shapes graphs, with their graphs. */
-function shapesQuads(g: ModelGraph): Quad[] {
-    return g.shapesGraphs().flatMap(sg => g.match(null, null, null, sg));
-}
-
-
-/**
- * SKOS vocabulary of the model graph: the statements of its concept schemes, concepts and collections (subjects with one of these
- * types), with their graph. Concepts in the data file are instances too; the shapes read and the metamodel also use these quads.
- */
-export function vocabularyQuads(g: ModelGraph): Quad[] {
-    const subjects = rdf.termSet<Term>();
-    for (const t of SKOS_TYPES) for (const q of g.match(null, P.type, t, g.union)) subjects.add(q.subject);
-    return [...subjects].flatMap(s => g.match(s as Quad_Subject, null, null, g.union));
-}
-
-
-/** Shapes quads and the SKOS vocabulary of the model graph. */
-export function shapesAndVocabulary(g: ModelGraph): Quad[] {
-    return [...shapesQuads(g), ...vocabularyQuads(g)];
-}
-
-
-/** Triples of all shapes graphs (the union of the shapes files). */
-export function shapesTriples(g: ModelGraph): Quad[] {
-    return shapesQuads(g).map(q => rdf.quad(q.subject, q.predicate, q.object));
-}
 
 
 const n = (iri: string) => rdf.namedNode(iri);

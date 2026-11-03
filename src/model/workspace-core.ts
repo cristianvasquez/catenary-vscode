@@ -1,16 +1,13 @@
 // The platform-free part of one folder's workspace: the model records read through turtle/query (the canvas draws from them and the
-// commands read them), and the old graph of the browser page until K11/K13. A command edits the text of the view documents (src/edit/executor.ts);
-// the host applies the edits. The VS Code host (node/workspace-model.ts) and the browser page (web/workspace.ts) supply the port, the
-// turtle-lsp graph, the view files, the documents and the diagnostics.
+// commands read them). A command edits the text of the view documents (src/edit/executor.ts); the host applies the edits. The VS Code host
+// (node/workspace-model.ts) and the browser page (web/workspace.ts) supply the port, the turtle-lsp graph, the documents and the diagnostics.
 import { fileURLToPath } from 'node:url';
 import type { Diagnostic } from 'vscode';
 import type { ViewCommand } from '../catenary/model/commands';
 import { idIri } from '../catenary/model/ids';
-import type { ModelGraph } from '../catenary/rdf/graph';
 import type { Violation } from '../catenary/model/validation';
 import { runCommand, type ViewEdit, type ViewInput, viewFileProblem } from '../edit/executor';
 import { fail, type Result } from '../edit/ops';
-import { graphOf } from './graph-input';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
 import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDrawn, modelContextOf } from '../read/diagram';
@@ -37,15 +34,13 @@ const viewIriOf = (view: string) => view.includes(':') ? view : idIri(view);
 const REDRAW_MS = 100;
 
 export abstract class WorkspaceCore implements ViewSource {
-    /** The old graph (read from the saved view files) until K11: the browser page draws from it; undefined before the first answer. */
-    graph: ModelGraph | undefined;
     /** The turtle/graph answer: node ranges of the diagnostics. */
     result: GraphResult | undefined;
-    /** View IRI to its workspace file path (viewFilesOf; without a port: graphOf), refreshed on each refresh. */
+    /** View IRI to its workspace file path (viewFilesOf), refreshed on each refresh. */
     readonly viewFiles = new Map<string, string>();
     /** The model documents without the manifest document (ShapesModelRecords.files). */
     modelFiles: string[] = [];
-    /** The shapes model of the model documents, computed once per refresh; undefined before the first answer or without a port. */
+    /** The shapes model of the model documents, computed once per refresh; undefined before the first answer. */
     shapes: ShapesModelRecords | undefined;
     manifest: ManifestRecords = {};
     /** Incremented on each refresh that succeeds. */
@@ -66,12 +61,10 @@ export abstract class WorkspaceCore implements ViewSource {
 
     /** A short name of the folder, for log lines. */
     protected abstract readonly name: string;
-    /** turtle/query of this host; undefined: the host has none (the browser page until K13), the old graph draws. */
-    protected abstract readonly port: ModelPort | undefined;
+    /** turtle/query of this host. */
+    protected abstract readonly port: ModelPort;
     /** turtle-lsp `turtle/graph`, limited to the documents of this folder. */
     protected abstract requestGraph(): Promise<GraphResult>;
-    /** The view file paths of this folder, sorted. */
-    protected abstract viewFilePaths(): Promise<string[]>;
     /** The diagnostics of this folder by document URI, with VS Code severities (0 error … 3 hint). */
     protected abstract diagnosticsByUri(): Record<string, Diagnostic[]>;
     /** The text of a document URI; '' when it cannot be read. */
@@ -153,20 +146,17 @@ export abstract class WorkspaceCore implements ViewSource {
         const seq = ++this.seq;
         try {
             const result = await this.requestGraph();
-            const views = await this.viewFilePaths();
-            const old = graphOf(result, views);
             // The RDF documents of the folder: the documents of the turtle/graph answer (requestGraph keeps this folder's).
             const documents = [...new Set(result.edges.map(e => e.uri).filter(u => u.startsWith('file:')))].map(u => fileURLToPath(u)).sort();
-            const records = this.port ? await modelContextOf(this.port, documents) : undefined;
+            const records = await modelContextOf(this.port, documents);
             if (seq !== this.seq) return;
-            const { graph } = old, { views: viewFiles, skipped } = records?.viewFiles ?? old;
+            const { views: viewFiles, skipped } = records.viewFiles;
             for (const { file, reason } of skipped) this.log(`workspace ${this.name}: skipped ${file}: ${reason}`);
             if (skipped.length) this.warn(`Catenary: skipped ${skipped.length} view file(s) in ${this.name}. See the Catenary output for details.`);
             this.viewFiles.clear();
             for (const [iri, file] of viewFiles) this.viewFiles.set(iri, file);
-            this.graph = graph;
             this.result = result;
-            if (records) ({ manifest: this.manifest, shapes: this.shapes, modelFiles: this.modelFiles } = this.ctx = records.ctx);
+            ({ manifest: this.manifest, shapes: this.shapes, modelFiles: this.modelFiles } = this.ctx = records.ctx);
             this.generation++;
             await this.readDiagnostics();
             if (seq !== this.seq) return;
@@ -180,7 +170,7 @@ export abstract class WorkspaceCore implements ViewSource {
         this.fire();
     }
 
-    /** The context of the reads; undefined before the first refresh or without a port. */
+    /** The context of the reads; undefined before the first refresh. */
     context(): ModelContext | undefined {
         return this.ctx;
     }
@@ -211,7 +201,7 @@ export abstract class WorkspaceCore implements ViewSource {
         return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
     }
 
-    /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh or without a port. */
+    /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh. */
     async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
         const ctx = this.context();
         return ctx ? expandChoices(ctx, viewId, from, dir) : undefined;

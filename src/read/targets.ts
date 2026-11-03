@@ -210,8 +210,8 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
 const collator = new Intl.Collator();
 
 /**
- * The shapes that apply to the nodes of `selection`, or the nodes that the shapes of `selection` apply to (applicableMatches), as
- * shapeTargetMatches of rdf/shacl-targets.ts. `modelFiles`: the model documents without the manifest (the data of the old store).
+ * The shapes that apply to the nodes of `selection`, or the nodes that the shapes of `selection` apply to. `modelFiles`: the model
+ * documents without the manifest.
  * Nothing is kept between calls.
  */
 export async function shapeTargetMatches(port: ModelPort, modelFiles: string[], shapes: ShapesModelRecords, selection: TargetSelection): Promise<TargetMatch[]> {

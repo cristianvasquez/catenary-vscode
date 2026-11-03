@@ -1,25 +1,23 @@
-// Read SHACL shapes, paths, ranges and constraints from quads; adapted from Catenary packages/rdf/src/shapes-read.ts.
+// Read SHACL shapes, paths, ranges and constraints from the rows of one query; adapted from Catenary packages/rdf/src/shapes-read.ts.
 import type { Literal, NamedNode, Quad, Quad_Object, Quad_Subject, Term } from '@rdfjs/types';
 import type { Dataset } from 'rdf-ext';
-import { pickLabel, pickLabelLiteral } from '../model/labels';
-import { LogicalConstraint, LogicalOperator, NODE_KINDS, NodeKind, NodeShape, PathJSON, PropertyShape, Range, ShapesModel, SimpleRange, compactIri, emptyShapes, formatPath, isValueSetRange } from '../model/shapes-doc';
-import { NS, TermJSON, termToJSON } from '../model/terms';
-import { GraphChange, cmp } from '../rdf-core/graph';
-import { isSkolem } from '../rdf-core/skolem';
-import { termKey } from '../rdf-files/terms';
-import { ModelGraph } from './graph';
-import { fileOfGraph } from './graph-names';
-import { constraintId, elementId, propertyShapeId } from './ids';
-import { shapesAndVocabulary } from './shapes';
-import { rdf } from './terms';
-import { labelFromIri } from './vocabulary';
+import { pickLabel, pickLabelLiteral } from '../catenary/model/labels';
+import { LogicalConstraint, LogicalOperator, NODE_KINDS, NodeKind, NodeShape, PathJSON, PropertyShape, Range, ShapesModel, SimpleRange, compactIri, emptyShapes, formatPath, isValueSetRange } from '../catenary/model/shapes-doc';
+import { NS, TermJSON, termToJSON } from '../catenary/model/terms';
+import { cmp } from '../catenary/rdf-core/terms';
+import { isSkolem } from '../catenary/rdf-core/skolem';
+import { termKey } from '../catenary/rdf-files/terms';
+import { fileOfGraph } from '../catenary/rdf/files';
+import { constraintId, elementId, propertyShapeId } from '../catenary/rdf/ids';
+import { rdf } from '../catenary/rdf/terms';
+import { labelFromIri } from '../catenary/rdf/vocabulary';
 
 
 const SH = NS.sh;
 
 const n = (iri: string) => rdf.namedNode(iri);
 
-export const S = {
+const S = {
     NodeShape: n(SH + 'NodeShape'), PropertyShape: n(SH + 'PropertyShape'), targetClass: n(SH + 'targetClass'), targetSubjectsOf: n(SH + 'targetSubjectsOf'), targetObjectsOf: n(SH + 'targetObjectsOf'), targetNode: n(SH + 'targetNode'), property: n(SH + 'property'),
     path: n(SH + 'path'), name: n(SH + 'name'), description: n(SH + 'description'), minCount: n(SH + 'minCount'), maxCount: n(SH + 'maxCount'),
     datatype: n(SH + 'datatype'), nodeKind: n(SH + 'nodeKind'), class: n(SH + 'class'), node: n(SH + 'node'), in: n(SH + 'in'),
@@ -58,22 +56,6 @@ export interface ShapesIndex {
 
 
 const key = termKey;
-
-
-const indexes = new WeakMap<ModelGraph, { event: GraphChange; index: ShapesIndex }>();
-
-
-/**
- * The shapes index of the shapes graphs and the SKOS vocabulary of the model graph of `g`, cached until they change
- * (ModelGraph.keys.shapes). Do not change it.
- */
-export function shapesIndexOf(g: ModelGraph): ShapesIndex {
-    const cached = indexes.get(g);
-    if (cached?.event === g.keys.shapes) return cached.index;
-    const index = readShapes(shapesAndVocabulary(g), g.language);
-    indexes.set(g, { event: g.keys.shapes, index });
-    return index;
-}
 
 
 /** Read the shapes of `quads` (quads of the shapes graphs, with their graphs). `language`: of the labels (pickLabel). */
@@ -130,7 +112,7 @@ export function readShapes(quads: Iterable<Quad>, language?: string): ShapesInde
         return { kind: 'unsupported', text: text(t) };
     };
 
-    const graphOf = (s: Term) => [...ds.match(s)].map(q => q.graph as NamedNode).sort((a, b) => cmp(a.value, b.value))[0];
+    const documentOf = (s: Term) => [...ds.match(s)].map(q => q.graph as NamedNode).sort((a, b) => cmp(a.value, b.value))[0];
 
     // Node shapes.
     const candidates = rdf.termSet<NamedNode>();
@@ -279,7 +261,7 @@ export function readShapes(quads: Iterable<Quad>, language?: string): ShapesInde
     const usedIds = new Set<string>();
     for (const s of modelShapes) {
         const id = shapeIds.get(s.value)!;
-        const graph = graphOf(s);
+        const graph = documentOf(s);
         const targets = objects(s, S.targetClass);
         const subjectTargets = objects(s, S.targetSubjectsOf);
         const objectTargets = objects(s, S.targetObjectsOf);
@@ -370,44 +352,14 @@ export function readShapes(quads: Iterable<Quad>, language?: string): ShapesInde
                 for (const m of ds.match(t, S.hasTopConcept)) members.add(m.object);
             } else for (const m of ds.match(t, S.member)) members.add(m.object);
             index.model.valueSets[id] = {
-                id, uri: t.value, kind, label: labelOf(t), file: fileOfGraph(graphOf(t).value),
+                id, uri: t.value, kind, label: labelOf(t), file: fileOfGraph(documentOf(t).value),
                 members: [...members].filter(m => m.termType === 'NamedNode').map(m => ({
                     uri: m.value, label: labelOf(m),
                     broader: [...new Set([...ds.match(m, S.broader)].map(q => q.object.value).concat([...ds.match(null, S.narrower, m)].map(q => q.subject.value)))].sort()
                 })).sort((a, b) => cmp(a.label, b.label) || cmp(a.uri, b.uri))
             };
-            index.valueSet.set(id, { term: t, graph: graphOf(t) });
+            index.valueSet.set(id, { term: t, graph: documentOf(t) });
         }
     }
     return index;
-}
-
-
-import { elementTerm } from './ids';
-
-
-/** The shapes index of the graph, cached (shapes-read.ts `shapesIndexOf`). Do not change it. */
-const shapesIndex = shapesIndexOf;
-
-/** A node shape of the shapes graphs: an IRI with sh:NodeShape, a mapped target, sh:property or a logical constraint, and no sh:path. */
-export function nodeShapeTerm(g: ModelGraph, id: string): NamedNode | undefined {
-    const t = elementTerm(id);
-    if (t?.termType !== 'NamedNode') return undefined;
-    const quads = g.match(t).filter(q => g.isShapesGraph(q.graph));
-    if (quads.some(q => q.predicate.equals(S.path))) return undefined;
-    return (quads.some(q => (q.predicate.equals(S.type) && q.object.equals(S.NodeShape)) || [S.targetClass, S.targetSubjectsOf, S.targetObjectsOf, S.targetNode, S.node, S.property, S.or, S.xone, S.and, S.not].some(p => p.equals(q.predicate)))
-        || (quads.length > 0 && g.match(null, S.node, t).some(q => g.isShapesGraph(q.graph))))
-        ? t : undefined;
-}
-
-// ------------------------------------------------------------------ value sets (SKOS concept schemes and collections)
-
-/** A card of a shapes view: a node shape, a value set, or a property shape drawn out of its card (IRI property shapes only). */
-export function shapesCardTerm(g: ModelGraph, id: string): NamedNode | undefined {
-    const node = nodeShapeTerm(g, id);
-    if (node) return node;
-    const idx = shapesIndex(g);
-    const set = idx.valueSet.get(id);
-    if (set) return set.term;
-    return idx.property.get(id)?.term as NamedNode | undefined;
 }
