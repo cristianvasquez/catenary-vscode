@@ -54,6 +54,8 @@ export abstract class WorkspaceCore implements ViewSource {
     manifest: ManifestRecords = {};
     /** Incremented on each refresh that succeeds. */
     generation = 0;
+    /** The context of the reads (modelContextOf): its port reads the documents of this folder only. */
+    protected ctx: ModelContext | undefined;
     violations: Violation[] = [];
     /** Why the last refresh failed; undefined after a success. */
     error: string | undefined;
@@ -180,7 +182,7 @@ export abstract class WorkspaceCore implements ViewSource {
             for (const [iri, file] of viewFiles) this.viewFiles.set(iri, file);
             this.graph = graph;
             this.result = result;
-            if (records) ({ manifest: this.manifest, shapes: this.shapes, modelFiles: this.modelFiles } = records.ctx);
+            if (records) ({ manifest: this.manifest, shapes: this.shapes, modelFiles: this.modelFiles } = this.ctx = records.ctx);
             this.generation++;
             await this.readDiagnostics();
             if (seq !== this.seq) return;
@@ -196,7 +198,7 @@ export abstract class WorkspaceCore implements ViewSource {
 
     /** The context of the reads; undefined before the first refresh or without a port. */
     protected context(): ModelContext | undefined {
-        return this.port && this.shapes ? { port: this.port, modelFiles: this.modelFiles, shapes: this.shapes, manifest: this.manifest } : undefined;
+        return this.ctx;
     }
 
     /** The diagram of the view `viewId` from turtle/query: the saved view file (an unsaved canvas edit is not drawn until K10). */

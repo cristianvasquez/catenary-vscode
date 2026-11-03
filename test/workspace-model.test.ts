@@ -1,6 +1,7 @@
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, test, vi } from 'vitest';
 import type { TextDocumentChangeEvent, Uri, WorkspaceFolder } from 'vscode';
 import { iriId } from '../src/catenary/model/ids';
@@ -112,10 +113,16 @@ test('bad and duplicate view files are reported without blocking a valid view', 
 
 test('a refresh over the port reads the view files, the shapes and the diagram; a model document change schedules a refresh', async () => {
     const server = await startServer(FIXTURE, 282);
-    const api: TurtleApi = {
-        client: () => ({ isRunning: () => true, sendRequest: <R>(method: string, params: unknown) => (method === 'turtle/query' ? server.query(params as never) : server.graph(params as never)) as Promise<R> }),
+    /** `hidden`: a document that turtle/graph does not give, as if it were in another folder of the window. */
+    const apiOf = (hidden?: string): TurtleApi => ({
+        client: () => ({ isRunning: () => true, sendRequest: async <R>(method: string, params: unknown) => {
+            if (method === 'turtle/query') return await server.query(params as never) as R;
+            const graph = await server.graph(params as never);
+            return { ...graph, edges: graph.edges.filter(e => !hidden || e.uri !== pathToFileURL(hidden).href) } as R;
+        } }),
         idle: async () => {}
-    };
+    });
+    const api = apiOf();
     host.files = ['instances', 'model'].map(f => join(FIXTURE, `${f}.trig`));
     const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
     const model = new WorkspaceModel(folder, () => api, () => undefined);
@@ -139,6 +146,15 @@ test('a refresh over the port reads the view files, the shapes and the diagram; 
         expect(schedule).toHaveBeenCalledTimes(2);
         await model.refresh();
         expect(model.generation).toBe(2);
+        // The server holds the view of another folder; this folder's canvas does not draw it.
+        const other = new WorkspaceModel(folder, () => apiOf(host.files[0]), () => undefined);
+        try {
+            await other.refresh();
+            expect(other.viewFiles.has('urn:name:Bookshop')).toBe(false);
+            expect((await other.diagram(iriId('urn:name:Bookshop'), {})).schema).toEqual({ type: 'graph', id: 'root', children: [] });
+        } finally {
+            other.dispose();
+        }
     } finally {
         model.dispose();
         host.files = [];
