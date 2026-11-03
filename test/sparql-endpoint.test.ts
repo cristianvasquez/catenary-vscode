@@ -105,6 +105,16 @@ test('no query: 400; another path: 404; PUT: 405 with Allow; impossible Accept: 
     expect((await get('CONSTRUCT {}', 'text/csv')).status).toBe(406);
 });
 
+test('OPTIONS /sparql: 204 with the CORS preflight headers, and runs no query', async () => {
+    const res = await fetch(ep.url, { method: 'OPTIONS', headers: { Origin: 'http://example.org', 'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'content-type' } });
+    expect(res.status).toBe(204);
+    expect(res.headers.get('access-control-allow-origin')).toBe('*');
+    expect(res.headers.get('access-control-allow-methods')).toBe('GET, POST');
+    expect(res.headers.get('access-control-allow-headers')).toBe('Content-Type, Accept');
+    expect(await res.text()).toBe('');
+    expect(queries).toEqual([]);
+});
+
 test('a body over 1 MiB: 413', async () => {
     const res = await fetch(ep.url, { method: 'POST', headers: { 'Content-Type': 'application/sparql-query' }, body: 'x'.repeat(1024 * 1024 + 1) });
     expect(res.status).toBe(413);

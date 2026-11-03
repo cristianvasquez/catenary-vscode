@@ -16,14 +16,18 @@ function canvasSettings(): string[] {
     });
 }
 
-test('configuration declares exactly the settings sent to the canvas, with types and defaults', () => {
+/** Settings that the extension host reads; the canvas does not get them. */
+const HOST_SETTINGS = ['catenary.sparql.port'];
+
+test('configuration declares exactly the settings sent to the canvas plus the host settings, with types and defaults', () => {
     const properties = manifest.contributes.configuration.properties;
-    expect(Object.keys(properties).sort()).toEqual(canvasSettings().sort());
+    expect(Object.keys(properties).sort()).toEqual([...canvasSettings(), ...HOST_SETTINGS].sort());
     expect(properties).toMatchObject({
         'catenary.cardFontSize': { type: 'number', default: 40 },
         'catenary.groupFontSize': { type: 'number', default: 47 },
         'catenary.noteFontSize': { type: 'number', default: 40 },
         'catenary.edgeStyle': { type: 'string', default: 'curved', enum: ['direct', 'curved'] },
-        'catenary.vocabularyColor': { type: 'string', default: 'name', enum: ['name', 'prefix', 'off'] }
+        'catenary.vocabularyColor': { type: 'string', default: 'name', enum: ['name', 'prefix', 'off'] },
+        'catenary.sparql.port': { type: 'integer', default: 0, minimum: 0, maximum: 65535 }
     });
 });

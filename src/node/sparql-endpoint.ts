@@ -78,6 +78,11 @@ function urlHost(host: string): string {
 
 async function handle(req: IncomingMessage, res: ServerResponse, path: string, query: QueryFn, url: string): Promise<void> {
   if (path !== '/' && path !== PATH) throw new HttpError(404, `Not found: ${path}. The endpoint is ${url}`)
+  if (path === PATH && req.method === 'OPTIONS') {
+    res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Content-Type, Accept' })
+    res.end()
+    return
+  }
   if (req.method !== 'GET' && req.method !== 'POST') throw new HttpError(405, `Method not allowed: ${req.method}`, { Allow: 'GET, POST' })
   if (path === '/') {
     if (req.method !== 'GET') throw new HttpError(405, `Method not allowed: ${req.method}`, { Allow: 'GET' })

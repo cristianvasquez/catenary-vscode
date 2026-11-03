@@ -1,6 +1,8 @@
-// Type the turtle-lsp API and request turtle/graph from its running language client without importing VS Code.
+// Type the turtle-lsp API and request turtle/graph and turtle/query from its running language client without importing VS Code.
+import type { QueryAnswer } from './sparql-endpoint'
 
 const GRAPH_METHOD = 'turtle/graph'
+const QUERY_METHOD = 'turtle/query'
 
 /** The language client surface used here (vscode-languageclient LanguageClient). */
 interface GraphClient {
@@ -33,6 +35,24 @@ export async function requestGraph(api: TurtleApi, params: GraphParams): Promise
   const client = api.client()
   if (!client?.isRunning()) throw new Error('the Turtle language server is not running')
   return client.sendRequest<GraphResult>(GRAPH_METHOD, params)
+}
+
+/** Params of `turtle/query`. */
+export interface QueryParams {
+  query: string
+  /** Document URIs; omitted: every workspace document. */
+  files?: string[]
+  base?: string
+  timeoutSeconds?: number
+  maxRows?: number
+}
+
+/** Sends `turtle/query`. Throws a plain Error when the client is not running; a JSON-RPC error passes unchanged. */
+export async function requestQuery(api: TurtleApi, params: QueryParams): Promise<QueryAnswer> {
+  await api.idle()
+  const client = api.client()
+  if (!client?.isRunning()) throw new Error('the Turtle language server is not running')
+  return client.sendRequest<QueryAnswer>(QUERY_METHOD, params)
 }
 
 interface Position {

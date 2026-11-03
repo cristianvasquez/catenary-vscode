@@ -37,7 +37,8 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
-    "onCustomEditor:catenary.view"
+    "onCustomEditor:catenary.view",
+    "onStartupFinished"
   ],
   "contributes": {
     "configuration": {
@@ -82,6 +83,13 @@
           ],
           "default": "name",
           "description": "Vocabulary color on path labels."
+        },
+        "catenary.sparql.port": {
+          "type": "integer",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Port of the local SPARQL endpoint (http://127.0.0.1:<port>/sparql) over the workspace as the Turtle language server sees it. 0 turns it off."
         }
       }
     },
@@ -110,6 +118,18 @@
         "command": "catenary.newView",
         "title": "Catenary: New View…",
         "enablement": "workspaceFolderCount > 0"
+      },
+      {
+        "command": "catenary.sparql.start",
+        "title": "Catenary: Start SPARQL Endpoint"
+      },
+      {
+        "command": "catenary.sparql.stop",
+        "title": "Catenary: Stop SPARQL Endpoint"
+      },
+      {
+        "command": "catenary.sparql.copyUrl",
+        "title": "Catenary: Copy SPARQL Endpoint URL"
       }
     ],
     "menus": {

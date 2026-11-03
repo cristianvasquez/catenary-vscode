@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` over the workspace through the Turtle language server `turtle/query` request: setting `catenary.sparql.port`, commands Start, Stop and Copy SPARQL Endpoint URL, a status bar item, and CORS preflight for browser clients.
+
 ## 0.0.3
 
 - A click on the red violation badge of a card shows the problem (hover text: "Show the problem: <message>").

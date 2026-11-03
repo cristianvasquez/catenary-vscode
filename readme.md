@@ -52,6 +52,8 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 
 VS Code Settings exposes card, group and note font sizes, edge style and vocabulary color. These preferences apply across views; they are not model data.
 
+Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` (0 turns it off; Catenary: Start SPARQL Endpoint uses a free port then). It runs SELECT and ASK queries with results in JSON, CSV or TSV, and CONSTRUCT queries with results in N-Triples. Each workspace file is a named graph named by its file URI; the default graph is the union of all files. The endpoint needs a Turtle language server with the `turtle/query` request: set `turtle.server.path` to a build of [turtle-lsp, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query) until upstream has it.
+
 ## Development
 
 ```sh

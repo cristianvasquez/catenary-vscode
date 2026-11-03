@@ -6,6 +6,7 @@ import { CANVAS_EDITOR, CanvasEditorProvider } from './vscode/canvas-editor';
 import { exportMarkdown, insertView } from './vscode/markdown-commands';
 import { MarkdownSvgRenderer } from './vscode/markdown-svg';
 import { newView } from './vscode/new-view';
+import { activateSparqlEndpoint } from './vscode/sparql-endpoint';
 
 const TURTLE_EXTENSION = 'abhishekkundu25.turtle-language-server';
 let shown = false;
@@ -58,7 +59,8 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('catenary.openCanvas', () => canvas.openCanvas()),
         vscode.commands.registerCommand('catenary.insertView', insertView),
         vscode.commands.registerCommand('catenary.newView', (uri?: vscode.Uri, _uris?: unknown, answer?: string) => newView(modelOf, uri, answer)),
-        vscode.commands.registerCommand('catenary.exportMarkdown', (uri, uris, answer) => exportMarkdown(uri, uris, answer, entry => markdownSvg.svgOf(entry))));
+        vscode.commands.registerCommand('catenary.exportMarkdown', (uri, uris, answer) => exportMarkdown(uri, uris, answer, entry => markdownSvg.svgOf(entry))),
+        activateSparqlEndpoint(context, api, log));
 }
 
 export function deactivate(): void { /* the subscriptions dispose */ }
