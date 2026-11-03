@@ -4,6 +4,7 @@ import type { Classes } from '../catenary/model/metamodel';
 import { mergeContributions } from '../catenary/model/metamodel';
 import { NS } from '../catenary/model/terms';
 import { rdfsAuthoring } from '../catenary/rdfs/domain-range';
+import { shapePart } from '../catenary/rdf/loader';
 import { buildVocabulary } from '../catenary/rdf/shapes';
 import { readShapes, type ShapesIndex } from '../catenary/rdf/shapes-read';
 import { rdf, termKey } from '../catenary/rdf/terms';
@@ -13,26 +14,31 @@ import { applyPrefixes, type ManifestRecords } from './manifest';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX sh: <${NS.sh}> PREFIX skos: <${NS.skos}>`;
 
-/** The predicates from a shape to the nodes of its shape: nested shapes, paths, lists. */
-const CLOSURE_PATH = '(sh:property|sh:node|sh:or|sh:xone|sh:and|sh:not|sh:in|sh:path|sh:inversePath|sh:alternativePath|sh:zeroOrMorePath|sh:oneOrMorePath|sh:zeroOrOnePath|sh:languageIn|sh:ignoredProperties|rdf:first|rdf:rest)*';
-
 /**
- * The statements of the shapes of each document (`?g`): the roots are the subjects with an sh: predicate or an sh: shape type (as shapePart
- * of loader.ts), and the closure is every node reachable from a root over CLOSURE_PATH in the same document.
+ * The candidate statements of the shapes, per document (`?g`): the statements of the roots (a subject with an sh: predicate or an sh: shape
+ * type), of every blank node, and of every RDF list cell. shapePart picks the shapes among them.
  */
-const SHAPES_CLOSURE = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { GRAPH ?g {
-    { ?root ?sp ?x . FILTER (STRSTARTS(STR(?sp), "${NS.sh}")) } UNION { ?root a ?t . VALUES ?t { sh:NodeShape sh:PropertyShape sh:Shape } }
-    ?root ${CLOSURE_PATH} ?s . ?s ?p ?o
-} }`;
+const SHAPE_CANDIDATES = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { GRAPH ?g { ?s ?p ?o FILTER (isBlank(?s)
+    || EXISTS { ?s rdf:first ?first }
+    || EXISTS { ?s a ?t FILTER (?t IN (sh:NodeShape, sh:PropertyShape, sh:Shape)) }
+    || EXISTS { ?s ?sp ?x FILTER (STRSTARTS(STR(?sp), "${NS.sh}")) }) } }`;
 
 /** Every statement (with its document) of each subject typed as a SKOS scheme, concept or collection in one of the documents. */
 const VOCABULARY = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { ?s a ?t . VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } GRAPH ?g { ?s ?p ?o } }`;
 
 const quadOf = ({ g, s, p, o }: Row): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], g as Quad['graph']);
 
-/** The statements of the shapes of `modelFiles`, each with its document as graph. */
+/**
+ * The statements of the shapes of `modelFiles`, each with its document as graph: the statements of the subjects that shapePart (loader.ts)
+ * gives for the candidates of each document. The port gives a blank node as a skolem IRI, so shapePart follows it as in the old loader.
+ */
 export async function shapesClosureOf(port: ModelPort, modelFiles: string[]): Promise<Quad[]> {
-    return (await port.select(SHAPES_CLOSURE, modelFiles)).map(quadOf);
+    const docs = new Map<string, Quad[]>();
+    for (const q of (await port.select(SHAPE_CANDIDATES, modelFiles)).map(quadOf)) (docs.get(q.graph.value) ?? docs.set(q.graph.value, []).get(q.graph.value)!).push(q);
+    return [...docs.values()].flatMap(quads => {
+        const part = shapePart(quads);
+        return quads.filter(q => part.has(termKey(q.subject)));
+    });
 }
 
 /** The statements of the SKOS schemes, concepts and collections of `modelFiles`, each with its document as graph. */

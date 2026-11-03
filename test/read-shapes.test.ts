@@ -1,6 +1,7 @@
 // Kata q74p: the shapes model from turtle/query (fork binary over stdio) equals the old pipeline on test/fixtures/shapes.
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { authoringMetamodel } from '../src/catenary/rdf/authoring';
@@ -9,7 +10,7 @@ import { UNION_GRAPH, dataGraphIri, fileOfGraph, shapesGraphIri } from '../src/c
 import { shapePart } from '../src/catenary/rdf/loader';
 import { buildVocabulary, shapesTriples, vocabularyQuads } from '../src/catenary/rdf/shapes';
 import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
-import { rdf } from '../src/catenary/rdf/terms';
+import { rdf, termKey } from '../src/catenary/rdf/terms';
 import { graphOf, graphPrefixes } from '../src/model/graph-input';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { manifestOf, type ManifestRecords } from '../src/read/manifest';
@@ -102,5 +103,40 @@ describe('shapesModelOf on test/fixtures/shapes', () => {
         }
         expect(old.size).toBeGreaterThan(0);
         expect([...now.shapeSubjects].sort()).toEqual([...old].sort());
+    });
+});
+
+describe('the shapes closure follows shapePart (temp folder)', () => {
+    const EX = 'http://example.org/';
+    const text = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> . @prefix ex: <${EX}> .
+ex:S a sh:NodeShape ; sh:in ex:l1 ; ex:annotation [ ex:note "x" ] .
+ex:l1 rdf:first ex:a ; rdf:rest ex:l2 .
+ex:l2 rdf:first ex:b ; rdf:rest rdf:nil .
+ex:orphan rdf:first ex:c ; rdf:rest ex:l2 .
+ex:thing ex:p [ ex:q "plain" ] .
+`;
+    let dir: string, path: string, server: Awaited<ReturnType<typeof startServer>>;
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-shapes-'));
+        path = join(dir, 'shapes.ttl');
+        writeFileSync(path, text);
+        server = await startServer(dir, 12);
+    }, 20000);
+    afterAll(async () => {
+        await server?.stop();
+        if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('a blank node under a custom predicate and an orphan list cell are in; a blank node under a plain subject is not', async () => {
+        const port = server.port();
+        const quads = await port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [path]);
+        expect(quads).toHaveLength(12);
+        const object = (s: string, p: string) => termKey(quads.find(q => q.subject.value === s && q.predicate.value === p)!.object);
+        const annotation = object(`${EX}S`, `${EX}annotation`), plainNode = object(`${EX}thing`, `${EX}p`);
+        expect(annotation).toMatch(/^<urn:skolem:blank:/);
+        const { shapeSubjects } = await shapesModelOf(port, [path], {});
+        expect([...shapeSubjects].sort()).toEqual([...shapePart(quads)].sort());
+        expect([...shapeSubjects].sort()).toEqual([`<${EX}S>`, annotation, `<${EX}l1>`, `<${EX}l2>`, `<${EX}orphan>`].sort());
+        expect(shapeSubjects.has(plainNode)).toBe(false);
     });
 });
