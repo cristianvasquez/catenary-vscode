@@ -22,9 +22,10 @@ vi.mock('vscode', () => {
     };
 });
 import { WorkspaceModel } from '../src/node/workspace-model';
+import { fixtureGraph } from './fixture-graph';
 
-const result = JSON.parse(readFileSync('test/fixtures/shapes/graph.json', 'utf8')).result as GraphResult;
-const file = resolve('test/fixtures/shapes/views/bookshop.view.trig');
+const result = fixtureGraph();
+const file = resolve('test/fixtures/shapes/instances.trig');
 
 test('two opens share the store; releasing one keeps edits and execute available', () => {
     const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
@@ -73,7 +74,7 @@ test('a skipped duplicate cannot open as the accepted view document', async () =
     const provider = new CanvasEditorProvider({} as Uri, () => model, () => undefined);
     const dir = mkdtempSync(join(tmpdir(), 'catenary-duplicate-'));
     try {
-        const duplicate = join(dir, 'duplicate.view.trig');
+        const duplicate = join(dir, 'duplicate.trig');
         writeFileSync(duplicate, readFileSync(file));
         const document = await provider.openCustomDocument({ fsPath: duplicate } as Uri, { backupId: undefined, untitledDocumentData: undefined });
         expect(document.open).toBeUndefined();
@@ -88,7 +89,7 @@ test('a skipped duplicate cannot open as the accepted view document', async () =
 test('bad and duplicate view files are reported without blocking a valid view', () => {
     const dir = mkdtempSync(join(tmpdir(), 'catenary-views-'));
     try {
-        const bad = join(dir, 'bad.view.trig'), duplicate = join(dir, 'duplicate.view.trig');
+        const bad = join(dir, 'bad.trig'), duplicate = join(dir, 'duplicate.trig');
         writeFileSync(bad, 'not valid TriG {');
         writeFileSync(duplicate, readFileSync(file));
         const { graph, views, skipped } = graphOf(result, [bad, file, duplicate]);

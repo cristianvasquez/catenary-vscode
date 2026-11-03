@@ -9,9 +9,10 @@ import { layoutView } from '../src/node/glsp/layout';
 import type { GraphResult } from '../src/node/turtle-api';
 import { readView } from '../src/catenary/rdf/view-read';
 import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
+import { fixtureGraph } from './fixture-graph';
 
-const result = JSON.parse(readFileSync('test/fixtures/shapes/graph.json', 'utf8')).result as GraphResult;
-const files = ['bookshop', 'bookshop-model'].map(f => resolve(`test/fixtures/shapes/views/${f}.view.trig`));
+const result = fixtureGraph();
+const files = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
 const vid = iriId('urn:name:Bookshop');
 
 test.each(['layered', 'force'] as const)('Apply Layout %s: new boxes for the cards, one store step that undoes', async algorithm => {

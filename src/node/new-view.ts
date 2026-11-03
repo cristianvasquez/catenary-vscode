@@ -9,7 +9,7 @@ export function newViewText(name: string): string {
         `  ${iri} a view:View ;`, `    rdfs:label ${JSON.stringify(name)} .`, '}', ''].join('\n');
 }
 
-/** `<name>.view.trig`, with the characters that file systems refuse replaced by "-". */
+/** `<name>.trig`, with the characters that file systems refuse replaced by "-". */
 export function viewFileName(name: string): string {
-    return `${name.replace(/[/\\:*?"<>|\u0000-\u001f]/g, '-')}.view.trig`;
+    return `${name.replace(/[/\\:*?"<>|\u0000-\u001f]/g, '-')}.trig`;
 }

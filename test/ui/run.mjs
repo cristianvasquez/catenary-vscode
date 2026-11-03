@@ -1,7 +1,7 @@
 // The UI check, from the old repository main (test/ui/run.mjs): launches the downloaded VS Code (test/vscode/setup.mjs) with Playwright
 // `_electron.launch` on a temp copy of test/fixtures/shapes (the fixture files are not modified), opens views in the canvas with Quick
-// Open and checks them with a real mouse and keys. views/bookshop-model.view.trig: the 4 node boxes and the 3 labeled edges.
-// views/bookshop.view.trig: selection, move and save, select all, pan, marquee, zoom, edge selection, Delete and Ctrl+Z, the palette,
+// Open and checks them with a real mouse and keys. model.trig: the 4 node boxes and the 3 labeled edges.
+// instances.trig: selection, move and save, select all, pan, marquee, zoom, edge selection, Delete and Ctrl+Z, the palette,
 // Collect, and the halo expand of a hidden neighbour. Each check prints `ok - <name>` or `not ok - <name>`. Screenshots: test/ui/out/.
 // Needs: `pnpm build` first (dist/extension.js), the network on the first run (VS Code, the turtle-lsp vsix through `gh`). Headless by
 // default with Chromium's `--ozone-platform=headless`. CATENARY_UI_HEADED=1: a visible window on the current display.
@@ -77,7 +77,9 @@ const fixtureFiles = () => fs.readdirSync(fixtureDir, { recursive: true }).sort(
 const fixtureBefore = fixtureFiles()
 const { vscodeExecutablePath, userData, fixture, cleanup } = await prepare()
 const violationTriple = '\n<urn:name:Animal%20Farm> <http://www.example.org/publicationYear> 1946 .\n'
-fs.appendFileSync(path.join(fixture, 'data.ttl'), violationTriple)
+// The sample data has a datatype error on purpose (the published example); the test starts from valid data with one maxCount violation.
+const validData = fs.readFileSync(path.join(fixtureDir, 'data.ttl'), 'utf8').replace('"nineteen forty-five"', '1945')
+fs.writeFileSync(path.join(fixture, 'data.ttl'), validData + violationTriple)
 // No secondary side bar: the canvas gets the width. A fixed theme: the screenshot is compared with Catenary's (a dark theme).
 fs.writeFileSync(path.join(userData, "User", "settings.json"), JSON.stringify({
   "chat.disableAIFeatures": true, "workbench.secondarySideBar.defaultVisibility": "hidden", "workbench.colorTheme": "Default Dark Modern",
@@ -171,7 +173,7 @@ try {
 
   // ------------------------------------------------------------------ the model view (read path)
   await section("model", async () => {
-    const { svg } = await open("bookshop-model.view.trig", BOXES)
+    const { svg } = await open("model.trig", BOXES)
     const s = await state(svg)
     await page.screenshot({ path: path.join(out, "bookshop-model.png") })
     const missingBoxes = BOXES.filter((b) => !s.boxes.includes(b))
@@ -219,7 +221,7 @@ try {
     check('the palette shows Insert, Group, Note, Layout, TriG last and keyboard hints', await svg.locator('..').count() > 0 && shortcutsVisible && JSON.stringify(await toolbar.locator('.catenary-tool > span:not(.codicon):not(.key-shortcut)').allTextContents()) === JSON.stringify(['Insert', 'Group', 'Note', 'Layout', 'TriG']))
     await toolbar.screenshot({ path: path.join(out, 'bookshop-toolbar.png') })
     {
-      const fileTabs = page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^bookshop-model\.view\.trig$/ }) })
+      const fileTabs = page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^model\.trig$/ }) })
       const tabIndex = await fileTabs.evaluate(el => Array.from(el.parentElement.children).indexOf(el))
       const cards = [...(await state(svg)).boxes].sort()
       const name = await svg.locator('.catenary-card', { hasText: 'Author shape' }).first().locator('.shape-name').boundingBox()
@@ -264,7 +266,7 @@ try {
       await page.keyboard.press('Control+S')
       await until(() => fileTabs.getAttribute('class'), c => !c.includes('dirty'))
       const saved = new oxigraph.Store()
-      saved.load(fs.readFileSync(path.join(fixture, 'views/bookshop-model.view.trig'), 'utf8'), { format: 'application/trig' })
+      saved.load(fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8'), { format: 'application/trig' })
       check('a subsequent canvas save preserves the TriG note edit', saved.match(null, oxigraph.namedNode('https://cristianvasquez.github.io/catenary/vocab/view#text'), null, null).some(q => q.object.value.includes('Saved TriG note')))
     }
     await page.frameLocator('iframe.webview.ready').frameLocator('#active-frame').locator('[data-item="insert"]').click()
@@ -291,11 +293,11 @@ try {
     await page.keyboard.press('Control+S')
     // A reference opens the target in a second canvas tab; close it before continuing.
     await svg.locator('.catenary-view-reference').first().dblclick()
-    const tabs = await until(() => page.locator('.tabs-container .tab .label-name').allTextContents(), names => names.includes('bookshop.view.trig'))
+    const tabs = await until(() => page.locator('.tabs-container .tab .label-name').allTextContents(), names => names.includes('instances.trig'))
     const target = page.frameLocator(WEBVIEW).frameLocator('#active-frame').locator('svg.sprotty-graph:not([id$="_hidden"] svg)')
     const opened = await until(() => state(target), s => s.boxes.includes('Animal Farm'))
-    check('double click on a view reference opens Bookshop in a second canvas tab', tabs.includes('bookshop-model.view.trig') && tabs.includes('bookshop.view.trig') && opened.boxes.includes('Animal Farm'), JSON.stringify(tabs))
-    await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^bookshop\.view\.trig$/ }) }).click()
+    check('double click on a view reference opens Bookshop in a second canvas tab', tabs.includes('model.trig') && tabs.includes('instances.trig') && opened.boxes.includes('Animal Farm'), JSON.stringify(tabs))
+    await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^instances\.trig$/ }) }).click()
     await page.keyboard.press('Control+W')
     await until(() => state(svg), s => s.boxes.includes('Book shape'))
     // One canvas at a time: the frame locators find one webview.
@@ -305,8 +307,8 @@ try {
 
   // ------------------------------------------------------------------ the instance view: gestures and edits
   await section("bookshop", async () => {
-    const viewFile = path.join(fixture, "views/bookshop.view.trig")
-    const { frame, svg } = await open("bookshop.view.trig", ["Animal Farm", "George Orwell", "Tangamandapio"])
+    const viewFile = path.join(fixture, "instances.trig")
+    const { frame, svg } = await open("instances.trig", ["Animal Farm", "George Orwell", "Tangamandapio"])
     /** The card of an instance by its name. */
     const card = (name) => svg.locator(".catenary-card", { has: frame.locator(".card-name", { hasText: name }) }).first()
     /** A point of a card in page coordinates: its name (a press there selects or moves the card). */
@@ -354,7 +356,7 @@ try {
     check('badge title shows the turtle-lsp message', (await badge.locator('title').textContent()).includes('expected at most 1 value(s)'))
     await openData()
     await page.keyboard.press('Control+A')
-    await page.keyboard.insertText(fs.readFileSync(path.join(fixtureDir, 'data.ttl'), 'utf8'))
+    await page.keyboard.insertText(validData)
     await page.keyboard.press('Control+S')
     await pause(1500)
     await page.keyboard.press('Control+W')
@@ -645,7 +647,7 @@ try {
       await dontSave.waitFor({ timeout: 10000 })
       await dontSave.click()
       await page.locator("iframe.webview").waitFor({ state: "detached", timeout: 10000 })
-      const again = await open("bookshop.view.trig", ["Animal Farm", "Nineteen Eighty-Four"])
+      const again = await open("instances.trig", ["Animal Farm", "Nineteen Eighty-Four"])
       const s = await state(again.svg)
       const dirty = await page.locator(".tab.active.dirty").count()
       check("closed without saving, the view opens again as its file", s.collections === 0 && !s.boxes.includes("Cities") && s.boxes.length === s0.boxes.length && dirty === 0,
@@ -654,7 +656,7 @@ try {
 
     // Copy, cut and paste (kata tc43): Bookshop model and Bookshop open in two editors; the locators find the active one.
     {
-      const modelView = path.join(fixture, "views/bookshop-model.view.trig"), dataFile = path.join(fixture, "data.ttl")
+      const modelView = path.join(fixture, "model.trig"), dataFile = path.join(fixture, "data.ttl")
       const status = () => frame.locator(".sprotty-status-message").textContent().catch(() => "")
       /** Clicks a free point of the active canvas (focus and paste point), then presses `key`. */
       const press = async (key) => {
@@ -679,24 +681,24 @@ try {
         return store.match(null, oxigraph.namedNode("https://cristianvasquez.github.io/catenary/vocab/view#element"), oxigraph.namedNode(iri), null).length > 0
       }
 
-      await open("bookshop-model.view.trig", BOXES)
+      await open("model.trig", BOXES)
       await selectShape("Author shape")
       await page.keyboard.press("Control+C")
       await pause(500)
-      await show("bookshop.view.trig", "Animal Farm")
+      await show("instances.trig", "Animal Farm")
       await press("Control+V")
       const copied = await until(() => state(svg), (s) => s.boxes.includes("Author shape"), 10000)
       check("Ctrl+C of Author shape in Bookshop model and Ctrl+V in Bookshop places it", copied.boxes.includes("Author shape"), JSON.stringify(copied.boxes))
 
-      await show("bookshop-model.view.trig", "Book shape")
+      await show("model.trig", "Book shape")
       await selectShape("Book shape")
       await page.keyboard.press("Control+X")
       await pause(500)
-      await show("bookshop.view.trig", "Animal Farm")
+      await show("instances.trig", "Animal Farm")
       await press("Control+V")
       const moved = await until(() => state(svg), (s) => s.boxes.includes("Book shape"), 10000)
       check("Ctrl+X in Bookshop model and Ctrl+V in Bookshop places Book shape", moved.boxes.includes("Book shape"), JSON.stringify(moved.boxes))
-      await show("bookshop-model.view.trig", "Shop shape")
+      await show("model.trig", "Shop shape")
       const source = await until(() => state(svg), (s) => !s.boxes.includes("Book shape"), 5000)
       const dirty = await page.locator(".tab.active.dirty").count()
       await page.keyboard.press("Control+S")
@@ -704,7 +706,7 @@ try {
       check("after the move and Ctrl+S the source view file no longer holds Book shape", !source.boxes.includes("Book shape") && dirty > 0 && !saved,
         `source ${JSON.stringify(source.boxes)}, dirty ${dirty}, in file ${saved}`)
 
-      await show("bookshop.view.trig", "Animal Farm")
+      await show("instances.trig", "Animal Farm")
       const modelBefore = fs.readFileSync(dataFile, "utf8")
       const boxesBefore = (await state(svg)).boxes.length
       await app.evaluate(({ clipboard }, text) => clipboard.writeText(text), '<urn:name:Bookshop%20shape> a <http://www.w3.org/ns/shacl#NodeShape> .\n<urn:name:Terry%20Pratchett> a <urn:example:bookshop:Author> .\n')
@@ -722,7 +724,7 @@ try {
 
     // Halo view attributes: a color edit and its undo do not change the model.
     {
-      await open("bookshop-model.view.trig", ["Shop shape"])
+      await open("model.trig", ["Shop shape"])
       const target = svg.locator(".catenary-card", { has: frame.locator(".shape-name", { hasText: "Shop shape" }) }).first()
       await target.locator(".shape-name").click()
       const color = () => target.evaluate((el) => el.style.getPropertyValue("--c"))
@@ -784,10 +786,10 @@ try {
       await page.keyboard.press('Control+End')
       await page.keyboard.insertText(violationTriple)
       await page.keyboard.press('Control+S')
-      await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^bookshop\.view\.trig$/ }) }).first().click()
+      await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^instances\.trig$/ }) }).first().click()
       await page.keyboard.press('Control+W')
       await page.locator('.monaco-dialog-box .monaco-button', { hasText: "Don't Save" }).click()
-      await open('bookshop.view.trig', ['Animal Farm'])
+      await open('instances.trig', ['Animal Farm'])
       await until(() => badge.locator('text').allTextContents(), texts => texts.includes('1'), 60000)
       const bounds = await svg.boundingBox()
       const beforeZoom = (await state(svg)).viewport
@@ -807,16 +809,16 @@ try {
     // Book shape aggregates the publicationYear violation of Animal Farm.
     {
       await page.keyboard.press('Control+J')
-      const tab = page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^bookshop-model\.view\.trig$/ }) }).first()
+      const tab = page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^model\.trig$/ }) }).first()
       await tab.click()
       const dirty = await tab.evaluate(el => el.classList.contains('dirty'))
       await page.keyboard.press('Control+W')
       if (dirty) await page.locator('.monaco-dialog-box .monaco-button', { hasText: "Don't Save" }).click()
       await tab.waitFor({ state: 'detached' })
       // The copy/cut checks saved the removal of Book shape; restore this temp view.
-      fs.copyFileSync(path.join(fixtureDir, 'views/bookshop-model.view.trig'), path.join(fixture, 'views/bookshop-model.view.trig'))
+      fs.copyFileSync(path.join(fixtureDir, 'model.trig'), path.join(fixture, 'model.trig'))
       await pause(3000)
-      await open('bookshop-model.view.trig', ['Book shape'])
+      await open('model.trig', ['Book shape'])
       const target = svg.locator('.catenary-card', { has: frame.locator('.shape-name', { hasText: /^Book shape$/ }) }).first()
       await until(() => target.locator('.badge text').allTextContents(), texts => texts.includes('1'), 60000)
       await target.locator('.shape-name').click()

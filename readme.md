@@ -1,6 +1,6 @@
 # Catenary
 
-Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads model files through the Turtle RDF language server, stores each diagram as a `*.view.trig` view file, and exports diagrams into Markdown documents as SVG.
+Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads model files through the Turtle RDF language server, stores each diagram as a view file (a `.trig` file with a `view:View`), and exports diagrams into Markdown documents as SVG.
 
 ## Requirements
 
@@ -8,7 +8,7 @@ VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turt
 
 ## Features
 
-- Open `*.view.trig` in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
+- Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
 - Place, remove, move, resize and color view elements; switch cards between simple and detailed display.
 - Remove relation edges from a view, route edges with bends, and change property rows to lines or back to rows.
 - Collect instance cards into entity groups and expand them back into cards.
@@ -20,9 +20,9 @@ VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turt
 
 ## Use
 
-Run Catenary: New View… from the explorer context menu to create a view file, or open an existing `*.view.trig` file.
+Run Catenary: New View… from the explorer context menu to create a view file, or open an existing view file.
 
-- Open a `*.view.trig` file to display its canvas.
+- Open a view file (`.trig`) to display its canvas.
 - Click TriG at the right end of the canvas toolbar to open the view file as text; save first if prompted.
 - Click Catenary: Open in Canvas in the TriG editor title to return to the canvas; save first if prompted.
 - Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show.

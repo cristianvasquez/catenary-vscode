@@ -28,10 +28,10 @@ exports.run = async function () {
     assert.ok(!svg.includes('foreignObject'), 'document SVG uses native SVG text');
     assert.equal(fs.readFileSync(file, 'utf8'), source, 'source document unchanged');
     console.log('ok - Markdown export: 1 document, 1 SVG, Shop shape; no visible canvas required');
-    const views = vscode.Uri.file(path.join(fixture, 'views'));
-    const created = await vscode.commands.executeCommand('catenary.newView', views, undefined, 'Empty view');
-    assert.equal(created?.fsPath, path.join(fixture, 'views', 'Empty view.view.trig'));
+    const folder = vscode.Uri.file(fixture);
+    const created = await vscode.commands.executeCommand('catenary.newView', folder, undefined, 'Empty view');
+    assert.equal(created?.fsPath, path.join(fixture, 'Empty view.trig'));
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
     assert.ok(tab?.input instanceof vscode.TabInputCustom && tab.input.viewType === 'catenary.view' && tab.input.uri.fsPath === created.fsPath, 'canvas editor open');
-    console.log('ok - New View: views/Empty view.view.trig is a view and opens in the canvas editor');
+    console.log('ok - New View: Empty view.trig is a view and opens in the canvas editor');
 };

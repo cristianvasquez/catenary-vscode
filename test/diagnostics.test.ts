@@ -7,9 +7,10 @@ import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
 import { diagnosticsOf, SHACL_CODE } from '../src/node/diagnostics';
 import type { GraphResult } from '../src/node/turtle-api';
+import { fixtureGraph } from './fixture-graph';
 
-const result = JSON.parse(readFileSync('test/fixtures/shapes/graph.json', 'utf8')).result as GraphResult;
-const graph = graphOf(result, [resolve('test/fixtures/shapes/views/bookshop.view.trig')]).graph;
+const result = fixtureGraph();
+const graph = graphOf(result, [resolve('test/fixtures/shapes/instances.trig')]).graph;
 const animal = 'urn:name:Animal%20Farm';
 const edge = result.edges.find(e => result.nodes[e.source].id === animal && e.predicate.endsWith('publicationYear'))!;
 const value = result.nodes[edge.target];

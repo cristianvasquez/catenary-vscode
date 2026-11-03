@@ -54,7 +54,7 @@ try {
   page.on("pageerror", (e) => errors.push(e.message))
   const acceptDialog = (d) => d.accept()
   page.on("dialog", acceptDialog)
-  await page.goto(url)
+  await page.goto(`${url}?open=model.trig`)
   await page.locator("body[data-ready=true]").waitFor({ timeout: 60000 })
 
   const BOXES = ["Shop shape", "Book shape", "Author shape", "Cities"]
@@ -74,11 +74,11 @@ try {
   await page.screenshot({ path: path.join(out, "web-model.png") })
   check("the first view opens in the canvas with 4 node boxes", first && BOXES.every((b) => first.boxes.includes(b)) && first.boxes.length === 4, JSON.stringify(first))
   check("3 labeled edges", first && EDGES.every((e) => first.edges.includes(e)) && first.edges.length === 3, JSON.stringify(first?.edges))
-  const status = await until(() => page.locator("#status").textContent(), (t) => /\d+ warnings/.test(t) && !/ 0 warnings/.test(t))
-  check("turtle-lsp diagnostics reach the status bar", /0 errors · [1-9]\d* warnings · \d+ statements/.test(status), status)
+  const status = await until(() => page.locator("#status").textContent(), (t) => /[1-9]\d* errors · [1-9]\d* warnings/.test(t), 60000)
+  check("turtle-lsp diagnostics reach the status bar", /[1-9]\d* errors · [1-9]\d* warnings · \d+ statements/.test(status), status)
 
   // ------------------------------------------------------------------ move, undo, redo, save
-  const name = "bookshop-model.view.trig"
+  const name = "model.trig"
   const card = svgOf().locator(".catenary-card", { hasText: "Author shape" }).first()
   const before = await card.locator(".shape-name").boundingBox()
   await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2)
@@ -94,10 +94,10 @@ try {
   check("Ctrl+Z puts the box back and the tab is clean", !(await dirty(name)) && Math.abs(undone.x - before.x) < 2 && Math.abs(moved.x - before.x) > 20, JSON.stringify({ before, moved, undone }))
   await page.keyboard.press("Control+Y")
   check("Ctrl+Y moves it again", await until(() => dirty(name), (d) => d))
-  const sample = (await stored())["views/bookshop-model.view.trig"]
+  const sample = (await stored())["model.trig"]
   await page.keyboard.press("Control+S")
   await until(() => dirty(name), (d) => !d)
-  const saved = (await stored())["views/bookshop-model.view.trig"]
+  const saved = (await stored())["model.trig"]
   check("Ctrl+S writes the view file to browser storage", !(await dirty(name)) && saved !== sample && saved.includes("view:"), `${saved?.length} chars`)
 
   // ------------------------------------------------------------------ failed storage and retry
@@ -111,7 +111,7 @@ try {
   await page.evaluate(() => { delete localStorage.setItem })
   await page.keyboard.press("Control+S")
   const retryClean = await until(() => dirty(name), (d) => !d)
-  check("a failed save warns and stays dirty until a retry succeeds", notStored && !retryClean && (await stored())["views/bookshop-model.view.trig"] !== saved)
+  check("a failed save warns and stays dirty until a retry succeeds", notStored && !retryClean && (await stored())["model.trig"] !== saved)
 
   // ------------------------------------------------------------------ Insert
   await frameOf().locator('.catenary-tools [data-item="insert"]').click()
@@ -133,10 +133,10 @@ try {
   check("Open in Canvas shows the view again with the inserted card", back?.boxes.includes("Animal Farm"), JSON.stringify(back))
 
   // ------------------------------------------------------------------ a model edit reaches the canvas
-  await page.locator("#files .file", { hasText: "workspace.shapes.ttl" }).click()
+  await page.locator("#files .file", { hasText: "shapes.ttl" }).click()
   await page.locator("#monaco .view-lines").waitFor()
   await page.evaluate(() => {
-    const model = window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("workspace.shapes.ttl"))
+    const model = window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("shapes.ttl"))
     const match = model.findMatches('"Author shape"', false, false, true, null, false)[0]
     model.pushEditOperations([], [{ range: match.range, text: '"Writer shape"' }], () => null)
   })
@@ -147,10 +147,10 @@ try {
   check("a saved model edit reaches the open canvas", renamed?.boxes.includes("Writer shape") && !renamed.boxes.includes("Author shape"), JSON.stringify(renamed?.boxes))
 
   // ------------------------------------------------------------------ closing a dirty text tab
-  const shapesName = "workspace.shapes.ttl"
+  const shapesName = "shapes.ttl"
   await tab(shapesName).click()
   await page.evaluate(() => {
-    const model = window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("workspace.shapes.ttl"))
+    const model = window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("shapes.ttl"))
     const match = model.findMatches('"Writer shape"', false, false, true, null, false)[0]
     model.pushEditOperations([], [{ range: match.range, text: '"Writer shape 2"' }], () => null)
   })
@@ -164,7 +164,7 @@ try {
   const closed = await tab(shapesName).count() === 0
   const shapesFile = page.locator("#files .file", { hasText: shapesName })
   await shapesFile.click()
-  const reverted = await page.evaluate(() => window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("workspace.shapes.ttl")).getValue())
+  const reverted = await page.evaluate(() => window.monaco.editor.getModels().find((m) => m.uri.path.endsWith("shapes.ttl")).getValue())
   check("discarding a dirty text tab restores the saved model and clears the file's dirty mark", closed && !reverted.includes("Writer shape 2") && reverted.includes("Writer shape") && !(await shapesFile.getAttribute("class")).includes("dirty"))
   await tab(shapesName).locator(".close").click()
 
@@ -175,7 +175,7 @@ try {
   check("after a reload the saved view and model edits are there", reloaded?.boxes.includes("Animal Farm") && reloaded.boxes.includes("Writer shape"), JSON.stringify(reloaded?.boxes))
 
   // ------------------------------------------------------------------ the instance view
-  await page.locator("#files .file", { hasText: "bookshop.view.trig" }).filter({ hasNotText: "model" }).click()
+  await page.locator("#files .file", { hasText: "instances.trig" }).click()
   const instances = await until(state, (s) => s.boxes.includes("Animal Farm") && s.boxes.includes("George Orwell"), 30000)
   await page.screenshot({ path: path.join(out, "web-bookshop.png") })
   check("the instance view opens in a second canvas tab", (await page.locator("#tabs .tab").count()) === 2 && instances?.boxes.includes("Little corner Bookshop"), JSON.stringify(instances?.boxes))

@@ -18,7 +18,7 @@ import { shapesIndexOf } from '../catenary/rdf/shapes-read';
 import { rdf } from '../catenary/rdf/terms';
 import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
 import { DROP_FILES_EVENT, INSERT_ELEMENT, OPEN_IN_EVENT, OPEN_TEXT } from '../common/protocol';
-import { toEngine, viewIriOf } from '../model/graph-input';
+import { isViewFile, toEngine, viewIriOf } from '../model/graph-input';
 import type { OpenView, Releasable } from '../model/workspace-core';
 import { newViewText, viewFileName } from '../node/new-view';
 import { pasteTurtle } from '../vscode/paste-rdf';
@@ -112,6 +112,8 @@ function ask(question: string, value = ''): string | undefined {
 // Start: Oxigraph, Monaco, turtle-lsp, the workspace and the GLSP server
 
 const files = new FileStore(samples);
+/** A view file: a saved .trig file with a view:View. */
+const isView = (rel: string) => isViewFile(rel, files.read(rel));
 let monaco: Monaco, editor: Monaco;
 const lsp = new LspClient(new URL('turtle-lsp/lsp-worker.js', location.href));
 let hooks: { refresh(method: string): void; shown(): void } | undefined;
@@ -220,7 +222,7 @@ function renderTabs(): void {
     const text = active?.kind === 'text';
     $('text-pane').hidden = !text;
     $('empty').hidden = !!active;
-    $('open-canvas').hidden = !(text && active!.rel.endsWith('.view.trig'));
+    $('open-canvas').hidden = !(text && isView(active!.rel));
     for (const t of tabs) if (t.kind === 'canvas') t.doc.frame.hidden = t !== active;
 }
 
@@ -397,7 +399,7 @@ async function canvasToText(tab: Tab & { kind: 'canvas' }): Promise<void> {
 /** "Open in Canvas" of a view file's text: save first, then the canvas replaces the text tab. */
 async function textToCanvas(): Promise<void> {
     const tab = active;
-    if (tab?.kind !== 'text' || !tab.rel.endsWith('.view.trig')) return;
+    if (tab?.kind !== 'text' || !isView(tab.rel)) return;
     if (dirtyText(tab.rel)) {
         if (!confirm('Save the text before you open it in the canvas?')) return;
         save(tab);
@@ -456,7 +458,7 @@ function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number }): void
         const rel = relOfUri(uri);
         if (rel === undefined || !files.has(rel)) throw new Error(`${uri} is not a workspace file.`);
         let result;
-        if (rel.endsWith('.view.trig')) {
+        if (isView(rel)) {
             const target = viewIriOf(files.read(rel)!);
             if (target === doc.iri) throw new Error('The target view is the open view itself.');
             result = ws.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
@@ -511,7 +513,7 @@ function renderFiles(): void {
     const errors = (rel: string) => (ws.diagnostics.get(uriOf(rel)) ?? []).filter(d => (d.severity ?? 1) <= 2).length;
     $('files').replaceChildren(...files.list().map(rel => {
         const el = document.createElement('div');
-        const view = rel.endsWith('.view.trig');
+        const view = isView(rel);
         el.className = 'file' + (active?.rel === rel ? ' active' : '') + (files.unstored.has(rel) || dirtyText(rel) || tabs.some(t => t.rel === rel && isDirty(t)) ? ' dirty' : '');
         el.draggable = true;
         el.style.paddingLeft = `${8 + 12 * (rel.split('/').length - 1)}px`;
@@ -541,7 +543,7 @@ function deleteFile(rel: string): void {
 }
 
 function newFile(): void {
-    const rel = ask('File path (for example model.ttl or views/a.view.trig):');
+    const rel = ask('File path (for example model.ttl or a.trig):');
     if (!rel) return;
     if (files.has(rel)) return openText(rel);
     files.write(rel, '');
@@ -607,8 +609,8 @@ async function main(): Promise<void> {
     renderFiles();
     renderTabs();
     await ws.ready();
-    const first = new URLSearchParams(location.search).get('open') ?? files.list().find(f => f.endsWith('.view.trig'));
-    if (first && files.has(first)) await (first.endsWith('.view.trig') ? openCanvas(first) : openText(first));
+    const first = new URLSearchParams(location.search).get('open') ?? files.list().find(isView);
+    if (first && files.has(first)) await (isView(first) ? openCanvas(first) : openText(first));
     document.body.dataset.ready = 'true';
 }
 

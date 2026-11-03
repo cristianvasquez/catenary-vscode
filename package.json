@@ -121,7 +121,7 @@
         },
         {
           "command": "catenary.openCanvas",
-          "when": "resourceFilename =~ /\\.view\\.trig$/ && activeEditor == workbench.editors.files.textFileEditor",
+          "when": "resourceExtname == .trig && activeEditor == workbench.editors.files.textFileEditor",
           "group": "navigation"
         }
       ],
@@ -152,7 +152,7 @@
         "displayName": "Catenary View",
         "selector": [
           {
-            "filenamePattern": "*.view.trig"
+            "filenamePattern": "*.trig"
           }
         ],
         "priority": "default"

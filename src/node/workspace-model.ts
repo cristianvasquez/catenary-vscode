@@ -4,13 +4,14 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as vscode from 'vscode';
-import { viewIriOf } from '../model/graph-input';
+import { isViewFile, viewIriOf } from '../model/graph-input';
 import { WorkspaceCore } from '../model/workspace-core';
 import { type TurtleApi, type GraphResult, requestGraph } from './turtle-api';
 
 export type { OpenView } from '../model/workspace-core';
 
-const VIEW_FILES = '**/*.view.trig';
+/** Candidate view files: a .trig file is a view when it has a view:View (isViewFile). */
+const VIEW_FILES = '**/*.trig';
 /** Ask again this long after the last change. */
 const REFRESH_MS = 300;
 
@@ -29,7 +30,7 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
         const schedule = () => this.schedule();
         this.disposables.push(watcher, watcher.onDidChange(schedule), watcher.onDidCreate(schedule), watcher.onDidDelete(schedule),
             vscode.workspace.onDidSaveTextDocument(doc => {
-                if (!doc.uri.fsPath.endsWith('.view.trig') && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
+                if (!isViewFile(doc.uri.fsPath, doc.getText()) && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
             }),
             vscode.languages.onDidChangeDiagnostics(e => {
                 if (e.uris.some(uri => vscode.workspace.getWorkspaceFolder(uri) === folder)) {
@@ -49,7 +50,7 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
     }
 
     protected async viewFilePaths(): Promise<string[]> {
-        return (await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, VIEW_FILES))).map(u => u.fsPath).sort();
+        return (await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, VIEW_FILES))).map(u => u.fsPath).filter(f => { try { return isViewFile(f, readFileSync(f, 'utf8')); } catch { return false; } }).sort();
     }
 
     protected diagnosticsByUri(): Record<string, vscode.Diagnostic[]> {

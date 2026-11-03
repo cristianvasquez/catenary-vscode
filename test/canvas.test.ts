@@ -13,9 +13,10 @@ import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
 import { ViewStore } from '../src/model/store';
 import type { GraphResult } from '../src/node/turtle-api';
+import { fixtureGraph } from './fixture-graph';
 
-const result = JSON.parse(readFileSync('test/fixtures/shapes/graph.json', 'utf8')).result as GraphResult;
-const files = ['bookshop', 'bookshop-model'].map(f => resolve(`test/fixtures/shapes/views/${f}.view.trig`));
+const result = fixtureGraph();
+const files = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
 const vid = iriId('urn:name:Bookshop'), mid = iriId('urn:name:Bookshop%20model');
 let store: ViewStore;
 beforeEach(() => { store = new ViewStore(graphOf(result, files).graph); });

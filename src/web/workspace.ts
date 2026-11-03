@@ -1,6 +1,7 @@
 // The workspace graph of the page: turtle-lsp in a worker (engine.wasm) answers turtle/graph for the open buffers; view files are read
 // from the saved files (FileStore), as the VS Code host reads them from disk. Diagnostics arrive as LSP notifications.
 import type { Diagnostic } from 'vscode';
+import { isViewFile } from '../model/graph-input';
 import { WorkspaceCore } from '../model/workspace-core';
 import type { GraphResult } from '../node/turtle-api';
 import { type FileStore, ROOT, pathOf } from './files';
@@ -26,7 +27,7 @@ export class WebWorkspace extends WorkspaceCore {
     }
 
     protected async viewFilePaths(): Promise<string[]> {
-        return this.files.list().filter(rel => rel.endsWith('.view.trig')).map(pathOf).sort();
+        return this.files.list().filter(rel => rel.endsWith('.trig') && isViewFile(rel, this.files.read(rel))).map(pathOf).sort();
     }
 
     /** LSP severities (1 error … 4 hint) as VS Code severities (0 error … 3 hint), as diagnosticsOf reads them. */

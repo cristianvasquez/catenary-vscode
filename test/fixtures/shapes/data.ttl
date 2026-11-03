@@ -21,7 +21,7 @@
 <urn:name:Animal%20Farm> a <urn:example:bookshop:Book> ;
     rdfs:label "Animal Farm" ;
     <http://www.example.org/author> <urn:name:George%20Orwell> ;
-    <http://www.example.org/publicationYear> 1945 .
+    <http://www.example.org/publicationYear> "nineteen forty-five" .
 
 <urn:name:Lewis%20Carroll> a <urn:example:bookshop:Author> ;
     rdfs:label "Lewis Carroll" ;

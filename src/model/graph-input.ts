@@ -47,13 +47,23 @@ export function viewIriOf(text: string): string {
     return quads[0].graph.value;
 }
 
+/** A view file: a `.trig` file with a view:View. A `.trig` file without one is a model file. */
+export function isViewFile(file: string, text: string | undefined): boolean {
+    if (!file.endsWith('.trig') || !text) return false;
+    try {
+        return parseRdfSync(text, 'application/trig').some(q => q.predicate.value === NS.rdf + 'type' && q.object.value === NS.view + 'View');
+    } catch {
+        return false;
+    }
+}
+
 /** Model documents from turtle/graph, plus view-file paths read as TriG. No model file is parsed here. */
 export function graphOf(result: GraphResult, viewFiles: string[]): { graph: ModelGraph; views: Map<string, string>; skipped: { file: string; reason: string }[] } {
-    const files = new Map<string, Quad[]>();
+    const files = new Map<string, Quad[]>(), viewSet = new Set(viewFiles);
     quadsOf(result).forEach((q, i) => {
         const uri = result.edges[i].uri;
         const file = uri.startsWith('file:') ? fileURLToPath(uri) : uri;
-        if (file.endsWith('.view.trig')) return;
+        if (viewSet.has(file)) return;
         const quad = rdf.quad(term(q.subject) as Quad['subject'], rdf.namedNode(q.predicate), term(q.object) as Quad['object']);
         (files.get(file) ?? files.set(file, []).get(file)!).push(quad);
     });

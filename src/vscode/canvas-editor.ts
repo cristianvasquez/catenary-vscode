@@ -15,7 +15,7 @@ import { idIri, iriId } from '../catenary/model/ids';
 import { boxes } from '../catenary/model/doc';
 import { readView } from '../catenary/rdf/view-read';
 import { shapesIndexOf } from '../catenary/rdf/shapes-read';
-import { toEngine } from '../model/graph-input';
+import { isViewFile, toEngine } from '../model/graph-input';
 import { rdf } from '../catenary/rdf/terms';
 import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
 import { pickLabel } from '../catenary/model/labels';
@@ -36,6 +36,8 @@ function preferences(): PreferenceValues {
 }
 
 const escapeAttribute = (text: string) => text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+/** The text of a file; undefined when it cannot be read. */
+const readText = (file: string) => { try { return readFileSync(file, 'utf8'); } catch { return undefined; } };
 
 /** A view file open in the editor. `open`: its store on the workspace graph; undefined when the file holds no view of a folder. */
 export class ViewDocument implements vscode.CustomDocument {
@@ -78,7 +80,7 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
 
     async openCanvas(): Promise<void> {
         const group = vscode.window.tabGroups.activeTabGroup, tab = group.activeTab;
-        if (!(tab?.input instanceof vscode.TabInputText) || !tab.input.uri.path.endsWith('.view.trig')) return;
+        if (!(tab?.input instanceof vscode.TabInputText) || !isViewFile(tab.input.uri.path, tab.input.uri.scheme === 'file' ? readText(tab.input.uri.fsPath) : undefined)) return;
         if (!await this.saveBeforeSwitch(tab, 'Save the text before you open it in Canvas.')) return;
         const index = group.tabs.indexOf(tab);
         const uri = tab.input.uri;
@@ -192,7 +194,7 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
             if (resource.scheme !== 'file') throw new Error('Only file URIs can be linked.');
             const file = resource.fsPath;
             let result;
-            if (file.endsWith('.view.trig')) {
+            if (isViewFile(file, readText(file))) {
                 const target = viewIriOfFile(file);
                 if (!target) throw new Error(`${file} holds no view.`);
                 if (target === open.iri) throw new Error('The target view is the open view itself.');
@@ -280,6 +282,12 @@ export class CanvasEditorProvider implements vscode.CustomEditorProvider<ViewDoc
     async resolveCustomEditor(document: ViewDocument, panel: vscode.WebviewPanel, _token?: vscode.CancellationToken, exportToken?: string): Promise<void> {
         const file = document.uri.fsPath, model = document.model, open = document.open;
         if (!model || !open) {
+            if (!isViewFile(file, readText(file))) {
+                // A .trig file without a view:View is a model file: the text editor opens it.
+                panel.dispose();
+                await vscode.commands.executeCommand('vscode.openWith', document.uri, 'default');
+                return;
+            }
             panel.webview.html = `<!doctype html><html><body><p>${escapeAttribute(document.problem ?? `${file} holds no view.`)}</p></body></html>`;
             this.log(`canvas: no view for ${file}: ${document.problem}`);
             return;

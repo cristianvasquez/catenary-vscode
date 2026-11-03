@@ -1,0 +1,16 @@
+# Short names (prefixes) that Catenary shows for IRIs.
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix ws: <https://cristianvasquez.github.io/catenary/vocab/workspace#> .
+
+<urn:name:workspace> a ws:Workspace ;
+    sh:declare
+        [ sh:prefix "ex" ; sh:namespace "http://www.example.org/"^^xsd:anyURI ],
+        [ sh:prefix "rdf" ; sh:namespace "http://www.w3.org/1999/02/22-rdf-syntax-ns#"^^xsd:anyURI ],
+        [ sh:prefix "rdfs" ; sh:namespace "http://www.w3.org/2000/01/rdf-schema#"^^xsd:anyURI ],
+        [ sh:prefix "xsd" ; sh:namespace "http://www.w3.org/2001/XMLSchema#"^^xsd:anyURI ],
+        [ sh:prefix "sh" ; sh:namespace "http://www.w3.org/ns/shacl#"^^xsd:anyURI ],
+        [ sh:prefix "skos" ; sh:namespace "http://www.w3.org/2004/02/skos/core#"^^xsd:anyURI ],
+        [ sh:prefix "dct" ; sh:namespace "http://purl.org/dc/terms/"^^xsd:anyURI ],
+        [ sh:prefix "view" ; sh:namespace "https://cristianvasquez.github.io/catenary/vocab/view#"^^xsd:anyURI ],
+        [ sh:prefix "ws" ; sh:namespace "https://cristianvasquez.github.io/catenary/vocab/workspace#"^^xsd:anyURI ] .

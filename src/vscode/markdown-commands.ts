@@ -20,9 +20,9 @@ export interface ViewEntry {
   view: View
 }
 
-/** The `*.view.trig` files of the workspace folders that read as views, by path; the text of an open editor counts. */
+/** The `*.trig` files of the workspace folders that read as views, by path; the text of an open editor counts. */
 async function workspaceViews(): Promise<ViewEntry[]> {
-  const files = (await vscode.workspace.findFiles("**/*.view.trig")).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+  const files = (await vscode.workspace.findFiles("**/*.trig")).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
   const out: ViewEntry[] = []
   for (const file of files) {
     const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === file.toString())
@@ -61,7 +61,7 @@ export async function insertView(): Promise<void> {
   }
   const entries = await workspaceViews()
   if (!entries.length) {
-    void vscode.window.showInformationMessage("Catenary: the workspace has no *.view.trig file.")
+    void vscode.window.showInformationMessage("Catenary: the workspace has no view file (*.trig with a view:View).")
     return
   }
   const pick = await vscode.window.showQuickPick(

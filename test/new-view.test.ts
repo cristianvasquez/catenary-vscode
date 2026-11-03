@@ -8,6 +8,6 @@ test('a new view file reads as a view with its canonical-md IRI', () => {
 });
 
 test('the file name replaces the characters that file systems refuse', () => {
-    expect(viewFileName('Bookshop')).toBe('Bookshop.view.trig');
-    expect(viewFileName('a/b:c')).toBe('a-b-c.view.trig');
+    expect(viewFileName('Bookshop')).toBe('Bookshop.trig');
+    expect(viewFileName('a/b:c')).toBe('a-b-c.trig');
 });

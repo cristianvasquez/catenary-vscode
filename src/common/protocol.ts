@@ -20,7 +20,7 @@ export const OPEN_IN_EVENT = 'catenaryOpenIn';
 export const DROP_FILES_EVENT = 'catenaryDropFiles';
 export const APPLY_PENDING_BOUNDS = 'catenaryApplyPendingBounds';
 
-/** GLSP session URI: catenary-view:/<view id>; the custom editor persists the view in a .view.trig file. */
+/** GLSP session URI: catenary-view:/<view id>; the custom editor persists the view in a .trig file. */
 export const VIEW_SCHEME = 'catenary-view';
 
 export function viewIdOfUri(uri: string): string | undefined {

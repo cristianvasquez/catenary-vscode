@@ -14,9 +14,10 @@ import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
 import { hiddenNeighborCounts, scopedDoc } from '../src/catenary/rdf/scoped-doc';
 import { homesAmong, inModelAmong, instancesAmong, labels } from '../src/catenary/rdf/quad-read';
 import { dataGraphIri } from '../src/catenary/rdf/graph-names';
+import { FIXTURE, fixtureGraph } from './fixture-graph';
 
-const result = JSON.parse(readFileSync('test/fixtures/shapes/graph.json', 'utf8')).result as GraphResult;
-const viewFiles = ['bookshop', 'bookshop-model'].map(f => resolve(`test/fixtures/shapes/views/${f}.view.trig`));
+const result = fixtureGraph();
+const viewFiles = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
 const modelIri = 'urn:name:Bookshop%20model', instancesIri = 'urn:name:Bookshop';
 const id = (local: string) => iriId(`urn:name:${local}`);
 let graph: ModelGraph, model: ElementSchema[], instances: ElementSchema[];
@@ -144,8 +145,8 @@ describe('read builders', () => {
         const view = readView(g, iriId(instancesIri), shapes).views[iriId(instancesIri)];
         const hidden = rdf.namedNode('urn:test:hidden'), animal = rdf.namedNode('urn:name:Animal%20Farm');
         g.update(() => {
-            g.add(hidden, rdf.namedNode(NS.rdf + 'type'), rdf.namedNode('urn:example:bookshop:Book'), rdf.namedNode(dataGraphIri('/w/data.ttl')));
-            g.add(hidden, rdf.namedNode('http://www.example.org/author'), animal, rdf.namedNode(dataGraphIri('/w/data.ttl')));
+            g.add(hidden, rdf.namedNode(NS.rdf + 'type'), rdf.namedNode('urn:example:bookshop:Book'), rdf.namedNode(dataGraphIri(`${FIXTURE}/data.ttl`)));
+            g.add(hidden, rdf.namedNode('http://www.example.org/author'), animal, rdf.namedNode(dataGraphIri(`${FIXTURE}/data.ttl`)));
         });
         const full = hiddenNeighborCounts(g, shapes, view);
         expect(full.get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
