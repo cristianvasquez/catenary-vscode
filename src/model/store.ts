@@ -1,7 +1,6 @@
 // Execute view-only transactions, replay undo patches and serialize one view graph without writing model files.
 import type { ViewCommand } from '../catenary/model/commands';
 import { iriId } from '../catenary/model/ids';
-import { PREFIXES } from '../catenary/model/shapes-doc';
 import type { Patch } from '../catenary/rdf-core/graph';
 import { authoringMetamodel } from '../catenary/rdf/authoring';
 import { executeCommand, mapCommandIds } from '../catenary/rdf/commands';
@@ -9,8 +8,9 @@ import type { ModelGraph } from '../catenary/rdf/graph';
 import { type Result } from '../catenary/rdf/ops';
 import { buildVocabulary, shapesTriples, vocabularyQuads } from '../catenary/rdf/shapes';
 import { shapesIndexOf } from '../catenary/rdf/shapes-read';
-import { rdf, termKey, tripleKey } from '../catenary/rdf/terms';
+import { rdf, termKey } from '../catenary/rdf/terms';
 import { views } from '../catenary/rdf/views';
+import { ViewQuads, viewText } from '../edit/view-quads';
 import { graphPrefixes } from './graph-input';
 
 /** View-only transactions. The graph owns rollback and cache invalidation, including history replay. */
@@ -43,8 +43,6 @@ export class ViewStore {
     viewText(viewIri: string): string {
         graphPrefixes(this.graph);
         const view = rdf.namedNode(viewIri);
-        const statements = [...new Set(this.graph.match(null, null, null, view).map(tripleKey))].sort();
-        const prefixes = Object.entries(PREFIXES).map(([p, ns]) => `@prefix ${p}: <${ns}> .`);
-        return [...prefixes, '', `${termKey(view)} {`, ...statements.map(s => `  ${s} .`), '}', ''].join('\n');
+        return viewText(new ViewQuads(this.graph.match(null, null, null, view), view));
     }
 }
