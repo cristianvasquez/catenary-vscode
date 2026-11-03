@@ -1,6 +1,7 @@
 // Kata 1sx9: the Doc of a view from turtle/query (fork binary over stdio) equals readView of the old pipeline on test/fixtures/shapes.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Doc } from '../src/catenary/model/doc';
@@ -86,9 +87,14 @@ describe('viewDocOf on test/fixtures/shapes', () => {
     });
 });
 
-describe('viewDocOf on blank-node marks and a file: view IRI (temp folder)', () => {
-    const VIEW = 'file:///views/notes';
-    const data = `<urn:x:a> a <urn:x:T> ; <http://www.w3.org/2000/01/rdf-schema#label> "A" .\n`;
+describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy terms, a subject that is a shape in one file only', () => {
+    const VIEW = 'file:///views/notes', LEGACY = 'urn:x:legacy', BLANKS = 'urn:x:blanks';
+    const LABEL = 'http://www.w3.org/2000/01/rdf-schema#label';
+    const data = `<urn:x:a> a <urn:x:T> ; <${LABEL}> "A" .
+<urn:x:X> a <urn:x:T> ; <${LABEL}> "X" ; <urn:x:p> "v" .
+<urn:x:a> <urn:x:has> [ a <urn:x:T> ; <${LABEL}> "B" ; <urn:x:p> "inner" ] .
+`;
+    const shapesText = `<urn:x:X> a <http://www.w3.org/ns/shacl#NodeShape> ; <http://www.w3.org/ns/shacl#targetClass> <urn:x:T> .\n`;
     const view = `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
 @prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
 <${VIEW}> { <${VIEW}> a view:View ; rdfs:label "Notes" .
@@ -97,12 +103,25 @@ describe('viewDocOf on blank-node marks and a file: view IRI (temp folder)', () 
   <urn:x:p2> a view:Placement ; view:view <${VIEW}> ; view:element <urn:x:a> ; view:x 300 .
   <urn:x:p3> a view:Placement ; view:view <${VIEW}> ; rdf:reifies <<( _:n view:arrow <urn:x:a> )>> . }
 `;
-    let dir: string, server: Awaited<ReturnType<typeof startServer>>;
+    // The legacy namespace of view: (LEGACY_NAMESPACES of model/terms.ts).
+    const legacy = `@prefix view: <osg://vocab/view#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+<${LEGACY}> { <${LEGACY}> a view:View ; rdfs:label "Legacy" .
+  <urn:x:lp> a view:Placement ; view:view <${LEGACY}> ; view:element <urn:x:a> ; view:x 5 .
+  <urn:x:ln> a view:Note ; view:text "old" .
+  <urn:x:lnp> a view:Placement ; view:view <${LEGACY}> ; view:element <urn:x:ln> .
+  <urn:x:lx> a view:Placement ; view:view <${LEGACY}> ; view:element <urn:x:X> . }
+`;
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>, files: string[], shapes: ShapesModelRecords;
     beforeAll(async () => {
         dir = mkdtempSync(join(tmpdir(), 'catenary-view-'));
         writeFileSync(join(dir, 'data.ttl'), data);
+        writeFileSync(join(dir, 'shapes.ttl'), shapesText);
         writeFileSync(join(dir, 'notes.trig'), view);
-        server = await startServer(dir, 19);
+        writeFileSync(join(dir, 'legacy.trig'), legacy);
+        // data 9, shapes 2, notes 17, legacy 14.
+        server = await startServer(dir, 42);
+        files = [join(dir, 'data.ttl'), join(dir, 'shapes.ttl')];
+        shapes = await shapesModelOf(server.port(), files, {});
     }, 20000);
     afterAll(async () => {
         await server?.stop();
@@ -110,8 +129,6 @@ describe('viewDocOf on blank-node marks and a file: view IRI (temp folder)', () 
     });
 
     test('the note (a blank node), its arrow and the card show; the view is named by its file: IRI', async () => {
-        const files = [join(dir, 'data.ttl')];
-        const shapes = await shapesModelOf(server.port(), files, {});
         const doc = await viewDocOf(server.port(), VIEW, shapes, {});
         const v = doc.views[iriId(VIEW)];
         expect(v.label).toBe('Notes');
@@ -119,6 +136,33 @@ describe('viewDocOf on blank-node marks and a file: view IRI (temp folder)', () 
         expect(v.boxes.find(b => b.kind === 'note')).toMatchObject({ id: iriId('urn:x:p1'), text: 'hello', x: 10, y: 20 });
         expect(v.arrows).toEqual([{ id: iriId('urn:x:p3'), from: iriId('urn:x:p1'), to: iriId('urn:x:p2') }]);
         expect(Object.keys(doc.instances)).toEqual([iriId('urn:x:a')]);
-        expect(await viewLabelsOf(server.port(), files)).toEqual({ [iriId(VIEW)]: 'Notes' });
+        expect(await viewLabelsOf(server.port(), files)).toEqual({ [iriId(VIEW)]: 'Notes', [iriId(LEGACY)]: 'Legacy' });
+    });
+
+    test('a view file in the legacy view namespace reads as the published one; a shape of shapes.ttl keeps its data.ttl statements', async () => {
+        expect(shapes.shapeSubjectsByFile.get(join(dir, 'shapes.ttl'))).toEqual(new Set(['<urn:x:X>']));
+        expect(shapes.shapeSubjectsByFile.has(join(dir, 'data.ttl'))).toBe(false);
+        const doc = await viewDocOf(server.port(), LEGACY, shapes, {});
+        const v = doc.views[iriId(LEGACY)];
+        expect(v.label).toBe('Legacy');
+        expect(v.boxes.find(b => b.kind === 'note')).toMatchObject({ id: iriId('urn:x:lnp'), text: 'old' });
+        expect(v.boxes.find(b => b.kind === 'card' && b.element === iriId('urn:x:a'))).toMatchObject({ id: iriId('urn:x:lp'), x: 5 });
+        expect(doc.instances[iriId('urn:x:X')]).toMatchObject({ label: 'X', types: ['urn:x:T'], fields: { 'urn:x:p': [{ termType: 'Literal', value: 'v' }] } });
+    });
+
+    test('a view that places a blank node of a model file gives its instance with its statements', async () => {
+        // The skolem label names the document by its number: open the view document first, then read the label, then place it.
+        const uri = pathToFileURL(join(dir, 'blanks.trig')).href;
+        const text = (element: string) => `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+<${BLANKS}> { <${BLANKS}> a view:View .${element ? ` <urn:x:bp> a view:Placement ; view:view <${BLANKS}> ; view:element <${element}> .` : ''} }`;
+        server.open(uri, text(''), 'trig');
+        const blankOf = async () => (await server.port().select('SELECT ?b WHERE { <urn:x:a> <urn:x:has> ?b }', [join(dir, 'data.ttl')]))[0].b.value;
+        const blank = await blankOf();
+        expect(blank).toMatch(/^urn:skolem:blank:/);
+        server.change(uri, text(blank));
+        expect(await blankOf()).toBe(blank);
+        const doc = await viewDocOf(server.port(), BLANKS, shapes, {});
+        expect(doc.instances[iriId(blank)]).toMatchObject({ uri: blank, label: 'B', types: ['urn:x:T'], fields: { 'urn:x:p': [{ termType: 'Literal', value: 'inner' }] } });
+        expect(doc.views[iriId(BLANKS)].boxes).toMatchObject([{ kind: 'card', id: iriId('urn:x:bp'), element: iriId(blank) }]);
     });
 });

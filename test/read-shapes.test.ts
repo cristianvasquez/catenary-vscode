@@ -94,15 +94,18 @@ describe('shapesModelOf on test/fixtures/shapes', () => {
         expect([graphs(skos), skos.length]).toEqual([[dataGraphIri(file('cities.ttl'))], 8]);
     });
 
-    test('shapeSubjects equals the union of shapePart over the model files', () => {
-        const old = new Set<string>();
+    test('shapeSubjects equals the union of shapePart over the model files; shapeSubjectsByFile equals shapePart per file', () => {
+        const old = new Set<string>(), byFile: [string, string[]][] = [];
         for (const f of graph.dataGraphs().map(g => g.value)) {
             const path = new URL(f).pathname;
             const quads = [dataGraphIri(path), shapesGraphIri(path)].flatMap(g => graph.match(null, null, null, rdf.namedNode(g)));
-            for (const k of shapePart(quads)) old.add(k);
+            const part = shapePart(quads);
+            for (const k of part) old.add(k);
+            if (part.size) byFile.push([path, [...part].sort()]);
         }
         expect(old.size).toBeGreaterThan(0);
         expect([...now.shapeSubjects].sort()).toEqual([...old].sort());
+        expect([...now.shapeSubjectsByFile].map(([f, ks]) => [f, [...ks].sort()]).sort()).toEqual(byFile.sort());
     });
 });
 
