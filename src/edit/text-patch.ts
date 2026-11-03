@@ -1,6 +1,6 @@
 // Copied from catenary packages/rdf-files/src/text-patch.ts (with grammars/turtle.wasm); the package is not a dependency (it depends on
 // Oxigraph). Changes: fileIri is local; the grammar fallback is <repository>/grammars/turtle.wasm; a blank node anywhere in the text
-// gives no patch (the source refuses one only in the blocks that change); hasAnnotation, forgetTurtleTrees, turtlePosition and
+// gives no patch (the source refuses one only in the blocks that change); a comment between a predicate and its objects is skipped; hasAnnotation, forgetTurtleTrees, turtlePosition and
 // patchTurtleDiff are left out (not used here).
 //
 // Text patches of Turtle files. `patchTurtle` gets the text of a file and its triples before and after an edit, and
@@ -287,14 +287,16 @@ async function patch(text: string, file: string, diff: StatementDiff, prefixes: 
             const lists = kids(n).slice(1).filter(c => c.type === 'property_list');
             for (const list of lists) {
                 for (const property of kids(list).filter(c => c.type === 'property')) {
-                    const list = kids(kids(property)[1]!).filter(c => c.type !== 'comment');
+                    // A comment between the predicate and the objects is a child of the property: the children without comments.
+                    const [verb, objectList] = kids(property).filter(c => c.type !== 'comment');
+                    const list = kids(objectList!).filter(c => c.type !== 'comment');
                     // A reifier or an annotation follows its object: that object is not a simple object of the text (no key).
                     const objects = list.filter(c => c.type !== 'reifier' && c.type !== 'annotation').map(o => {
                         if (o.type === 'blank_node_property_list' || o.type === 'collection' || r.key(o)?.startsWith('_:')) throw new Error(`blank node at line ${o.startPosition.row + 1}`);
                         const after = list[list.indexOf(o) + 1];
                         return { node: o, o: after && (after.type === 'reifier' || after.type === 'annotation') ? undefined : r.key(o) };
                     });
-                    st.properties.push({ node: property, p: r.predicate(kids(property)[0]!), objects });
+                    st.properties.push({ node: property, p: r.predicate(verb!), objects });
                 }
             }
             statements.push(st);

@@ -3,6 +3,7 @@
 // statements stay byte for byte), else the whole-file text. Nothing is kept between commands; the caller applies the edits.
 import type { Quad } from '@rdfjs/types';
 import { fileURLToPath } from 'node:url';
+import { Parser } from 'n3';
 import type { ViewCommand } from '../catenary/model/commands';
 import type { NTerm } from '../catenary/model/notation-graph';
 import type { ModelPort } from '../model/port';
@@ -80,15 +81,29 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
 }
 
 /**
- * The new text of the view document `v` after the changes `added` and `removed` of `q`: the text of `v` patched (patchTurtle), else
- * the whole-file text (viewText) and one log line with the reason. No text in `v`: the whole-file text.
+ * The new text of the view document `v` after the changes `added` and `removed` of `q`: the text of `v` patched (patchTurtle) when it
+ * reads back to the statements of `q`, else the whole-file text (viewText) and one log line with the reason. No text in `v`: the whole-file text.
  */
 async function viewTextOf(v: ViewInput, q: ViewQuads, added: Quad[], removed: Quad[], log: (line: string) => void): Promise<string> {
     if (v.text === undefined) return viewText(q);
     const after = q.quads(), gone = new Set(added.map(tripleKey));
     const before = [...after.filter(x => !gone.has(tripleKey(x))), ...removed];
     const r = await patchTurtle(v.text, fileURLToPath(v.uri), before, after, PREFIXES, q.graph);
-    if (r.ok) return r.text;
-    log(`${v.uri}: the text patch failed (${r.reason}): the whole view file is written`);
+    const reason = r.ok ? readBackProblem(r.text, v.uri, q) : r.reason;
+    if (r.ok && !reason) return r.text;
+    log(`${v.uri}: the text patch failed (${reason}): the whole view file is written`);
     return viewText(q);
+}
+
+/** Why the patched `text` is not the view `q`: it does not parse, or its statements (read with n3) differ. Undefined: they are equal. */
+function readBackProblem(text: string, uri: string, q: ViewQuads): string | undefined {
+    let read: Quad[];
+    try {
+        read = new Parser({ format: 'application/trig', baseIRI: uri }).parse(text);
+    } catch (e) {
+        return `the patched text does not parse: ${(e as Error).message}`;
+    }
+    const keys = (quads: Quad[]) => [...new Set(quads.map(tripleKey))].sort().join('\n');
+    if (read.some(x => !x.graph.equals(q.graph))) return `the patched text has statements outside the graph <${q.graph.value}>`;
+    return keys(read) === keys(q.quads()) ? undefined : 'the patched text reads back to other statements';
 }
