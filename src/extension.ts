@@ -57,9 +57,9 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
         vscode.commands.registerCommand('catenary.insertElement', () => canvas.insertElement()),
         vscode.commands.registerCommand('catenary.openCanvas', () => canvas.openCanvas()),
-        vscode.commands.registerCommand('catenary.insertView', insertView),
+        vscode.commands.registerCommand('catenary.insertView', () => insertView(modelOf)),
         vscode.commands.registerCommand('catenary.newView', (uri?: vscode.Uri, _uris?: unknown, answer?: string) => newView(modelOf, uri, answer)),
-        vscode.commands.registerCommand('catenary.exportMarkdown', (uri, uris, answer) => exportMarkdown(uri, uris, answer, entry => markdownSvg.svgOf(entry))),
+        vscode.commands.registerCommand('catenary.exportMarkdown', (uri, uris, answer) => exportMarkdown(uri, uris, answer, entry => markdownSvg.svgOf(entry), modelOf)),
         activateSparqlEndpoint(context, api, log));
 }
 

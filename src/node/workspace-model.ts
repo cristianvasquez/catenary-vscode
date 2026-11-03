@@ -6,9 +6,8 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as vscode from 'vscode';
 import { isViewFile } from '../model/graph-input';
-import type { ViewEdit } from '../edit/executor';
 import type { ModelPort } from '../model/port';
-import { WorkspaceCore } from '../model/workspace-core';
+import { type VersionedEdit, type ViewDocumentState, WorkspaceCore } from '../model/workspace-core';
 import { nodePort } from './port';
 import { type TurtleApi, type GraphResult, requestGraph } from './turtle-api';
 
@@ -67,20 +66,23 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
         try { return readFileSync(fileURLToPath(uri), 'utf8'); } catch { return ''; }
     }
 
-    protected async documentOf(file: string, load: boolean): Promise<{ uri: string; text: string } | undefined> {
+    protected async documentOf(file: string, load: boolean): Promise<ViewDocumentState | undefined> {
         const uri = vscode.Uri.file(file);
         const document = vscode.workspace.textDocuments.find(d => d.uri.toString() === uri.toString()) ?? (load ? await vscode.workspace.openTextDocument(uri) : undefined);
-        return document && { uri: document.uri.toString(), text: document.getText() };
+        return document && { uri: document.uri.toString(), text: document.getText(), version: document.version };
     }
 
-    /** One WorkspaceEdit: each view document is replaced as a whole (the tree-sitter patch is K12). */
-    protected async applyEdits(edits: ViewEdit[]): Promise<boolean> {
+    /**
+     * One WorkspaceEdit: each view document is replaced as a whole (the tree-sitter patch is K12). The documents load first; the version
+     * check, the edit and its submission are synchronous (applyEdit is called in the same turn). VS Code has no version precondition on a
+     * WorkspaceEdit: a change that reaches the extension host after this turn is replaced.
+     */
+    protected async applyEdits(edits: VersionedEdit[]): Promise<'applied' | 'changed' | 'refused'> {
+        const documents = await Promise.all(edits.map(e => vscode.workspace.openTextDocument(vscode.Uri.parse(e.uri))));
+        if (documents.some((d, i) => d.version !== edits[i].version)) return 'changed';
         const edit = new vscode.WorkspaceEdit();
-        for (const e of edits) {
-            const uri = vscode.Uri.parse(e.uri), document = await vscode.workspace.openTextDocument(uri);
-            edit.replace(uri, document.validateRange(new vscode.Range(0, 0, document.lineCount, 0)), e.text);
-        }
-        return vscode.workspace.applyEdit(edit);
+        documents.forEach((d, i) => edit.replace(d.uri, d.validateRange(new vscode.Range(0, 0, d.lineCount, 0)), edits[i].text));
+        return await vscode.workspace.applyEdit(edit) ? 'applied' : 'refused';
     }
 
     protected log(line: string): void { this.logLine(line); }

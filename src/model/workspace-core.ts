@@ -1,5 +1,5 @@
 // The platform-free part of one folder's workspace: the model records read through turtle/query (the canvas draws from them and the
-// commands read them), and the old graph of the pickers until K7. A command edits the text of the view documents (src/edit/executor.ts);
+// commands read them), and the old graph of the browser page until K11/K13. A command edits the text of the view documents (src/edit/executor.ts);
 // the host applies the edits. The VS Code host (node/workspace-model.ts) and the browser page (web/workspace.ts) supply the port, the
 // turtle-lsp graph, the view files, the documents and the diagnostics.
 import { fileURLToPath } from 'node:url';
@@ -17,11 +17,18 @@ import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDra
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
 import type { ShapesModelRecords } from '../read/shapes';
-import { expandChoices, instancesNamed, memberOptions } from './choices';
+import { expandChoices, instancesNamed, memberOptions } from '../read/choices';
+import type { Choices } from '../catenary/model/prompts';
 import type { ModelPort } from './port';
 import { viewFilesOf } from './view-files';
 
 export interface Releasable { dispose(): void }
+
+/** A view document as a command reads it. */
+export interface ViewDocumentState { uri: string; text: string; version: number }
+
+/** A new text of a view document and the version of the document that the command read. */
+export type VersionedEdit = ViewEdit & { version: number };
 
 /** The IRI of a view given by its IRI or its element id. */
 const viewIriOf = (view: string) => view.includes(':') ? view : idIri(view);
@@ -30,7 +37,7 @@ const viewIriOf = (view: string) => view.includes(':') ? view : idIri(view);
 const REDRAW_MS = 100;
 
 export abstract class WorkspaceCore implements ViewSource {
-    /** The old graph of the pickers until K7 (read from the saved view files); undefined before the first answer. */
+    /** The old graph (read from the saved view files) until K11: the browser page draws from it; undefined before the first answer. */
     graph: ModelGraph | undefined;
     /** The turtle/graph answer: node ranges of the diagnostics. */
     result: GraphResult | undefined;
@@ -70,12 +77,16 @@ export abstract class WorkspaceCore implements ViewSource {
     /** The text of a document URI; '' when it cannot be read. */
     protected abstract textOf(uri: string): string;
     /**
-     * The document of a view file: its URI and its text. `load` false: undefined when no editor has the document open; true: the host opens
-     * it without showing it (the language server receives it).
+     * The document of a view file: its URI, its text and its version. `load` false: undefined when no editor has the document open; true:
+     * the host opens it without showing it (the language server receives it).
      */
-    protected abstract documentOf(file: string, load: boolean): Promise<{ uri: string; text: string } | undefined>;
-    /** Applies the edits as one edit of the workspace (one undo step in each document); false when the host refuses it. */
-    protected abstract applyEdits(edits: ViewEdit[]): Promise<boolean>;
+    protected abstract documentOf(file: string, load: boolean): Promise<ViewDocumentState | undefined>;
+    /**
+     * Applies the edits as one edit of the workspace (one undo step in each document). Each edit carries the version of its document that
+     * the command read: the host loads the documents first, then checks every version and submits the edit with no await between.
+     * 'changed': a document has another version (a text editor, an undo); 'refused': the host refused the edit.
+     */
+    protected abstract applyEdits(edits: VersionedEdit[]): Promise<'applied' | 'changed' | 'refused'>;
     protected abstract log(line: string): void;
     protected abstract warn(message: string): void;
 
@@ -114,22 +125,21 @@ export abstract class WorkspaceCore implements ViewSource {
         const iri = viewIriOf(viewId);
         if (!iri) return fail(`No view with the id ${viewId}.`);
         const iris = [iri, ...command.kind === 'moveBetweenViews' ? [command.from, command.to].map(viewIriOf) : []];
-        const views: ViewInput[] = [];
+        const views: ViewInput[] = [], versions = new Map<string, number>();
         for (const v of new Set(iris)) {
             const file = v && this.viewFiles.get(v);
             if (!v || !file) return fail(`The view ${v ?? ''} has no view file in ${this.name}.`);
             const document = await this.documentOf(file, v !== iri);
             if (!document) return fail('The view is not open in an editor.');
-            views.push({ iri: v, ...document });
+            views.push({ iri: v, uri: document.uri, text: document.text });
+            versions.set(document.uri, document.version);
         }
         const { edits, ...r } = await runCommand(ctx, views, command);
         if (!r.ok || !edits.length) return r;
-        // A change of a document during the queries (a text editor, an undo) wins: the edit would replace it with text of the older state.
-        for (const v of views) {
-            const now = await this.documentOf(this.viewFiles.get(v.iri) ?? '', v.iri !== iri);
-            if (now?.text !== v.text) return fail('The view file changed during the command. Do it again.');
-        }
-        if (!await this.applyEdits(edits)) return fail('The editor refused the edit of the view file.');
+        // A change of a document during the command (a text editor, an undo) wins: the edit would replace it with text of the older state.
+        const applied = await this.applyEdits(edits.map(e => ({ ...e, version: versions.get(e.uri)! })));
+        if (applied === 'changed') return fail('The view changed during the edit. Do it again.');
+        if (applied === 'refused') return fail('The editor refused the edit of the view file.');
         return r;
     }
 
@@ -171,7 +181,7 @@ export abstract class WorkspaceCore implements ViewSource {
     }
 
     /** The context of the reads; undefined before the first refresh or without a port. */
-    protected context(): ModelContext | undefined {
+    context(): ModelContext | undefined {
         return this.ctx;
     }
 
@@ -201,17 +211,20 @@ export abstract class WorkspaceCore implements ViewSource {
         return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
     }
 
-    /** The pickers on the old graph until K7. */
-    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets') {
-        return this.graph ? expandChoices(this.graph, viewId, from, dir) : undefined;
+    /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh or without a port. */
+    async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
+        const ctx = this.context();
+        return ctx ? expandChoices(ctx, viewId, from, dir) : undefined;
     }
 
-    memberOptions(viewId: string, collection: string): string[] {
-        return this.graph ? memberOptions(this.graph, viewId, collection) : [];
+    async memberOptions(viewId: string, collection: string): Promise<string[]> {
+        const ctx = this.context();
+        return ctx ? memberOptions(ctx, viewId, collection) : [];
     }
 
-    instancesNamed(text: string): string[] {
-        return this.graph ? instancesNamed(this.graph, text) : [];
+    async instancesNamed(text: string): Promise<string[]> {
+        const ctx = this.context();
+        return ctx ? instancesNamed(ctx, text) : [];
     }
 
     /** Diagnostics of turtle-lsp as SHACL violations: one turtle/query for the focus terms. A later call wins over an earlier one. */

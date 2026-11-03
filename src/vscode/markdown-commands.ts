@@ -2,7 +2,8 @@
 import * as vscode from "vscode"
 import { type ExportView, viewEmbed } from "../node/markdown"
 import { type MarkdownExportResult, checkOf, prepareMarkdownExport, writeMarkdownExport } from "../node/markdown-export"
-import { type View, readView } from "../node/markdown-view"
+import { type View, viewsOf } from "../node/markdown-view"
+import type { WorkspaceModel } from "../node/workspace-model"
 
 /** The answers of the pickers of the next `catenary.exportMarkdown`, for the integration tests. */
 export interface ExportAnswer {
@@ -20,20 +21,22 @@ export interface ViewEntry {
   view: View
 }
 
-/** The `*.trig` files of the workspace folders that read as views, by path; the text of an open editor counts. */
-async function workspaceViews(): Promise<ViewEntry[]> {
-  const files = (await vscode.workspace.findFiles("**/*.trig")).sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))
+/** The workspace model of the folder of a URI (extension.ts). */
+type ModelOf = (uri: vscode.Uri) => WorkspaceModel | undefined
+
+/** The view files of the workspace folders by path, from turtle/query (the text of an open editor counts: turtle-lsp reads the open buffers). */
+async function workspaceViews(modelOf: ModelOf): Promise<ViewEntry[]> {
   const out: ViewEntry[] = []
-  for (const file of files) {
-    const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === file.toString())
-    try {
-      const text = open ? open.getText() : new TextDecoder().decode(await vscode.workspace.fs.readFile(file))
-      out.push({ file, view: readView(text) })
-    } catch {
-      // Not a view: not listed.
-    }
+  for (const folder of vscode.workspace.workspaceFolders ?? []) {
+    const model = modelOf(folder.uri)
+    if (!model) continue
+    await model.ready()
+    const ctx = model.context()
+    if (!ctx) continue
+    const files = (await vscode.workspace.findFiles(new vscode.RelativePattern(folder, "**/*.trig"))).map((u) => u.fsPath)
+    for (const { file, view } of await viewsOf(ctx, files)) out.push({ file: vscode.Uri.file(file), view })
   }
-  return out
+  return out.sort((a, b) => (a.file.path < b.file.path ? -1 : a.file.path > b.file.path ? 1 : 0))
 }
 
 const labelOf = (view: View) => view.name || view.iri
@@ -53,13 +56,13 @@ function exportReport(result: MarkdownExportResult, documents: number, views: nu
 }
 
 /** Inserts the embed of a view of the workspace, from a QuickPick, at each selection of the active Markdown editor. */
-export async function insertView(): Promise<void> {
+export async function insertView(modelOf: ModelOf): Promise<void> {
   const editor = vscode.window.activeTextEditor
   if (!editor || editor.document.languageId !== "markdown") {
     void vscode.window.showInformationMessage("Catenary: open a Markdown document first.")
     return
   }
-  const entries = await workspaceViews()
+  const entries = await workspaceViews(modelOf)
   if (!entries.length) {
     void vscode.window.showInformationMessage("Catenary: the workspace has no view file (*.trig with a view:View).")
     return
@@ -84,11 +87,12 @@ export async function exportMarkdown(
   uris: vscode.Uri[] | undefined,
   answer: ExportAnswer | undefined,
   svgOf: (entry: ViewEntry) => Promise<string>,
+  modelOf: ModelOf,
 ): Promise<MarkdownExportResult | undefined> {
   const picked = uris?.length ? uris : uri instanceof vscode.Uri ? [uri] : vscode.window.activeTextEditor?.document.languageId === "markdown" ? [vscode.window.activeTextEditor.document.uri] : (vscode.workspace.workspaceFolders ?? []).map((f) => f.uri)
   const sources = picked.filter((u) => u.scheme === "file").map((u) => u.fsPath)
   const entries = new Map<string, ViewEntry>()
-  for (const entry of await workspaceViews()) if (!entries.has(entry.view.iri)) entries.set(entry.view.iri, entry)
+  for (const entry of await workspaceViews(modelOf)) if (!entries.has(entry.view.iri)) entries.set(entry.view.iri, entry)
   const views = new Map<string, ExportView>([...entries].map(([iri, e]) => [iri, { id: e.file.toString(), label: labelOf(e.view) }]))
   const fail = (error: string) => {
     void vscode.window.showErrorMessage(`Catenary: ${error}`)

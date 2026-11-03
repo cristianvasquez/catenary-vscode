@@ -12,17 +12,16 @@ import { createCanvasServer } from '../node/glsp/server';
 import type { WorkspaceModel } from '../node/workspace-model';
 import { idIri, iriId } from '../catenary/model/ids';
 import { boxes } from '../catenary/model/doc';
-import { shapesIndexOf } from '../catenary/rdf/shapes-read';
 import { toEngine } from '../model/graph-input';
-import { rdf } from '../catenary/rdf/terms';
-import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
-import { pickLabel } from '../catenary/model/labels';
 import { NS } from '../catenary/model/terms';
 import { CANVAS_START, type CanvasStart, Preferences, InsertElement, OpenText } from '../webview/messages';
 import type { PreferenceValues } from '../webview/preferences';
 import { PasteRdf, OpenIn, DropFiles } from '../webview/messages';
 import { StatusAction } from '@eclipse-glsp/protocol';
 import { pasteTurtle } from './paste-rdf';
+import { instanceLabels } from '../read/choices';
+import { factsOf, inShapesOf } from '../read/neighbors';
+import { viewLabelsOf } from '../read/view';
 
 export const CANVAS_EDITOR = 'catenary.view';
 /** The settings that the canvas reads. */
@@ -75,25 +74,29 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         await vscode.commands.executeCommand('moveActiveEditor', { to: 'position', by: 'tab', value: index + 1 });
     }
 
-    /** One quick pick, one store command and one VS Code undo step. No canvas position supplied: fixed point (300, 300). */
+    /**
+     * One quick pick, one store command and one VS Code undo step. No canvas position supplied: fixed point (300, 300). The candidates come
+     * from turtle/query: the node shapes of the shapes model and the instances of the model files with the SKOS subjects of the shapes (instanceLabels), by kind.
+     */
     async insertElement(): Promise<void> {
         const entry = [...this.panels].find(([panel]) => panel.active);
         if (!entry) return;
-        const [, document] = entry, model = document.model, open = document.iri ? { iri: document.iri } : undefined;
-        if (!model?.graph || !open) return;
-        const graph = model.graph, seen = new Set<string>();
+        const [, document] = entry, model = document.model, iri = document.iri, open = iri ? { iri } : undefined, ctx = model?.context();
+        if (!model || !ctx || !open) return;
         const view = (await model.diagram(iriId(open.iri), {})).doc.views[iriId(open.iri)];
         const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
+        const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+        const { types } = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), labels.keys());
         const items: (vscode.QuickPickItem & { id: string })[] = [];
-        for (const node of model.result?.nodes ?? []) {
-            if (node.literal || seen.has(node.id) || vscode.workspace.getWorkspaceFolder(vscode.Uri.parse(node.uri)) !== model.folder) continue;
-            seen.add(node.id);
-            const iri = toEngine(node.id), term = rdf.namedNode(iri);
+        for (const shape of Object.values(ctx.shapes.index.model.nodeShapes)) {
+            if (!placed.has(shape.id)) items.push({ id: shape.id, label: shape.label, description: shape.uri, detail: 'shape' });
+        }
+        for (const [iri, label] of labels) {
             if (placed.has(iriId(iri))) continue;
-            const types = graph.match(term, rdf.namedNode(NS.rdf + 'type'), null).map(q => q.object.value);
-            const kind = types.includes(NS.sh + 'NodeShape') ? 'shape' : types.some(t => t === NS.rdfs + 'Class' || t === NS.owl + 'Class') ? 'class'
-                : types.includes(NS.skos + 'Concept') ? 'concept' : types.includes(NS.skos + 'Collection') ? 'collection' : isInstance(graph, term) ? 'instance' : undefined;
-            if (kind) items.push({ id: iriId(iri), label: node.label || node.name || iri, description: iri, detail: kind });
+            const of = types.get(iri) ?? [];
+            const kind = of.some(t => t === NS.rdfs + 'Class' || t === NS.owl + 'Class') ? 'class'
+                : of.includes(NS.skos + 'Concept') ? 'concept' : of.includes(NS.skos + 'Collection') ? 'collection' : 'instance';
+            items.push({ id: iriId(iri), label, description: iri, detail: kind });
         }
         const links: (vscode.QuickPickItem & { link: 'file' | 'view' })[] = [
             { label: 'Link to a file…', link: 'file' }, { label: 'Link to a view…', link: 'view' }
@@ -122,8 +125,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
                 resource = (await vscode.window.showOpenDialog({ canSelectMany: false, canSelectFiles: true, canSelectFolders: false, defaultUri: model.folder.uri }))?.[0];
             } else {
                 const choices = [...model.viewFiles].filter(([iri]) => iri !== open.iri).map(([iri, file]) => ({
-                    label: pickLabel(labelLiterals(predicate => predicate === NS.rdfs + 'label'
-                        ? graph.match(rdf.namedNode(iri), rdf.namedNode(predicate), null, rdf.namedNode(iri)).map(q => q.object) : []), graph.language) || path.basename(file),
+                    label: viewLabels[iriId(iri)] || path.basename(file),
                     description: path.relative(model.folder.uri.fsPath, file), file
                 })).sort((a, b) => a.label.localeCompare(b.label));
                 const target = await vscode.window.showQuickPick(choices, { placeHolder: 'Link to a view', matchOnDescription: true });
@@ -143,7 +145,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         const model = document.model;
         try {
             if (request.problem) {
-                const properties = model?.graph ? shapesIndexOf(model.graph).model.nodeShapes[request.problem]?.properties ?? [] : [];
+                const properties = model?.shapes?.index.model.nodeShapes[request.problem]?.properties ?? [];
                 const problems = (model?.violations ?? []).filter(v => v.instance === request.problem || iriId(toEngine(v.focus)) === request.problem
                     || (v.shape !== undefined && properties.includes(v.shape)));
                 if (!problems.length) throw new Error('No problem was found for this element.');

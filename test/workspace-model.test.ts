@@ -9,11 +9,14 @@ import { iriId } from '../src/catenary/model/ids';
 import { parseRdfSync } from '../src/catenary/rdf-files/oxigraph-store';
 import { tripleKey } from '../src/edit/terms';
 import type { ViewEdit } from '../src/edit/executor';
+import type { VersionedEdit } from '../src/model/workspace-core';
 import { graphOf } from '../src/model/graph-input';
 import type { TurtleApi } from '../src/node/turtle-api';
 
 /** The listeners of onDidChangeTextDocument, and the files that findFiles gives. */
-const host = vi.hoisted(() => ({ changes: [] as ((e: TextDocumentChangeEvent) => void)[], files: [] as string[], folder: undefined as unknown }));
+const host = vi.hoisted(() => ({ changes: [] as ((e: TextDocumentChangeEvent) => void)[], files: [] as string[], folder: undefined as unknown,
+    /** openTextDocument of the real WorkspaceModel.applyEdits, and the edits that applyEdit received. */
+    document: (_path: string): unknown => undefined, applied: [] as unknown[] }));
 
 vi.mock('../src/node/glsp/server', () => ({ createCanvasServer: vi.fn() }));
 vi.mock('@eclipse-glsp/vscode-integration', () => ({ GlspVscodeConnector: class {}, WebviewEndpoint: class {} }));
@@ -27,8 +30,13 @@ vi.mock('vscode', () => {
             onDidSaveTextDocument: disposable,
             onDidChangeTextDocument: (listener: (e: TextDocumentChangeEvent) => void) => { host.changes.push(listener); return disposable(); },
             findFiles: async () => host.files.map(fsPath => ({ fsPath })),
-            getWorkspaceFolder: () => host.folder
+            getWorkspaceFolder: () => host.folder,
+            openTextDocument: async (uri: { path: string }) => host.document(uri.path),
+            applyEdit: async (edit: { replaced: unknown[] }) => { host.applied.push(edit.replaced); return true; }
         },
+        Uri: { parse: (path: string) => ({ path }) },
+        Range: class { constructor(readonly a: number, readonly b: number, readonly c: number, readonly d: number) {} },
+        WorkspaceEdit: class { replaced: unknown[] = []; replace(uri: unknown, _range: unknown, text: string) { this.replaced.push({ uri, text }); } },
         languages: { onDidChangeDiagnostics: disposable, getDiagnostics: () => [] }
     };
 });
@@ -53,11 +61,15 @@ const apiOf = (server: Awaited<ReturnType<typeof startServer>>, hidden?: string)
 });
 
 /** The host side of a view document for WorkspaceModel: `documentOf` and `applyEdits` as VS Code does them, on the test server. */
-interface Host { open: Set<string>; edits: ViewEdit[][]; refuse: boolean; type(uri: string, text: string): void }
+interface Host { open: Set<string>; edits: ViewEdit[][]; refuse: boolean; type(uri: string, text: string): void; beforeEdit?: () => void }
 
 function fakeHost(model: WorkspaceModel, server: Awaited<ReturnType<typeof startServer>>): Host {
-    const texts = new Map<string, string>(), opened = new Set<string>();
-    const host: Host = { open: new Set(), edits: [], refuse: false, type: (uri, text) => { texts.set(uri, text); server.change(uri, text); } };
+    const texts = new Map<string, string>(), opened = new Set<string>(), versions = new Map<string, number>();
+    const host: Host = { open: new Set(), edits: [], refuse: false, type: (uri, text) => {
+        texts.set(uri, text);
+        versions.set(uri, (versions.get(uri) ?? 1) + 1);
+        server.change(uri, text);
+    } };
     const load = (uri: string, file: string) => {
         if (!texts.has(uri)) texts.set(uri, readFileSync(file, 'utf8'));
         if (!opened.has(uri)) { opened.add(uri); server.open(uri, texts.get(uri)!, 'trig'); }
@@ -66,14 +78,18 @@ function fakeHost(model: WorkspaceModel, server: Awaited<ReturnType<typeof start
         const uri = pathToFileURL(file).href;
         if (!host.open.has(file) && !loading) return undefined;
         load(uri, file);
-        return { uri, text: texts.get(uri)! };
+        return { uri, text: texts.get(uri)!, version: versions.get(uri) ?? 1 };
     });
     // VS Code applies the edit to the open document and the language client sends didChange before the next request.
-    vi.spyOn(model as unknown as { applyEdits(edits: ViewEdit[]): Promise<boolean> }, 'applyEdits').mockImplementation(async edits => {
+    // The version check is the host's: a document whose version moved after the command read it is not replaced.
+    vi.spyOn(model as unknown as { applyEdits(edits: VersionedEdit[]): Promise<string> }, 'applyEdits').mockImplementation(async edits => {
+        host.beforeEdit?.();
+        host.beforeEdit = undefined;
+        if (edits.some(e => e.version !== (versions.get(e.uri) ?? 1))) return 'changed';
         host.edits.push(edits);
-        if (host.refuse) return false;
+        if (host.refuse) return 'refused';
         for (const e of edits) host.type(e.uri, e.text);
-        return true;
+        return 'applied';
     });
     return host;
 }
@@ -115,11 +131,9 @@ test('a canvas command is one edit of the open view document; the next draw read
         fake.type(uri, readFileSync(file, 'utf8'));
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
 
-        // A text change during the queries wins over the command.
-        const documentOf = vi.spyOn(model as unknown as { documentOf(file: string, load: boolean): Promise<unknown> }, 'documentOf');
-        const text = readFileSync(file, 'utf8');
-        documentOf.mockResolvedValueOnce({ uri, text }).mockResolvedValueOnce({ uri, text: text + '\n' });
-        expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The view file changed during the command. Do it again.' });
+        // A text change between the read of the document and the edit wins over the command.
+        fake.beforeEdit = () => fake.type(uri, readFileSync(file, 'utf8') + '\n');
+        expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The view changed during the edit. Do it again.' });
         expect(fake.edits).toHaveLength(1);
 
         fake.refuse = true;
@@ -154,6 +168,24 @@ test('a change of an open view document redraws the canvases after 100 ms; a mod
         model.dispose();
         host.folder = undefined;
         vi.useRealTimers();
+    }
+});
+
+test('WorkspaceModel.applyEdits: the documents load first; a version that moved during the load fails the edit, nothing is applied', async () => {
+    const model = new WorkspaceModel({} as WorkspaceFolder, () => { throw new Error('unused'); }, () => undefined);
+    const apply = (model as unknown as { applyEdits(edits: VersionedEdit[]): Promise<string> }).applyEdits.bind(model);
+    const doc = (path: string, version: number) => ({ uri: { path }, version, lineCount: 1, validateRange: (r: unknown) => r });
+    try {
+        host.applied = [];
+        host.document = path => doc(path, 3);
+        expect(await apply([{ uri: 'a.trig', text: 'A', version: 3 }, { uri: 'b.trig', text: 'B', version: 3 }])).toBe('applied');
+        expect(host.applied).toEqual([[{ uri: { path: 'a.trig' }, text: 'A' }, { uri: { path: 'b.trig' }, text: 'B' }]]);
+        // A keystroke in b.trig while the documents load: its version is 4, the command read 3.
+        host.document = path => doc(path, path === 'b.trig' ? 4 : 3);
+        expect(await apply([{ uri: 'a.trig', text: 'A', version: 3 }, { uri: 'b.trig', text: 'B', version: 3 }])).toBe('changed');
+        expect(host.applied).toHaveLength(1);
+    } finally {
+        model.dispose();
     }
 });
 
