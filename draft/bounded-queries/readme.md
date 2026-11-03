@@ -17,18 +17,22 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 - Read strategy of the figures: rounds driven by the reads the engine misses. The engine is synchronous and stays so. It runs over an index; the reads it missed (`(term, predicate, direction)` or a whole predicate) are fetched with bounded queries; the index grows; repeat until nothing is missed.
 - Blank nodes: fetched as the closure under the object of a read, to depth 4, lists walked with `rdf:rest*`. Never named across queries.
 - A placement of a blank node (`view:element _:x`) is not supported: no figure, the join reports it. Catenary writes property shapes as IRIs; a figure of an anonymous property shape in a foreign file is drawn but cannot be placed by name.
-- The turtle-lsp fork is not changed.
-- Scope of round 1: the figure read only.
+- The turtle-lsp fork is not changed by this work. Its branch `turtle-query-request` (HEAD f46241c, the one going upstream) has no named graphs: `GRAPH` matches nothing, `files` is the only scope, blank nodes are labelled `g<n>` per request. Catenary-vscode follows.
+- The file is the scope. No query uses `GRAPH`, `?g` or a graph IRI. A query that needs one document runs with `files: [file]`; a query that needs the document of a statement runs once per file, for IRI subjects only.
+- Blank-node statements are read over the whole folder (no `files`), so their labels agree with every other whole-folder query. No label crosses two file sets.
+- A placement of a blank node is not supported (round 1).
 
 ## Open
 
+- Incoming reads on a blank list cell reached through the closure are marked covered although nothing above a blank node is fetched (roborev on 05rh). No fixture hits it. Needs a rule for incoming reads on blank nodes.
 - Round 2: the other readers still name blank nodes by skolem IRI and branch on `FILTER (isBlank(?s))`: `src/read/targets.ts` `bindings()`, `src/read/view.ts` `BLANK_STATEMENTS`, `src/edit/facts-of.ts`, `src/read/scope.ts`, `src/read/choices.ts`, `src/vscode/paste-rdf.ts`. They do so because the shapes model (`src/read/shapes-index.ts`) addresses an anonymous property shape by its skolem IRI. The address of such a shape should be its holder statement `(owner, sh:property, n)`, as list figures already do with `listTerm`. Design before katas.
 
 ## Katas
 
 | Kata | Scope | Depends on | State |
 |---|---|---|---|
-| 05rh | `src/read/figures.ts`: miss-driven rounds, closure queries, tests | none | open |
+| 05rh | `src/read/figures.ts`: miss-driven rounds, closure queries, tests | none | merged (06d4284): 47 queries in 3 rounds, longest 1,857 bytes, 233 tests |
+| bq0e | every query: `files` instead of `GRAPH`; per-file reads for IRI subjects; `ModelContext.views`; `viewFileProblem` from the text | 05rh | open |
 
 ## Agent contract (short)
 
