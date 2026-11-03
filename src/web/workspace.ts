@@ -22,7 +22,7 @@ export class WebWorkspace extends WorkspaceCore {
     }
 
     protected async requestGraph(): Promise<GraphResult> {
-        const all = await this.lsp.request('turtle/graph', { literals: true, types: true, maxNodes: 20000 }) as GraphResult;
+        const all = await this.lsp.request('turtle/graph', { literals: true, types: true, maxNodes: 20000, layout: { iterations: 0 } }) as GraphResult;
         return { ...all, edges: all.edges.filter(e => e.uri.startsWith(`file://${ROOT}/`)) };
     }
 

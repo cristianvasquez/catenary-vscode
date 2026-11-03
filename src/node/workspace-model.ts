@@ -43,7 +43,7 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
     protected get name(): string { return this.folder.name; }
 
     protected async requestGraph(): Promise<GraphResult> {
-        const all = await requestGraph(this.api(), { literals: true, types: true, maxNodes: 20000 });
+        const all = await requestGraph(this.api(), { literals: true, types: true, maxNodes: 20000, layout: { iterations: 0 } });
         // turtle-lsp answers for every document of the window: keep the statements of this folder (multi-root workspaces).
         const inFolder = (uri: string) => uri.startsWith('file:') && fileURLToPath(uri).startsWith(this.folder.uri.fsPath + path.sep);
         return { ...all, edges: all.edges.filter(e => inFolder(e.uri)) };

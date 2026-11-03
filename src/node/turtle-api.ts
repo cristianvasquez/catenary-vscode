@@ -27,6 +27,8 @@ export interface GraphParams {
   types?: boolean
   /** Default 2000, max 20000. */
   maxNodes?: number
+  /** Force layout; `iterations: 0` skips it, which is most of the request's time. Positions come back as passed (none). */
+  layout?: { iterations: number }
 }
 
 /** Sends `turtle/graph`. Throws a plain Error when the client is not running. */
