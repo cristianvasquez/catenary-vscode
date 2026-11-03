@@ -2,13 +2,16 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createMessageConnection, StreamMessageReader, StreamMessageWriter } from 'vscode-jsonrpc/node';
 import type { ModelPort } from '../src/model/port';
 import { nodePort } from '../src/node/port';
 import type { QueryAnswer } from '../src/node/sparql-endpoint';
 import type { GraphParams, GraphResult, QueryParams } from '../src/node/turtle-api';
+
+/** The fixture folder of the tests: a manifest, a shapes file, a data file, a SKOS file and two view files. */
+export const FIXTURE = resolve('test/fixtures/shapes');
 
 /** The binary under test: TURTLE_LSP, else the release build of ~/os/rdf/turtle-lsp. */
 const serverPath = process.env.TURTLE_LSP ?? join(homedir(), 'os/rdf/turtle-lsp/target/release/turtle-lsp');
@@ -17,7 +20,7 @@ interface TestServer {
     port(): ModelPort;
     /** The raw turtle/query answer. */
     query(params: QueryParams): Promise<QueryAnswer>;
-    /** The turtle/graph answer (input of the old pipeline, graphOf). */
+    /** The turtle/graph answer (node ranges of the diagnostics).*/
     graph(params: GraphParams): Promise<GraphResult>;
     open(uri: string, text: string, languageId?: string): void;
     change(uri: string, text: string): void;

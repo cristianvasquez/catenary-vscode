@@ -1,40 +1,28 @@
-// Kata mydh. Oracle: executeCommand of src/edit/commands.ts over ViewQuads + Facts gives the same view quads and result as ViewStore.execute
-// on the graph, for every case of store.test.ts and clipboard.test.ts. Then factsOf against the fork binary gives the facts of factsFromGraph.
+// Kata mydh. executeCommand of src/edit/commands.ts through runCommand (turtle/query, fork binary over stdio) gives the view changes and the
+// results that ViewStore.execute of the old pipeline gave, for every case of the old store.test.ts and clipboard.test.ts; factsOf gives the
+// facts of the old graph. The old values were recorded before K11 deleted the old pipeline: test/fixtures/expected/edit-commands.json.
 import type { Quad } from '@rdfjs/types';
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import { copyFromView, VIEW_CLIP_FORMAT, type ViewClip, type ViewCommand } from '../src/catenary/model/commands';
 import { placementOfId } from '../src/catenary/model/doc';
-import { iriId } from '../src/catenary/model/ids';
-import type { NTerm } from '../src/catenary/model/notation-graph';
+import { idIri, iriId } from '../src/catenary/model/ids';
 import type { ShapeRow } from '../src/catenary/model/shapes-schema';
-import { authoringMetamodel } from '../src/catenary/rdf/authoring';
-import type { ModelGraph } from '../src/catenary/rdf/graph';
-import { viewFiguresOf } from '../src/catenary/rdf/notations';
-import { removeTree } from '../src/catenary/rdf/ops';
-import { buildVocabulary, shapesTriples, vocabularyQuads } from '../src/catenary/rdf/shapes';
-import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
-import { rdf, tripleKey } from '../src/catenary/rdf/terms';
-import { readView } from '../src/catenary/rdf/view-read';
-import { V, views as viewGraphs } from '../src/catenary/rdf/views';
-import { P } from '../src/catenary/rdf/vocabulary';
-import { executeCommand, type Views } from '../src/edit/commands';
+import type { Views } from '../src/edit/commands';
+import type { CommandRun } from '../src/edit/executor';
 import type { Facts } from '../src/edit/facts';
 import { commandIris, factsOf } from '../src/edit/facts-of';
-import { ViewQuads } from '../src/edit/view-quads';
-import { diagramOf } from '../src/model/diagram';
-import { graphOf, graphPrefixes } from '../src/model/graph-input';
-import { ViewStore } from './view-store';
-import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
-import { manifestOf } from '../src/read/manifest';
-import { shapesModelOf } from '../src/read/shapes';
-import type { GraphParams } from '../src/node/turtle-api';
-import { factsFromGraph } from './edit-facts';
-import { FIXTURE, fixtureGraph } from './fixture-graph';
-import { startServer } from './server';
+import { removeTree } from '../src/edit/ops';
+import { P, rdf, tripleKey, V } from '../src/edit/terms';
+import { viewText } from '../src/edit/view-quads';
+import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
+import { changeOf, recorded } from './expected';
+import { FIXTURE, startServer } from './server';
+import { type ViewDocuments, viewDocuments } from './views';
 
-// Mark IRIs take random bytes: the same sequence for the old and the new command gives the same IRIs.
+// Mark IRIs take random bytes: each test starts the same sequence, as the recording did.
 const random = vi.hoisted(() => ({ n: 0 }));
 vi.mock('crypto', async importOriginal => {
     const actual = await importOriginal<typeof import('crypto')>();
@@ -42,210 +30,194 @@ vi.mock('crypto', async importOriginal => {
     return { ...actual, default: { ...actual, randomBytes }, randomBytes };
 });
 
-const result = fixtureGraph();
-const files = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
+const R = recorded('edit-commands');
+const cases = new Map<string, number>();
 const view = 'urn:name:Bookshop', model = 'urn:name:Bookshop%20model';
 const vid = iriId(view), mid = iriId(model);
 const at = { x: 1200, y: 1300 };
-let store: ViewStore;
-beforeEach(() => { store = new ViewStore(graphOf(result, files).graph); });
+const SHAPES = join(FIXTURE, 'shapes.ttl'), shapesText = readFileSync(SHAPES, 'utf8');
+const documents = () => readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(FIXTURE, f));
+let server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext, docs: ViewDocuments, shapesChanged = false;
+beforeAll(async () => {
+    server = await startServer(FIXTURE, 282);
+    ctx = (await modelContextOf(server.port(), documents())).ctx;
+    docs = viewDocuments(server, () => ctx, { [view]: join(FIXTURE, 'instances.trig'), [model]: join(FIXTURE, 'model.trig') });
+    server.open(pathToFileURL(SHAPES).href, shapesText);
+}, 20000);
+afterAll(async () => { await server?.stop(); });
+beforeEach(async () => {
+    docs.reset();
+    if (shapesChanged) {
+        server.change(pathToFileURL(SHAPES).href, shapesText);
+        ctx = (await modelContextOf(server.port(), documents())).ctx;
+        shapesChanged = false;
+    }
+    random.n = 0;
+});
 
-const elements = (iri = view) => diagramOf(store.graph, iri).children!;
-const cards = () => elements().filter(e => e.type === 'node:card');
-const card = () => cards()[0].element as string;
-const relation = () => elements().find(e => e.type === 'edge:relation')!.element as string;
-const birthDateRow = () => elements(model).flatMap(e => e.children ?? [])
+/** A change of the shapes file (open buffer): the model context is read again. */
+async function addToShapes(text: string) {
+    server.change(pathToFileURL(SHAPES).href, `${shapesText}\n${text}\n`);
+    shapesChanged = true;
+    ctx = (await modelContextOf(server.port(), documents())).ctx;
+}
+
+const elements = async (iri = view) => (await diagramOf(ctx, iri)).schema.children!;
+const cards = async () => (await elements()).filter(e => e.type === 'node:card');
+const card = async () => (await cards())[0].element as string;
+const relation = async () => (await elements()).find(e => e.type === 'edge:relation')!.element as string;
+const birthDateRow = async () => (await elements(model)).flatMap(e => e.children ?? [])
     .find(e => e.type === 'label:row' && (e as unknown as ShapeRow).parts.map(p => p.text).join('') === 'ex:birthDate')!;
-const keys = (qs: Quad[]) => qs.map(tripleKey).sort();
-const viewQuads = (g: ModelGraph, iri: string) => g.match(null, null, null, rdf.namedNode(iri));
-function run(c: ViewCommand): unknown {
-    const r = store.execute(c);
+const iriOf = (v: string) => v.includes(':') ? v : idIri(v)!;
+/** The views that a command edits: its view; for a paste of a cut, the source and the target. */
+const viewsOf = (c: ViewCommand) => c.kind === 'moveBetweenViews' ? [iriOf(c.from), iriOf(c.to)] : [iriOf(c.view)];
+async function run(c: ViewCommand): Promise<unknown> {
+    const r = await docs.run(c, viewsOf(c));
     expect(r, c.kind).toMatchObject({ ok: true });
     return r.ok ? r.value : undefined;
 }
-const note = () => run({ kind: 'createNote', view: vid, text: 'note', at }) as string;
-const collection = () => run({ kind: 'collect', view: vid, ids: cards().slice(0, 2).map(c => c.element as string) }) as string;
+const note = async () => await run({ kind: 'createNote', view: vid, text: 'note', at }) as string;
+const collection = async () => await run({ kind: 'collect', view: vid, ids: (await cards()).slice(0, 2).map(c => c.element as string) }) as string;
 const clip = (): ViewClip => ({ format: VIEW_CLIP_FORMAT, mode: 'copy', source: view, edges: [], boxes: [{
     kind: 'note', id: 'clipboard-note', text: 'pasted note', x: 0, y: 0, width: 300, height: 150
 }] });
-const clipOf = (iri: string, mode: 'copy' | 'cut') => {
-    const doc = readView(store.graph, mid, shapesIndexOf(store.graph).model);
+const clipOf = async (iri: string, mode: 'copy' | 'cut') => {
+    const doc = (await diagramOf(ctx, mid)).doc;
     return copyFromView(doc, mid, [placementOfId(doc.views[mid], iriId(iri))], mode)!;
 };
-
-/** The authoring metamodel of the graph, as ViewStore.execute computes it. */
-function metaOf(g: ModelGraph) {
-    const dataset = rdf.dataset([...shapesTriples(g), ...vocabularyQuads(g).map(q => rdf.quad(q.subject, q.predicate, q.object))]);
-    return authoringMetamodel(g, buildVocabulary(dataset, g.language));
-}
+const keys = (qs: Quad[]) => qs.map(tripleKey).sort();
+const isX = (k: string) => [V.x, V.y].some(t => k.split(' ')[1] === `<${t.value}>`);
 
 /**
- * The old viewFiguresOf over a copy of the graph whose view graphs are the present quads of `views`: the figures of a view as the old
- * pipeline reads them inside its transaction.
+ * Runs `c` through runCommand on its views and compares the result and the change of each of `iris` with the recorded ViewStore.execute
+ * (keys of the statements added and removed). `byIri`: uncollect releases the members in IRI order (K8), the old one in store order: the ids
+ * compare as sets and the positions are left out. Gives the run and the keys of each view after it.
  */
-function oracleFigures(g: ModelGraph, views: Views) {
-    const mirror = graphOf(result, files).graph;
-    mirror.update(() => {
-        for (const q of mirror.quads()) mirror.remove(q);
-        for (const q of g.quads()) mirror.add(q.subject, q.predicate, q.object, q.graph);
-    });
-    return (iri: string, also: NTerm[] = []) => {
-        mirror.update(() => {
-            for (const [v, quads] of Object.entries(views)) {
-                mirror.removeMatches(null, null, null, rdf.namedNode(v));
-                for (const q of quads.quads()) mirror.add(q.subject, q.predicate, q.object, rdf.namedNode(v));
-            }
-        });
-        return viewFiguresOf(mirror, iri, also);
-    };
+async function compare(c: ViewCommand, iris = [view, model], byIri = false): Promise<{ run: CommandRun; after: Record<string, string[]> }> {
+    const before = Object.fromEntries(await Promise.all(iris.map(async i => [i, await docs.keys(i)] as const)));
+    random.n = 0;
+    const r = await docs.run(c, viewsOf(c));
+    const after = Object.fromEntries(await Promise.all(iris.map(async i => [i, await docs.keys(i)] as const)));
+    const { edits, ...result } = r;
+    const sorted = byIri && result.ok ? { ...result, value: [...result.value as string[]].sort() } : result;
+    const placed = (ks: string[]) => byIri ? ks.filter(k => !isX(k)) : ks;
+    const name = expect.getState().currentTestName!.split(" > ").at(-1)!, n = cases.get(name) ?? 0;
+    cases.set(name, n + 1);
+    const want = R(`${name} ${n}`) as { command: unknown; want: unknown; views: Record<string, ReturnType<typeof changeOf>> };
+    expect(JSON.parse(JSON.stringify(c)), 'command').toEqual(want.command);
+    expect(JSON.parse(JSON.stringify(sorted)), c.kind).toEqual(want.want);
+    for (const i of iris) expect(changeOf(placed(before[i]), placed(after[i])), `${c.kind} ${i}`).toEqual(want.views[i]);
+    if (!r.ok) expect(edits).toEqual([]);
+    return { run: r, after };
 }
 
-/**
- * Runs the new executeCommand on the quads of `iris` with the facts of the graph and the old figures, then ViewStore.execute on the graph.
- * The results must be equal; after a success, the view quads of each view must be the same set. A failure changes nothing in the store;
- * the caller drops the views of a failed command. `byIri`: uncollect releases the members in IRI order (K8), the old one in store order: the
- * ids compare as sets and the positions are left out.
- */
-function compare(c: ViewCommand, iris = [view, model], byIri = false): { views: Views; value: unknown } {
-    const g = store.graph;
-    graphPrefixes(g);
-    const views: Views = Object.fromEntries(iris.map(i => [i, new ViewQuads(viewQuads(g, i), rdf.namedNode(i))]));
-    const before = Object.fromEntries(iris.map(i => [i, keys(viewQuads(g, i))]));
-    const facts = factsFromGraph(g), meta = metaOf(g), figures = oracleFigures(g, views);
-    random.n = 0;
-    const got = executeCommand(views, facts, figures, meta, c);
-    random.n = 0;
-    const want = store.execute(c);
-    const sorted = (r: typeof got) => byIri && r.ok ? { ...r, value: [...r.value as string[]].sort() } : r;
-    expect(sorted(got), c.kind).toEqual(sorted(want));
-    const placed = (qs: Quad[]) => keys(byIri ? qs.filter(q => !q.predicate.equals(V.x) && !q.predicate.equals(V.y)) : qs);
-    for (const i of iris) {
-        if (want.ok) expect(placed(views[i].quads()), `${c.kind} ${i}`).toEqual(placed(viewQuads(g, i)));
-        else expect(keys(viewQuads(g, i))).toEqual(before[i]);
-    }
-    if (want.ok && want.changed !== false) expect(iris.some(i => views[i].steps().length > 0), c.kind).toBe(true);
-    return { views, value: got.ok ? got.value : undefined };
-}
-
-describe('executeCommand equals ViewStore.execute (store.test.ts, clipboard.test.ts)', () => {
-    test('addToView', () => {
-        const id = card(); run({ kind: 'removeFromView', view: vid, ids: [id] });
-        compare({ kind: 'addToView', view, ids: [id], at });
+describe('executeCommand through runCommand equals the recorded ViewStore.execute (store.test.ts, clipboard.test.ts)', () => {
+    test('addToView', async () => {
+        const id = await card(); await run({ kind: 'removeFromView', view: vid, ids: [id] });
+        await compare({ kind: 'addToView', view, ids: [id], at });
     });
-    test('showRelations', () => {
-        const id = relation(); run({ kind: 'hideEdges', view: vid, ids: [id], hidden: true });
-        compare({ kind: 'showRelations', view: vid, ids: [id], at });
+    test('showRelations', async () => {
+        const id = await relation(); await run({ kind: 'hideEdges', view: vid, ids: [id], hidden: true });
+        await compare({ kind: 'showRelations', view: vid, ids: [id], at });
     });
-    test('showAsEdge', () => {
-        const shape = elements(model).find(e => e.type === 'edge:property' && e.name === 'ex:stocks')!;
-        run({ kind: 'removeFromView', view: mid, ids: [shape.id] });
-        compare({ kind: 'showAsEdge', view: mid, id: shape.id, at });
+    test('showAsEdge', async () => {
+        const shape = (await elements(model)).find(e => e.type === 'edge:property' && e.name === 'ex:stocks')!;
+        await run({ kind: 'removeFromView', view: mid, ids: [shape.id] });
+        await compare({ kind: 'showAsEdge', view: mid, id: shape.id, at });
     });
-    test('showAsEdge of a datatype row places a Pill mark', () => {
-        const { views } = compare({ kind: 'showAsEdge', view: mid, id: birthDateRow().id, at });
-        expect(views[model].match(null, P.type, V.Pill)).toHaveLength(1);
+    const pills = (keys: string[]) => keys.filter(k => k.endsWith(` <${P.type.value}> <${V.Pill.value}>`));
+    test('showAsEdge of a datatype row places a Pill mark', async () => {
+        const { after } = await compare({ kind: 'showAsEdge', view: mid, id: (await birthDateRow()).id, at });
+        expect(pills(after[model])).toHaveLength(1);
     });
-    test('showAsEdge of a datatype with hasValue targets its placed Pill', () => {
-        const row = birthDateRow();
-        const property = rdf.namedNode(shapesIndexOf(store.graph).model.properties[row.id].uri!);
-        const graph = store.graph.match(property)[0].graph;
-        store.graph.update(() => store.graph.add(property, rdf.namedNode('http://www.w3.org/ns/shacl#hasValue'), rdf.literal('2000-01-01'), graph));
-        compare({ kind: 'showAsEdge', view: mid, id: row.id, at });
+    test('showAsEdge of a datatype with hasValue targets its placed Pill', async () => {
+        const row = await birthDateRow();
+        await addToShapes(`<${ctx.shapes.index.model.properties[row.id].uri}> <http://www.w3.org/ns/shacl#hasValue> "2000-01-01" .`);
+        await compare({ kind: 'showAsEdge', view: mid, id: row.id, at });
     });
-    test.each(['line', 'pill'])('removeFromView of a datatype %s removes its mark and restores the row', end => {
-        const row = birthDateRow();
-        run({ kind: 'showAsEdge', view: mid, id: row.id, at });
-        const edge = elements(model).find(e => e.id === row.id && e.type === 'edge:property')!;
-        compare({ kind: 'removeFromView', view: mid, ids: [end === 'line' ? edge.id : edge.targetId as string] });
-        expect(store.graph.match(null, P.type, V.Pill)).toHaveLength(0);
+    test.each(['line', 'pill'])('removeFromView of a datatype %s removes its mark and restores the row', async end => {
+        const row = await birthDateRow();
+        await run({ kind: 'showAsEdge', view: mid, id: row.id, at });
+        const edge = (await elements(model)).find(e => e.id === row.id && e.type === 'edge:property')!;
+        const { after } = await compare({ kind: 'removeFromView', view: mid, ids: [end === 'line' ? edge.id : edge.targetId as string] });
+        expect(pills(after[model])).toHaveLength(0);
     });
-    test('setBounds moves a datatype Pill without moving its card', () => {
-        const row = birthDateRow();
-        run({ kind: 'showAsEdge', view: mid, id: row.id, at });
-        compare({ kind: 'setBounds', view: mid, bounds: [{ id: row.id + '_leaf', x: 700, y: 800 }] });
+    test('setBounds moves a datatype Pill without moving its card', async () => {
+        const row = await birthDateRow();
+        await run({ kind: 'showAsEdge', view: mid, id: row.id, at });
+        await compare({ kind: 'setBounds', view: mid, bounds: [{ id: row.id + '_leaf', x: 700, y: 800 }] });
     });
-    test('removeFromView', () => compare({ kind: 'removeFromView', view: vid, ids: [card()] }));
-    test('setBounds', () => compare({ kind: 'setBounds', view: vid, bounds: [{ id: card(), ...at, width: 600 }] }));
-    test('setLayout', () => compare({ kind: 'setLayout', view: vid, bounds: [{ id: card(), ...at }] }));
-    test('setEdgeLayout', () => compare({ kind: 'setEdgeLayout', view: vid, relation: relation(), patch: { color: '#ff0000', vertices: [{ x: 12, y: 34 }] } }));
-    test('setViewElements', () => compare({ kind: 'setViewElements', view: vid, ids: [card()], patch: { color: '#123456', display: 'simple' } }));
-    test('hideEdges', () => compare({ kind: 'hideEdges', view: vid, ids: [relation()], hidden: true }));
-    test('createGroup', () => compare({ kind: 'createGroup', view: vid, label: 'frame', around: [card()] }));
-    test('createNote', () => compare({ kind: 'createNote', view: vid, text: 'new note', at }));
-    test('createArrow', () => compare({ kind: 'createArrow', view: vid, from: note(), to: card() }));
-    test('addViewReference', () => {
-        for (const e of elements().filter(e => e.type === 'node:view-reference')) run({ kind: 'removeFromView', view: vid, ids: [e.id] });
-        compare({ kind: 'addViewReference', view: vid, target: mid, at });
+    test('removeFromView', async () => { await compare({ kind: 'removeFromView', view: vid, ids: [await card()] }); });
+    test('setBounds', async () => { await compare({ kind: 'setBounds', view: vid, bounds: [{ id: await card(), ...at, width: 600 }] }); });
+    test('setLayout', async () => { await compare({ kind: 'setLayout', view: vid, bounds: [{ id: await card(), ...at }] }); });
+    test('setEdgeLayout', async () => { await compare({ kind: 'setEdgeLayout', view: vid, relation: await relation(), patch: { color: '#ff0000', vertices: [{ x: 12, y: 34 }] } }); });
+    test('setViewElements', async () => { await compare({ kind: 'setViewElements', view: vid, ids: [await card()], patch: { color: '#123456', display: 'simple' } }); });
+    test('hideEdges', async () => { await compare({ kind: 'hideEdges', view: vid, ids: [await relation()], hidden: true }); });
+    test('createGroup', async () => { await compare({ kind: 'createGroup', view: vid, label: 'frame', around: [await card()] }); });
+    test('createNote', async () => { await compare({ kind: 'createNote', view: vid, text: 'new note', at }); });
+    test('createArrow', async () => { await compare({ kind: 'createArrow', view: vid, from: await note(), to: await card() }); });
+    test('addViewReference', async () => {
+        for (const e of (await elements()).filter(e => e.type === 'node:view-reference')) await run({ kind: 'removeFromView', view: vid, ids: [e.id] });
+        await compare({ kind: 'addViewReference', view: vid, target: mid, at });
     });
-    test('addFileReference', () => compare({ kind: 'addFileReference', view: vid, file: '../readme.md', at }));
-    test('collect', () => compare({ kind: 'collect', view: vid, ids: cards().slice(0, 2).map(c => c.element as string) }));
-    test('addToCollection', () => { const id = collection(); compare({ kind: 'addToCollection', view: vid, id, ids: [card()] }); });
-    test('uncollect: the members in IRI order', () => {
-        const { views, value } = compare({ kind: 'uncollect', view: vid, id: collection() }, [view, model], true);
-        expect(value).toEqual([...value as string[]].sort());
-        expect((value as string[]).length).toBe(2);
-        expect(views[view].changes().added.some(q => q.predicate.equals(V.x))).toBe(true);
+    test('addFileReference', async () => { await compare({ kind: 'addFileReference', view: vid, file: '../readme.md', at }); });
+    test('collect', async () => { await compare({ kind: 'collect', view: vid, ids: (await cards()).slice(0, 2).map(c => c.element as string) }); });
+    test('addToCollection', async () => { const id = await collection(); await compare({ kind: 'addToCollection', view: vid, id, ids: [await card()] }); });
+    test('uncollect: the members in IRI order', async () => {
+        const { run: r, after } = await compare({ kind: 'uncollect', view: vid, id: await collection() }, [view, model], true);
+        const value = (r as { value: string[] }).value;
+        expect(value).toEqual([...value].sort());
+        expect(value.length).toBe(2);
+        expect(after[view].some(isX)).toBe(true);
     });
-    test('pasteIntoView', () => compare({ kind: 'pasteIntoView', view: vid, clip: clip(), at }));
-    test('moveBetweenViews', () => {
-        const id = note(), c = clip(); c.boxes[0].id = id; c.mode = 'cut';
-        compare({ kind: 'moveBetweenViews', from: view, to: model, clip: c, at });
+    test('pasteIntoView', async () => { await compare({ kind: 'pasteIntoView', view: vid, clip: clip(), at }); });
+    test('moveBetweenViews', async () => {
+        const id = await note(), c = clip(); c.boxes[0].id = id; c.mode = 'cut';
+        await compare({ kind: 'moveBetweenViews', from: view, to: model, clip: c, at });
     });
-    test('setViewElements edits note text', () => {
-        compare({ kind: 'setViewElements', view: vid, ids: [note()], patch: { text: 'edited note' }, expectedText: 'note' });
+    test('setViewElements edits note text', async () => {
+        await compare({ kind: 'setViewElements', view: vid, ids: [await note()], patch: { text: 'edited note' }, expectedText: 'note' });
     });
-    test('skolem shape placement keeps the skolem IRI in the view graph', () => {
-        const iri = 'urn:skolem:blank:doc:1', t = rdf.namedNode(iri), sg = store.graph.shapesGraphs()[0];
-        store.graph.update(() => store.graph.add(t, P.type, rdf.namedNode('http://www.w3.org/ns/shacl#NodeShape'), sg));
-        const { views } = compare({ kind: 'addToView', view: mid, ids: [iri], at });
-        expect(views[model].match(null, V.element, t)).toHaveLength(1);
+    test('a placed blank-node shape keeps its skolem IRI in the view graph', async () => {
+        await addToShapes('[] a <http://www.w3.org/ns/shacl#NodeShape> ; <http://www.w3.org/2000/01/rdf-schema#label> "anonymous shape" .');
+        const [row] = await server.port().select('SELECT ?s WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#label> "anonymous shape" }', [SHAPES]);
+        const iri = row.s.value;
+        expect(iri).toMatch(/^urn:skolem:blank:/);
+        expect(await docs.run({ kind: 'addToView', view: mid, ids: [iri], at }, [model])).toMatchObject({ ok: true });
+        expect((await docs.keys(model)).filter(k => k.endsWith(` <${V.element.value}> <${iri}>`))).toHaveLength(1);
     });
-    test('a failure after an earlier change gives the same error', () => {
-        compare({ kind: 'setViewElements', view: vid, ids: [note(), 'missing'], patch: { text: 'changed' } });
+    test('a failure after an earlier change gives the same error', async () => {
+        await compare({ kind: 'setViewElements', view: vid, ids: [await note(), 'missing'], patch: { text: 'changed' } });
     });
-    test('a no-op changes nothing', () => {
-        const { views } = compare({ kind: 'addToView', view: vid, ids: [card()], at });
-        expect(views[view].steps()).toHaveLength(0);
+    test('a no-op changes nothing', async () => {
+        const { run: r } = await compare({ kind: 'addToView', view: vid, ids: [await card()], at });
+        expect(r.edits).toHaveLength(0);
     });
-    test('the paste of a copied node shape card into another view (clipboard)', () => {
-        compare({ kind: 'pasteIntoView', view: vid, clip: clipOf('urn:name:Author%20shape', 'copy'), at: { x: 0, y: 0 } });
+    test('the paste of a copied node shape card into another view (clipboard)', async () => {
+        await compare({ kind: 'pasteIntoView', view: vid, clip: await clipOf('urn:name:Author%20shape', 'copy'), at: { x: 0, y: 0 } });
     });
-    test('the paste of a cut moves the card: two views change (clipboard)', () => {
-        const c = clipOf('urn:name:Book%20shape', 'cut');
-        const { views } = compare({ kind: 'moveBetweenViews', from: c.source, to: vid, clip: c, at: { x: 0, y: 0 } });
-        expect(views[view].steps().length).toBeGreaterThan(0);
-        expect(views[model].steps().length).toBeGreaterThan(0);
+    test('the paste of a cut moves the card: two views change (clipboard)', async () => {
+        const c = await clipOf('urn:name:Book%20shape', 'cut');
+        const { run: r } = await compare({ kind: 'moveBetweenViews', from: c.source, to: vid, clip: c, at: { x: 0, y: 0 } });
+        expect(r.edits).toHaveLength(2);
     });
-    test('setBounds of an element that it places itself moves the bends of a line to it (figures after the add)', () => {
-        const line = elements(model).find(e => e.type === 'edge:property' && e.name === 'ex:stocks')! as unknown as { id: string };
-        run({ kind: 'setEdgeLayout', view: mid, relation: line.id, patch: { vertices: [{ x: 5, y: 6 }] } });
-        const shop = elements(model).find(e => e.element === iriId('urn:name:Bookshop%20shape'))! as unknown as { element: string; position: { x: number; y: number } };
+    test('setBounds of an element that it places itself moves the bends of a line to it (figures after the add)', async () => {
+        const line = (await elements(model)).find(e => e.type === 'edge:property' && e.name === 'ex:stocks')! as unknown as { id: string };
+        await run({ kind: 'setEdgeLayout', view: mid, relation: line.id, patch: { vertices: [{ x: 5, y: 6 }] } });
+        const shop = (await elements(model)).find(e => e.element === iriId('urn:name:Bookshop%20shape'))! as unknown as { element: string; position: { x: number; y: number } };
         // The card of Book shape loses its placement; the line placement and its bends stay.
-        const book = rdf.namedNode('urn:name:Book%20shape'), g0 = rdf.namedNode(model);
-        const placement = store.graph.match(null, V.element, book, g0)[0].subject;
-        store.graph.update(() => removeTree(store.graph, placement, g0));
-        const before = keys(viewQuads(store.graph, model).filter(q => q.predicate.equals(V.vertices)));
-        compare({ kind: 'setBounds', view: mid, bounds: [{ id: shop.element, x: shop.position.x + 40, y: shop.position.y + 30 }, { id: iriId(book.value), x: 40, y: 30 }] }, [model]);
-        expect(keys(viewQuads(store.graph, model).filter(q => q.predicate.equals(V.vertices)))).not.toEqual(before);
+        const book = rdf.namedNode('urn:name:Book%20shape'), quads = await docs.quads(model);
+        const facts = await factsOf(ctx, { kind: 'removeFromView', view: mid, ids: [iriId(book.value)] }, { [model]: quads });
+        removeTree(quads, facts, quads.match(null, V.element, book)[0].subject);
+        docs.set(model, viewText(quads));
+        const bends = async () => (await docs.keys(model)).filter(k => k.split(' ')[1] === `<${V.vertices.value}>`);
+        const before = await bends();
+        await compare({ kind: 'setBounds', view: mid, bounds: [{ id: shop.element, x: shop.position.x + 40, y: shop.position.y + 30 }, { id: iriId(book.value), x: 40, y: 30 }] }, [model]);
+        expect(await bends()).not.toEqual(before);
     });
 });
 
-/** The params of the recorded turtle/graph answer: the old pipeline reads the same answer from the server under test. */
-const graphParams = () => (JSON.parse(readFileSync(join(FIXTURE, 'graph.json'), 'utf8')) as { params: GraphParams }).params;
-
-describe('factsOf against the fork binary equals factsFromGraph on test/fixtures/shapes', () => {
-    let server: Awaited<ReturnType<typeof startServer>>, graph: ModelGraph, ctx: Parameters<typeof factsOf>[0];
-    beforeAll(async () => {
-        server = await startServer(FIXTURE, 282);
-        const port = server.port();
-        const rdfFiles = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(FIXTURE, f));
-        const viewFiles = await viewFilesOf(port, rdfFiles.filter(f => f.endsWith('.trig')));
-        const modelFiles = modelFilesOf(rdfFiles, viewFiles), manifest = await manifestOf(port, modelFiles);
-        ctx = { port, modelFiles, manifest, shapes: await shapesModelOf(port, modelFiles, manifest) };
-        graph = graphOf(await server.graph(graphParams()), [...viewFiles.views.values()]).graph;
-    }, 20000);
-    afterAll(async () => { await server?.stop(); });
-
+describe('factsOf against the fork binary equals the recorded facts of the old graph on test/fixtures/shapes', () => {
     /** The facts that a command uses, for each IRI that the prefetch asks about. */
     function facts(f: Facts, iris: string[], doc: boolean) {
         return {
@@ -261,8 +233,8 @@ describe('factsOf against the fork binary equals factsFromGraph on test/fixtures
         };
     }
 
-    const commands = (): ViewCommand[] => {
-        const g = graph, doc = readView(g, mid, shapesIndexOf(g).model), d = diagramOf(g, view).children!, dm = diagramOf(g, model).children!;
+    const commands = async (): Promise<ViewCommand[]> => {
+        const doc = (await diagramOf(ctx, mid)).doc, d = await elements(view), dm = await elements(model);
         const ids = d.filter(e => e.type === 'node:card').map(e => e.element as string), rel = d.find(e => e.type === 'edge:relation')!.element as string;
         const line = dm.find(e => e.type === 'edge:property')!.id, cut = copyFromView(doc, mid, [placementOfId(doc.views[mid], iriId('urn:name:Book%20shape'))], 'cut')!;
         return [
@@ -279,18 +251,21 @@ describe('factsOf against the fork binary equals factsFromGraph on test/fixtures
         ];
     };
 
-    test('the 19 command kinds are covered', () => {
-        expect(new Set(commands().map(c => c.kind)).size).toBe(19);
+    test('the 19 command kinds are covered', async () => {
+        expect(new Set((await commands()).map(c => c.kind)).size).toBe(19);
     });
 
-    test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: factsOf gives the facts of factsFromGraph for its IRIs', async i => {
-        graphPrefixes(graph);
-        const c = commands()[i];
-        const views: Views = Object.fromEntries(viewGraphs(graph).map(v => [v.value, new ViewQuads(viewQuads(graph, v.value), v)]));
+    test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: factsOf gives the recorded facts of the old graph for its IRIs', async i => {
+        const c = (await commands())[i];
+        const views: Views = Object.fromEntries(await Promise.all([view, model].map(async v => [v, await docs.quads(v)] as const)));
         const iris = commandIris(ctx.shapes, c, views);
         expect(iris.length).toBeGreaterThan(0);
         const doc = ['collect', 'pasteIntoView', 'moveBetweenViews'].includes(c.kind);
         const got = await factsOf(ctx, c, views);
-        expect(facts(got, iris, doc), c.kind).toEqual(facts(factsFromGraph(graph), iris, doc));
+        const want = R(`facts ${i}`) as { command: unknown; iris: string[]; facts: unknown };
+        expect(JSON.parse(JSON.stringify(c))).toEqual(want.command);
+        // The IRIs come in the order of the view statements: the server and the old store give them in another order.
+        expect([...iris].sort()).toEqual([...want.iris].sort());
+        expect(JSON.parse(JSON.stringify(facts(got, want.iris, doc))), c.kind).toEqual(want.facts);
     });
 });

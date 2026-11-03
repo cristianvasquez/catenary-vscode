@@ -65,7 +65,7 @@ interface Position {
   character: number
 }
 
-export interface GraphNode {
+interface GraphNode {
   id: string
   label?: string
   name: string

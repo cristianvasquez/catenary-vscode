@@ -1,20 +1,14 @@
-// Kata af1j: the built-in notation files read with n3 give the same notation records as the Oxigraph parser.
+// Kata af1j: the built-in notation files read with n3 give the statements that the Oxigraph parser gave (recorded before K11 removed
+// Oxigraph: test/fixtures/expected/notations.json).
 import type { Quad, Term } from '@rdfjs/types';
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { expect, test } from 'vitest';
-import { notations } from '../src/catenary/model/notation';
 import type { NQuad, NTerm } from '../src/catenary/model/notation-graph';
 import { termToJSON, type TermJSON } from '../src/catenary/model/terms';
 import { parseNotationFiles } from '../src/catenary/rdf/notations';
-import { parseRdfSync } from '../src/catenary/rdf-files/oxigraph-store';
+import { json, recorded } from './expected';
 
-const DIR = 'src/catenary/rdf/notations';
-
-/** The Oxigraph parse of the notation files, as the old readNotations did it. */
-const oxigraphQuads = (): Quad[] => readdirSync(DIR).filter(f => f.endsWith('.ttl')).sort()
-    .flatMap(f => parseRdfSync(readFileSync(join(DIR, f), 'utf8'), 'text/turtle'));
+const R = recorded('notations');
 
 /**
  * Engine triples with each blank node named by its place: the name of its holder, the predicate and its own statements, so that the
@@ -45,9 +39,8 @@ function canonical(quads: Quad[]): NQuad[] {
     return triples;
 }
 
-test('the notation files give the same statements and the same notation index as the Oxigraph parser', () => {
-    const old = canonical(oxigraphQuads()), now = canonical(parseNotationFiles());
+test('the notation files give the recorded statements of the Oxigraph parser', () => {
+    const now = canonical(parseNotationFiles());
     expect(now.length).toBeGreaterThan(300);
-    expect(now).toEqual(old);
-    expect(notations(now)).toEqual(notations(old));
+    expect(json(now)).toEqual(R('statements'));
 });

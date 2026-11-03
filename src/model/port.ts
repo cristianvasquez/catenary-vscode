@@ -2,7 +2,6 @@
 import type { Quad, Term } from '@rdfjs/types';
 import { rdf } from '../catenary/rdf/terms';
 import type { JsonTerm, JsonTriple, QueryAnswer } from '../node/sparql-endpoint';
-import { toEngine } from './nquads';
 
 /** One SELECT row: variable name → term. An unbound variable is absent. */
 export type Row = Record<string, Term>;
@@ -16,6 +15,16 @@ export interface ModelPort {
 
 /** Runs one query text over the given file paths and gives the turtle/query answer. */
 export type RunQuery = (query: string, files?: string[]) => Promise<QueryAnswer>;
+
+const BLANK = 'urn:skolem:blank:';
+const pad = (n: string, w: number) => n.padStart(w, '0');
+
+/** The IRI of an LSP blank-node id (`_:<document>:<n>`): `urn:skolem:blank:<d padded 6>-<n padded 8>`; another value stays as given. */
+export function toEngine(id: string): string {
+    if (!id.startsWith('_:')) return id;
+    const m = /^_:(\d+):(\d+)$/.exec(id);
+    return m && m[1].length <= 6 && m[2].length <= 8 ? `${BLANK}${pad(m[1], 6)}-${pad(m[2], 8)}` : `${BLANK}x${encodeURIComponent(id.slice(2))}`;
+}
 
 const XSD_STRING = 'http://www.w3.org/2001/XMLSchema#string';
 const LANG_STRING = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#langString';

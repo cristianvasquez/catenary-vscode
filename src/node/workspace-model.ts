@@ -5,13 +5,12 @@ import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as vscode from 'vscode';
-import { isViewFile } from '../model/graph-input';
 import type { ModelPort } from '../model/port';
 import { type VersionedEdit, type ViewDocumentState, WorkspaceCore } from '../model/workspace-core';
 import { nodePort } from './port';
 import { type TurtleApi, type GraphResult, requestGraph } from './turtle-api';
 
-/** Candidate view files: a .trig file is a view when it has a view:View (isViewFile). */
+/** Candidate view files: a .trig file is a view when it has a view:View graph (viewFilesOf). */
 const VIEW_FILES = '**/*.trig';
 /** The RDF documents whose text changes refresh the model (turtle-lsp: Turtle and TriG). */
 const MODEL_DOCUMENT = /\.(ttl|trig)$/;
@@ -30,7 +29,7 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
         const schedule = () => this.schedule();
         this.disposables.push(watcher, watcher.onDidChange(schedule), watcher.onDidCreate(schedule), watcher.onDidDelete(schedule),
             vscode.workspace.onDidSaveTextDocument(doc => {
-                if (!isViewFile(doc.uri.fsPath, doc.getText()) && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
+                if (!this.viewOfFile(doc.uri.fsPath) && vscode.workspace.getWorkspaceFolder(doc.uri) === folder) schedule();
             }),
             // turtle-lsp reads the open buffer of a document: the next query sees the change before a save. A view document redraws the
             // canvases; any other RDF document of the folder refreshes the model (an empty new file is in no list yet).
@@ -52,10 +51,6 @@ export class WorkspaceModel extends WorkspaceCore implements vscode.Disposable {
         // turtle-lsp answers for every document of the window: keep the statements of this folder (multi-root workspaces).
         const inFolder = (uri: string) => uri.startsWith('file:') && fileURLToPath(uri).startsWith(this.folder.uri.fsPath + path.sep);
         return { ...all, edges: all.edges.filter(e => inFolder(e.uri)) };
-    }
-
-    protected async viewFilePaths(): Promise<string[]> {
-        return (await vscode.workspace.findFiles(new vscode.RelativePattern(this.folder, VIEW_FILES))).map(u => u.fsPath).filter(f => { try { return isViewFile(f, readFileSync(f, 'utf8')); } catch { return false; } }).sort();
     }
 
     protected diagnosticsByUri(): Record<string, vscode.Diagnostic[]> {

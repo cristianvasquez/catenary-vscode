@@ -1,6 +1,7 @@
 // Kata v3y7: runCommand over the fork binary. A command on a model blank node (the isBlank branches of the factsOf prefetch, K9), and a
 // paste of a cut that edits two view documents.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { Parser } from 'n3';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -8,16 +9,14 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { copyFromView } from '../src/catenary/model/commands';
 import { placementOfId } from '../src/catenary/model/doc';
 import { iriId } from '../src/catenary/model/ids';
-import { parseRdfSync } from '../src/catenary/rdf-files/oxigraph-store';
 import { runCommand } from '../src/edit/executor';
 import { tripleKey } from '../src/edit/terms';
 import { diagramOf, modelContextOf, type ModelContext } from '../src/read/diagram';
-import { FIXTURE } from './fixture-graph';
-import { startServer } from './server';
+import { FIXTURE, startServer } from './server';
 
 const VIEW = 'https://cristianvasquez.github.io/catenary/vocab/view#';
 const at = { x: 500, y: 600 };
-const keys = (text: string, iri: string) => parseRdfSync(text, 'application/trig').filter(q => q.graph.value === iri).map(tripleKey).sort();
+const keys = (text: string, iri: string) => new Parser({ format: 'application/trig' }).parse(text).filter(q => q.graph.value === iri).map(tripleKey).sort();
 
 describe('a model blank node', () => {
     const dir = mkdtempSync(join(tmpdir(), 'catenary-blank-')), view = 'urn:name:Blank';

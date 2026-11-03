@@ -4,7 +4,6 @@ import type { Quad, Term } from '@rdfjs/types';
 import { isSkolem } from '../rdf-core/skolem';
 import { mapTerm, termKey } from '../rdf-files/terms';
 import { rdf } from './terms';
-import { V } from './views';
 import { P } from './vocabulary';
 
 
@@ -23,31 +22,6 @@ export function readLegacy(quads: Quad[]): { quads: Quad[]; changed: boolean } {
     });
     const out = quads.map(q => rdf.quad(map(q.subject), map(q.predicate), map(q.object), q.graph));
     return { quads: changed ? out : quads, changed };
-}
-
-
-/**
- * Why the quads of a view file are not a view, or undefined. A view file has one named graph `G` and no statements outside it; `G`
- * is the only view:View. Each placement has one `view:view G`. A view places an element (view:element) or a triple (rdf:reifies) once.
- */
-export function viewProblem(quads: Quad[]): string | undefined {
-    const graphs = rdf.termSet(quads.map(q => q.graph));
-    if (graphs.size !== 1 || quads[0].graph.termType !== 'NamedNode') return `a view file has one named graph, the view; it has ${graphs.size} graph(s)${[...graphs].some(g => g.termType === 'DefaultGraph') ? ', with the default graph' : ''}`;
-    const g = quads[0].graph;
-    const views = rdf.termSet(quads.filter(q => q.predicate.equals(P.type) && q.object.equals(V.View)).map(q => q.subject));
-    if (views.size !== 1 || ![...views][0].equals(g)) return `the graph <${g.value}> must contain exactly one view:View, <${g.value}> itself; found ${[...views].map(v => `<${v.value}>`).join(', ') || 'none'}`;
-    const placed = new Map<string, string>();
-    for (const p of quads.filter(q => q.predicate.equals(P.type) && q.object.equals(V.Placement)).map(q => q.subject)) {
-        const name = `<${p.value}>`;
-        const of = quads.filter(q => q.subject.equals(p) && q.predicate.equals(V.view)).map(q => q.object);
-        if (of.length !== 1 || !of[0].equals(g)) return `${name} needs one view:view <${g.value}>; it has ${of.map(o => `<${o.value}>`).join(', ') || 'none'}`;
-        for (const q of quads.filter(q => q.subject.equals(p) && (q.predicate.equals(V.element) || q.predicate.equals(P.reifies)))) {
-            const k = termKey(q.object), other = placed.get(k);
-            if (other) return `${other} and ${name} place the same ${q.object.termType === 'Quad' ? 'triple' : 'element'}; a view places it once`;
-            placed.set(k, name);
-        }
-    }
-    return undefined;
 }
 
 

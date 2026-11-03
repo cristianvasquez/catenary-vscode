@@ -3,9 +3,9 @@
 import type { Diagnostic } from 'vscode';
 import type { Violation } from '../catenary/model/validation';
 import { elementId } from '../catenary/rdf/ids';
-import type { ShapesIndex } from '../catenary/rdf/shapes-read';
+import type { ShapesIndex } from './shapes-index';
 import { rdf, termKey } from '../catenary/rdf/terms';
-import { toEngine } from '../model/nquads';
+import { toEngine } from '../model/port';
 import type { GraphResult } from '../node/turtle-api';
 import type { ModelContext } from './diagram';
 import { factsOf, inShapesOf } from './neighbors';
@@ -22,10 +22,10 @@ const between = (text: string, a: Position, b: Position) => {
 };
 
 /** One SHACL diagnostic at its place: the focus IRI, the predicate of its statement, the shape node of its related information. */
-export interface DiagnosticSite { uri: string; d: Diagnostic; focus: string; predicate?: string; shapeId?: string }
+interface DiagnosticSite { uri: string; d: Diagnostic; focus: string; predicate?: string; shapeId?: string }
 
 /** The SHACL diagnostics of `byUri` that map to a focus term of `result`, in order. */
-export function diagnosticSites(result: GraphResult, byUri: Record<string, Diagnostic[]>, textOf: (uri: string) => string): DiagnosticSite[] {
+function diagnosticSites(result: GraphResult, byUri: Record<string, Diagnostic[]>, textOf: (uri: string) => string): DiagnosticSite[] {
     const within = (r: GraphResult['nodes'][number]['range'], p: Position) =>
         (p.line > r.start.line || (p.line === r.start.line && p.character >= r.start.character)) && (p.line < r.end.line || (p.line === r.end.line && p.character <= r.end.character));
     const before = (a: Position, b: Position) => a.line < b.line || (a.line === b.line && a.character <= b.character);
@@ -59,7 +59,7 @@ export function diagnosticSites(result: GraphResult, byUri: Record<string, Diagn
 }
 
 /** The violation of a site, with the classes and the instance test of its focus IRI. */
-export function violationOf(index: ShapesIndex, site: DiagnosticSite, classes: string[], instance: boolean): Violation {
+function violationOf(index: ShapesIndex, site: DiagnosticSite, classes: string[], instance: boolean): Violation {
     const { uri, d, focus, predicate, shapeId } = site;
     let shape = shapeId ? index.byTerm.get(termKey(rdf.namedNode(toEngine(shapeId)))) : undefined;
     // turtle-lsp can omit relatedInformation. Only infer an unambiguous simple property shape.

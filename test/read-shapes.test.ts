@@ -1,59 +1,43 @@
-// Kata q74p: the shapes model from turtle/query (fork binary over stdio) equals the old pipeline on test/fixtures/shapes.
-import type { NamedNode, Quad, Term } from '@rdfjs/types';
+// Kata q74p: the shapes model from turtle/query (fork binary over stdio) on test/fixtures/shapes, against the values that the old pipeline
+// gave (recorded before K11 deleted it: test/fixtures/expected/read-shapes.json).
+import type { Quad, Term } from '@rdfjs/types';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { authoringMetamodel } from '../src/catenary/rdf/authoring';
-import type { ModelGraph } from '../src/catenary/rdf/graph';
-import { UNION_GRAPH, dataGraphIri, fileOfGraph, shapesGraphIri } from '../src/catenary/rdf/graph-names';
+import { dataGraphIri } from '../src/catenary/rdf/files';
 import { shapePart } from '../src/catenary/rdf/loader';
-import { buildVocabulary, shapesTriples, vocabularyQuads } from '../src/catenary/rdf/shapes';
-import { shapesIndexOf } from '../src/catenary/rdf/shapes-read';
-import { rdf, termKey } from '../src/catenary/rdf/terms';
-import { graphOf, graphPrefixes } from '../src/model/graph-input';
+import { termKey } from '../src/catenary/rdf/terms';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { manifestOf, type ManifestRecords } from '../src/read/manifest';
 import { shapesClosureOf, shapesModelOf, vocabularyOf, type ShapesModelRecords } from '../src/read/shapes';
-import { FIXTURE, fixtureGraph } from './fixture-graph';
-import { startServer } from './server';
+import { json, recorded } from './expected';
+import { FIXTURE, startServer } from './server';
+
+const R = recorded('read-shapes');
 
 const file = (name: string) => join(FIXTURE, name);
 /** Triples of the six fixture documents (port.test.ts). */
 const TRIPLES = 282;
 
 describe('shapesModelOf on test/fixtures/shapes', () => {
-    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, now: ShapesModelRecords, graph: ModelGraph;
+    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, now: ShapesModelRecords;
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
         const rdfFiles = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(file);
         const modelFiles = modelFilesOf(rdfFiles, await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig'))));
         manifest = await manifestOf(server.port(), modelFiles);
         now = await shapesModelOf(server.port(), modelFiles, manifest);
-        graph = graphOf(fixtureGraph(), ['instances.trig', 'model.trig'].map(file)).graph;
-        graphPrefixes(graph);
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
-    test('the manifest is prefixes.ttl with its nine prefixes', () => {
+    test('the manifest is prefixes.ttl with its nine prefixes and no language', () => {
         expect(manifest.file).toBe(file('prefixes.ttl'));
         expect(Object.keys(manifest.prefixes ?? {}).sort()).toEqual(['dct', 'ex', 'rdf', 'rdfs', 'sh', 'skos', 'view', 'ws', 'xsd']);
-        expect(manifest.language).toBe(graph.language);
+        expect(manifest.language).toBeUndefined();
     });
 
-    /**
-     * The old graph names as the server names them: the server has no shapes graph (`<file>#shapes` is the file URI) and no union graph
-     * (a SKOS term read from the union graph is in the document that holds its statements). Nothing else changes.
-     */
-    const documentOf = (term: Term): NamedNode => {
-        const holders = graph.dataGraphs().filter(g => graph.match(term as Quad['subject'], null, null, g).length > 0);
-        expect(holders, term.value).toHaveLength(1);
-        return holders[0];
-    };
-    const serverGraph = (g: NamedNode, term: Term): NamedNode => g.value === UNION_GRAPH ? documentOf(term) : rdf.namedNode(g.value.replace(/#shapes$/, ''));
-    const serverFile = (file: string, uri: string): string => file === UNION_GRAPH ? fileOfGraph(documentOf(rdf.namedNode(uri)).value) : file;
-
-    /** RDF/JS terms as plain values (the old ones are Oxigraph wasm objects); other values unchanged. */
+    /** RDF/JS terms as plain values; other values unchanged. */
     const plain = (x: unknown): unknown => {
         if (Array.isArray(x)) return x.map(plain);
         if (x && typeof x === 'object' && 'termType' in x) {
@@ -64,26 +48,22 @@ describe('shapesModelOf on test/fixtures/shapes', () => {
         return x;
     };
 
-    test('index: the model and every map equal shapesIndexOf (file and graph fields as the server names the documents)', () => {
-        const old = shapesIndexOf(graph);
-        expect([old.nodeShape.size, old.property.size, old.valueSet.size]).toEqual([3, 5, 1]);
-        const model = structuredClone(old.model);
-        for (const x of [...Object.values(model.nodeShapes), ...Object.values(model.valueSets)]) x.file = serverFile(x.file, x.uri);
-        expect(now.index.model).toEqual(model);
-        const regraph = <V extends { graph: NamedNode }>(m: Map<string, V>, term: (v: V) => Term) => plain([...m].map(([k, v]) => [k, { ...v, graph: serverGraph(v.graph, term(v)) }]));
-        expect(plain([...now.index.nodeShape])).toEqual(regraph(old.nodeShape, v => v.term));
-        expect(plain([...now.index.property])).toEqual(regraph(old.property, v => v.term));
-        expect(plain([...now.index.constraint])).toEqual(regraph(old.constraint, v => v.owner));
-        expect(plain([...now.index.valueSet])).toEqual(regraph(old.valueSet, v => v.term));
-        for (const k of ['schemeShape', 'memberShapes', 'byTerm'] as const) expect(plain([...now.index[k]]), k).toEqual(plain([...old[k]]));
+    /**
+     * The recorded index is the old one with its graph names as the server names them: the server has no shapes graph (`<file>#shapes`
+     * is the file URI) and no union graph (a SKOS term read from the union graph is in the document that holds its statements).
+     */
+    test('index: the model and every map equal the recorded shapesIndexOf', () => {
+        expect([now.index.nodeShape.size, now.index.property.size, now.index.valueSet.size]).toEqual([3, 5, 1]);
+        expect(json(now.index.model)).toEqual(R('index.model'));
+        for (const k of ['nodeShape', 'property', 'constraint', 'valueSet', 'schemeShape', 'memberShapes', 'byTerm'] as const) {
+            expect(json(plain([...now.index[k]])), k).toEqual(R(`index.${k}`));
+        }
     });
 
-    test('vocabulary and meta equal buildVocabulary and authoringMetamodel', () => {
-        const dataset = rdf.dataset([...shapesTriples(graph), ...vocabularyQuads(graph).map(q => rdf.quad(q.subject, q.predicate, q.object))]);
-        const vocabulary = buildVocabulary(dataset, graph.language);
-        expect(vocabulary.concepts).toHaveLength(2);
-        expect(now.vocabulary).toEqual(vocabulary);
-        expect(now.meta).toEqual(authoringMetamodel(graph, vocabulary));
+    test('vocabulary and meta equal the recorded buildVocabulary and authoringMetamodel', () => {
+        expect(now.vocabulary.concepts).toHaveLength(2);
+        expect(json(now.vocabulary)).toEqual(R('vocabulary'));
+        expect(json(now.meta)).toEqual(R('meta'));
     });
 
     test('the closure and the vocabulary carry their document as graph: shapes.ttl and cities.ttl (57 and 8 statements)', async () => {
@@ -94,18 +74,10 @@ describe('shapesModelOf on test/fixtures/shapes', () => {
         expect([graphs(skos), skos.length]).toEqual([[dataGraphIri(file('cities.ttl'))], 8]);
     });
 
-    test('shapeSubjects equals the union of shapePart over the model files; shapeSubjectsByFile equals shapePart per file', () => {
-        const old = new Set<string>(), byFile: [string, string[]][] = [];
-        for (const f of graph.dataGraphs().map(g => g.value)) {
-            const path = new URL(f).pathname;
-            const quads = [dataGraphIri(path), shapesGraphIri(path)].flatMap(g => graph.match(null, null, null, rdf.namedNode(g)));
-            const part = shapePart(quads);
-            for (const k of part) old.add(k);
-            if (part.size) byFile.push([path, [...part].sort()]);
-        }
-        expect(old.size).toBeGreaterThan(0);
-        expect([...now.shapeSubjects].sort()).toEqual([...old].sort());
-        expect([...now.shapeSubjectsByFile].map(([f, ks]) => [f, [...ks].sort()]).sort()).toEqual(byFile.sort());
+    test('shapeSubjects and shapeSubjectsByFile equal the recorded shapePart of the model files', () => {
+        expect(now.shapeSubjects.size).toBeGreaterThan(0);
+        expect([...now.shapeSubjects].sort()).toEqual(R('shapeSubjects'));
+        expect(json([...now.shapeSubjectsByFile].map(([f, ks]) => [f, [...ks].sort()]).sort())).toEqual(R('shapeSubjectsByFile'));
     });
 });
 

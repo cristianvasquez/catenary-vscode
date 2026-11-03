@@ -1,5 +1,4 @@
 // Vocabulary class palette contract; adapted from Catenary packages/contracts/src/palette.ts.
-import type { QueryPort } from './query';
 
 
 export interface PaletteClass {
@@ -14,11 +13,3 @@ export interface PaletteClass {
     /** What the plugin read but cannot give, as text for the user (SHACL: `knows: inverse path is not supported`). */
     notes?: string[];
 }
-
-
-export interface PaletteProvider {
-    /** The plugin (`shacl`, `rdfs`): the same id in all its providers. */
-    id: string;
-    classes(port: QueryPort): PaletteClass[];
-}
-

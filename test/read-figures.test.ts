@@ -1,24 +1,22 @@
-// Kata af1j: the notation figures from one turtle/query prefetch (fork binary over stdio) equal the old viewFiguresOf on test/fixtures/shapes.
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+// Kata af1j: the notation figures from one turtle/query prefetch (fork binary over stdio), against the values of the old viewFiguresOf
+// (recorded before K11 deleted it: test/fixtures/expected/read-figures.json).
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import type { Figure } from '../src/catenary/model/notation';
 import { nkey } from '../src/catenary/model/notation-graph';
 import type { ViewFigures } from '../src/catenary/model/notation-join';
-import type { ModelGraph } from '../src/catenary/rdf/graph';
-import { viewFiguresOf as oldViewFiguresOf } from '../src/catenary/rdf/notations';
-import { graphOf } from '../src/model/graph-input';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { roleDepth, viewFiguresOf, type PrefetchedFigures } from '../src/read/figures';
 import { manifestOf } from '../src/read/manifest';
 import { shapesModelOf } from '../src/read/shapes';
 import { readNotations } from '../src/catenary/rdf/notations';
-import type { GraphParams } from '../src/node/turtle-api';
-import { FIXTURE } from './fixture-graph';
-import { startServer } from './server';
+import { FIXTURE, startServer } from './server';
+import { json, recorded } from './expected';
 
-const file = (name: string) => join(FIXTURE, name);
+const R = recorded('read-figures');
+
 /** Triples of the six fixture documents (port.test.ts). */
 const TRIPLES = 282;
 const VIEWS = ['urn:name:Bookshop%20model', 'urn:name:Bookshop'];
@@ -43,28 +41,22 @@ function plain(vf: ViewFigures): unknown {
     };
 }
 
-/** The params of the recorded turtle/graph answer: the old pipeline reads the same answer from the server under test. */
-const graphParams = () => (JSON.parse(readFileSync(file('graph.json'), 'utf8')) as { params: GraphParams }).params;
-
-/** The model files of a folder, the shapes model, and the old graph over the turtle/graph answer of the same server. */
+/** The model files of a folder and the shapes model. */
 async function inputsOf(server: Awaited<ReturnType<typeof startServer>>, folder: string) {
     const port = server.port();
     const rdfFiles = readdirSync(folder).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(folder, f));
     const views = await viewFilesOf(port, rdfFiles.filter(f => f.endsWith('.trig')));
     const modelFiles = modelFilesOf(rdfFiles, views);
     const shapes = await shapesModelOf(port, modelFiles, await manifestOf(port, modelFiles));
-    const graph = graphOf(await server.graph(graphParams()), [...views.views.values()]).graph;
-    return { port, modelFiles, shapes, graph };
+    return { port, modelFiles, shapes };
 }
 
 describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
-    let server: Awaited<ReturnType<typeof startServer>>, graph: ModelGraph;
+    let server: Awaited<ReturnType<typeof startServer>>;
     const now = new Map<string, PrefetchedFigures>();
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
-        // The old pipeline over the turtle/graph answer of the same server: the recorded graph.json is older than data.ttl.
-        const { port, modelFiles, shapes, graph: g } = await inputsOf(server, FIXTURE);
-        graph = g;
+        const { port, modelFiles, shapes } = await inputsOf(server, FIXTURE);
         for (const v of VIEWS) now.set(v, await viewFiguresOf(port, v, shapes, modelFiles));
     }, 20000);
     afterAll(async () => { await server?.stop(); });
@@ -73,11 +65,11 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
         expect(roleDepth(readNotations())).toBe(5);
     });
 
-    test.each(VIEWS)('%s: figures, placements and join equal the old viewFiguresOf; no read outside the prefetch', view => {
-        const old = oldViewFiguresOf(graph, view), got = now.get(view)!;
-        expect(old.derivation.figures.length).toBeGreaterThan(0);
-        expect(old.placed.size).toBeGreaterThan(0);
-        expect(plain(got)).toEqual(plain(old));
+    test.each(VIEWS)('%s: figures, placements and join equal the recorded viewFiguresOf; no read outside the prefetch', view => {
+        const got = now.get(view)!;
+        expect(got.derivation.figures.length).toBeGreaterThan(0);
+        expect(got.placed.size).toBeGreaterThan(0);
+        expect(json(plain(got))).toEqual(R(view));
         expect(got.misses).toBe(0);
     });
 });
@@ -109,17 +101,17 @@ ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
         if (dir) rmSync(dir, { recursive: true, force: true });
     });
 
-    test('a gathered link to a labelled blank-node instance reads its label; equal to the old viewFiguresOf; no miss', async () => {
-        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles), old = oldViewFiguresOf(inputs.graph, VIEW);
+    test('a gathered link to a labelled blank-node instance reads its label; equal to the recorded viewFiguresOf; no miss', async () => {
+        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles);
         const alice = got.join.boxes.find(b => b.figure.focus.value === `${EX}alice`);
         expect(alice?.rows.map(r => r.text)).toContain('knows: Bob');
-        expect(plain(got)).toEqual(plain(old));
+        expect(json(plain(got))).toEqual(R('anchors'));
         expect(got.misses).toBe(0);
     });
 });
 
 /**
- * The old pipeline parses a view file itself and names its blank nodes with random skolem IRIs; the port names them by the server label.
+ * The old pipeline parsed a view file itself and named its blank nodes with random skolem IRIs; the port names them by the server label.
  * Each skolem name becomes `b<n>` by first occurrence, in IRIs and in the figure ids made from them.
  */
 function blankless(x: unknown): unknown {
@@ -155,11 +147,11 @@ _:dana a ex:Person ; rdfs:label "Dana" ; ex:knows [ rdfs:label "Eve" ] . }
         if (dir) rmSync(dir, { recursive: true, force: true });
     });
 
-    test('a placed blank-node element: no throw, its card reads its label and its blank neighbour; equal to the old viewFiguresOf; no miss', async () => {
-        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles), old = oldViewFiguresOf(inputs.graph, VIEW);
+    test('a placed blank-node element: no throw, its card reads its label and its blank neighbour; equal to the recorded viewFiguresOf; no miss', async () => {
+        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles);
         const dana = got.join.boxes.find(b => b.figure.title === 'Dana');
         expect(dana?.rows.map(r => r.text)).toContain('knows: Eve');
-        expect(blankless(plain(got))).toEqual(blankless(plain(old)));
+        expect(json(blankless(plain(got)))).toEqual(R('placed blank node'));
         expect(got.misses).toBe(0);
     });
 });

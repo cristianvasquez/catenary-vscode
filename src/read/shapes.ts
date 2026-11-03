@@ -6,8 +6,8 @@ import { NS } from '../catenary/model/terms';
 import { rdfsAuthoring } from '../catenary/rdfs/domain-range';
 import { shapePart } from '../catenary/rdf/loader';
 import { buildVocabulary } from '../catenary/rdf/shapes';
-import { readShapes, type ShapesIndex } from '../catenary/rdf/shapes-read';
-import { fileOfGraph } from '../catenary/rdf/graph-names';
+import { readShapes, type ShapesIndex } from './shapes-index';
+import { fileOfGraph } from '../catenary/rdf/files';
 import { rdf, termKey } from '../catenary/rdf/terms';
 import { shaclAuthoring } from '../catenary/shacl/backend/authoring';
 import type { ModelPort, Row } from '../model/port';
@@ -63,8 +63,8 @@ export interface ShapesModelRecords {
 }
 
 /**
- * The shapes model of `modelFiles` without the manifest document (graphOf does not load it). As shapesIndexOf, buildVocabulary and
- * authoringMetamodel on the old pipeline: SHACL first, then RDFS over the model files. Sets the prefix table of the manifest (applyPrefixes)
+ * The shapes model of `modelFiles` without the manifest document (the manifest is not part of the model): SHACL first, then RDFS over
+ * the model files. Sets the prefix table of the manifest (applyPrefixes)
  * before the derivation: the texts of the index use it.
  */
 export async function shapesModelOf(port: ModelPort, modelFiles: string[], manifest: ManifestRecords): Promise<ShapesModelRecords> {

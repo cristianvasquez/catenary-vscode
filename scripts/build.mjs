@@ -6,7 +6,7 @@ await mkdir('dist', { recursive: true });
 await cp('src/catenary/rdf/notations', 'dist/notations', { recursive: true });
 // The extension host bundle (CommonJS: VS Code loads it with require) and the webview bundle (the GLSP client). Their classes use
 // inversify property injection, which needs the legacy decorators and class fields (a field declaration must not reset an injected
-// property). The notations are read from dist/notations (import.meta.url is the URL of the bundle file), the Oxigraph WebAssembly from dist.
+// property). The notations are read from dist/notations (import.meta.url is the URL of the bundle file).
 const decorators = { tsconfigRaw: { compilerOptions: { experimentalDecorators: true, useDefineForClassFields: false } } };
 const [host, webview] = await Promise.all([
     build({ ...decorators, entryPoints: ['src/extension.ts'], outfile: 'dist/extension.js', bundle: true, platform: 'node', format: 'cjs',
@@ -18,7 +18,6 @@ const [host, webview] = await Promise.all([
 ]);
 // package.json has "type": "module": the CommonJS bundle needs its own package scope.
 await writeFile('dist/package.json', JSON.stringify({ type: 'commonjs' }) + '\n');
-await copyFile('node_modules/oxigraph/node_bg.wasm', 'dist/node_bg.wasm');
 await writeFile('dist/extension-metafile.json', JSON.stringify(host.metafile, null, 2) + '\n');
 await writeFile('dist/webview-metafile.json', JSON.stringify(webview.metafile, null, 2) + '\n');
 const own = metafile => Object.keys(metafile.inputs).filter(f => f.startsWith('src/'));

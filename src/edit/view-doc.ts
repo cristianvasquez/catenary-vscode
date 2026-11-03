@@ -5,7 +5,7 @@ import { Doc, emptyDoc } from '../catenary/model/doc';
 import { pickLabel } from '../catenary/model/labels';
 import type { ShapesModel } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
-import { fileOfGraph, UNION_GRAPH } from '../catenary/rdf/graph-names';
+import { fileOfGraph, UNION_GRAPH } from '../catenary/rdf/files';
 import { cardIdsOf, first, instanceRecords, key, type Plain, projectView, type Resource, type Statements } from '../catenary/rdf/records';
 import { labelFromIri, labelLiterals, SKOS_MEMBERSHIP, SKOS_TYPES } from '../catenary/rdf/vocabulary';
 import type { Facts } from './facts';

@@ -1,16 +1,14 @@
-import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { Parser } from 'n3';
+import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { expect, test, vi } from 'vitest';
 import type { TextDocument, TextDocumentChangeEvent, Uri, WorkspaceFolder } from 'vscode';
 import type { ViewCommand } from '../src/catenary/model/commands';
 import { iriId } from '../src/catenary/model/ids';
-import { parseRdfSync } from '../src/catenary/rdf-files/oxigraph-store';
 import { tripleKey } from '../src/edit/terms';
 import type { ViewEdit } from '../src/edit/executor';
 import type { VersionedEdit } from '../src/model/workspace-core';
-import { graphOf } from '../src/model/graph-input';
 import type { TurtleApi } from '../src/node/turtle-api';
 
 /** The listeners of onDidChangeTextDocument, and the files that findFiles gives. */
@@ -41,14 +39,12 @@ vi.mock('vscode', () => {
     };
 });
 import { WorkspaceModel } from '../src/node/workspace-model';
-import { FIXTURE, fixtureGraph } from './fixture-graph';
-import { startServer } from './server';
+import { FIXTURE, startServer } from './server';
 
-const result = fixtureGraph();
 const file = resolve('test/fixtures/shapes/instances.trig');
 
 /** The statements of the graph `iri` of a TriG text, sorted. */
-const viewQuadKeys = (text: string, iri: string) => parseRdfSync(text, 'application/trig').filter(q => q.graph.value === iri).map(tripleKey).sort();
+const viewQuadKeys = (text: string, iri: string) => new Parser({ format: 'application/trig' }).parse(text).filter(q => q.graph.value === iri).map(tripleKey).sort();
 
 /** A TurtleApi over the test server. `hidden`: a document that turtle/graph does not give, as if it were in another folder of the window. */
 const apiOf = (server: Awaited<ReturnType<typeof startServer>>, hidden?: string): TurtleApi => ({
@@ -215,23 +211,6 @@ test('a skipped duplicate cannot open as the accepted view document', async () =
     } finally {
         provider.dispose();
         model.dispose();
-    }
-});
-
-test('bad and duplicate view files are reported without blocking a valid view', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'catenary-views-'));
-    try {
-        const bad = join(dir, 'bad.trig'), duplicate = join(dir, 'duplicate.trig');
-        writeFileSync(bad, 'not valid TriG {');
-        writeFileSync(duplicate, readFileSync(file));
-        const { graph, views, skipped } = graphOf(result, [bad, file, duplicate]);
-        expect(views.get('urn:name:Bookshop')).toBe(file);
-        expect(graph.match(null, null, null).length).toBeGreaterThan(0);
-        expect(skipped.map(s => s.file)).toEqual([bad, duplicate]);
-        expect(skipped[0].reason).not.toBe('');
-        expect(skipped[1].reason).toBe('duplicate view urn:name:Bookshop');
-    } finally {
-        rmSync(dir, { recursive: true });
     }
 });
 

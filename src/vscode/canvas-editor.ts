@@ -12,7 +12,7 @@ import { createCanvasServer } from '../node/glsp/server';
 import type { WorkspaceModel } from '../node/workspace-model';
 import { idIri, iriId } from '../catenary/model/ids';
 import { boxes } from '../catenary/model/doc';
-import { toEngine } from '../model/graph-input';
+import { toEngine } from '../model/port';
 import { NS } from '../catenary/model/terms';
 import { CANVAS_START, type CanvasStart, Preferences, InsertElement, OpenText } from '../webview/messages';
 import type { PreferenceValues } from '../webview/preferences';

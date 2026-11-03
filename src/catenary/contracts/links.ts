@@ -1,5 +1,4 @@
 // Relation rules and provider contract; adapted from Catenary packages/contracts/src/links.ts.
-import type { QueryPort } from './query';
 
 
 export interface LinkRule {
@@ -22,11 +21,3 @@ export interface LinkRule {
      */
     valueSet?: { iri: string; values?: string[] };
 }
-
-
-export interface LinksProvider {
-    /** The plugin (`shacl`, `rdfs`): the same id in all its providers. */
-    id: string;
-    links(port: QueryPort): LinkRule[];
-}
-

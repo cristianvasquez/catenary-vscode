@@ -36,10 +36,6 @@ export function termKey(t: KeyTerm): string {
 }
 
 
-/** Key of a statement: subject, predicate, object. The graph is not part of it. */
-export const tripleKey = (q: { subject: KeyTerm; predicate: KeyTerm; object: KeyTerm }) => `${termKey(q.subject)} ${termKey(q.predicate)} ${termKey(q.object)}`;
-
-
 /** `f` applied to a term, and inside a triple term to each of its parts (recursive). */
 export function mapTerm<T extends Term>(t: T, f: (t: Term) => Term): T {
     if (t.termType !== 'Quad') return f(t) as T;

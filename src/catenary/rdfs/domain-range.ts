@@ -1,8 +1,8 @@
 // Derive class, field and link metadata from RDFS domains and ranges; adapted from Catenary packages/rdfs/src/domain-range.ts.
-import type { FieldRule, FieldsProvider } from '../contracts/fields';
-import type { LinkRule, LinksProvider } from '../contracts/links';
-import type { PaletteClass, PaletteProvider } from '../contracts/palette';
-import { OWL, QueryPort, QueryTerm, RDF, RDFS, SH, XSD, iri } from '../contracts/query';
+import type { FieldRule } from '../contracts/fields';
+import type { LinkRule } from '../contracts/links';
+import type { PaletteClass } from '../contracts/palette';
+import { OWL, QueryTerm, RDF, RDFS, SH, XSD, iri } from '../contracts/query';
 
 
 /** What the objects of a predicate are: instances of a class, literals (of a datatype), or any value (a literal or a resource). */
@@ -101,19 +101,6 @@ interface RdfsFacts {
 }
 
 
-/** The facts of the rules on a synchronous port; each texts read is one query. Undefined: no rdfs:domain pair. */
-function portFacts(port: QueryPort): RdfsFacts | undefined {
-    const graph = (pattern: string) => port.graph(pattern);
-    const domain = port.select(pairsQuery(graph, PAIRS.domain));
-    if (!domain.length) return undefined;
-    return {
-        domain, range: port.select(pairsQuery(graph, PAIRS.range)), subClassOf: port.select(pairsQuery(graph, PAIRS.subClassOf)),
-        datatypes: port.select(datatypesQuery(graph)).map(r => r.t.value),
-        texts: (predicates, subjects) => subjects.length ? pickTexts(port.select(textsQuery(graph, predicates, subjects))) : new Map()
-    };
-}
-
-
 /**
  * The facts of the rules from `select`, which reads the documents to query (no GRAPH pattern). Undefined: no rdfs:domain pair. The texts
  * are read once for every IRI of the pairs: the rules ask for the texts of their predicates and classes, and each of these is an IRI of a pair.
@@ -174,15 +161,6 @@ function rdfsRules(facts: RdfsFacts | undefined): RdfsRules {
 
 
 
-const read = new WeakMap<QueryPort, RdfsRules>();
-
-const rulesOf = (port: QueryPort) => {
-    let r = read.get(port);
-    if (!r) read.set(port, r = rdfsRules(portFacts(port)));
-    return r;
-};
-
-
 /** The domains of the rules, with their written labels and descriptions; in IRI order. */
 function classes({ rules, classes }: RdfsRules): PaletteClass[] {
     return [...new Set(rules.map(r => r.domain))].sort().map(iri => ({ iri, ...classes[iri] }));
@@ -213,13 +191,6 @@ function fields({ rules }: RdfsRules): FieldRule[] {
         return { ...field, ...(datatypes.size === 1 && datatype ? { datatype } : {}), iri: false };
     });
 }
-
-
-export const rdfsPalette: PaletteProvider = { id: 'rdfs', classes: port => classes(rulesOf(port)) };
-
-export const rdfsLinks: LinksProvider = { id: 'rdfs', links: port => links(rulesOf(port)) };
-
-export const rdfsFields: FieldsProvider = { id: 'rdfs', fields: port => fields(rulesOf(port)) };
 
 
 /** The classes, links and fields of the RDFS rules, from the answers of `select` over the documents to read (no GRAPH pattern). */

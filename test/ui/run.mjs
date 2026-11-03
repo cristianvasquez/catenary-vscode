@@ -8,9 +8,13 @@
 // `--section <name>` (model, bookshop): only that section runs, after the shared setup.
 import fs from "node:fs"
 import path from "node:path"
-import oxigraph from "oxigraph"
+import { Parser } from "n3"
 import { _electron } from "playwright-core"
 import { extensionsDir, prepare, root } from "../vscode/setup.mjs"
+
+const VIEW = "https://cristianvasquez.github.io/catenary/vocab/view#"
+/** The statements of a TriG text (n3). */
+const trig = (text) => new Parser({ format: "application/trig" }).parse(text)
 
 const BOXES = ["Shop shape", "Book shape", "Author shape", "Cities"]
 const EDGES = ["ex:city", "ex:stocks", "ex:author"]
@@ -265,9 +269,8 @@ try {
       await page.mouse.up()
       await page.keyboard.press('Control+S')
       await until(() => fileTabs.getAttribute('class'), c => !c.includes('dirty'))
-      const saved = new oxigraph.Store()
-      saved.load(fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8'), { format: 'application/trig' })
-      check('a subsequent canvas save preserves the TriG note edit', saved.match(null, oxigraph.namedNode('https://cristianvasquez.github.io/catenary/vocab/view#text'), null, null).some(q => q.object.value.includes('Saved TriG note')))
+      const saved = trig(fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8'))
+      check('a subsequent canvas save preserves the TriG note edit', saved.some(q => q.predicate.value === VIEW + 'text' && q.object.value.includes('Saved TriG note')))
     }
     await page.frameLocator('iframe.webview.ready').frameLocator('#active-frame').locator('[data-item="insert"]').click()
     await page.locator('.quick-input-widget input').waitFor()
@@ -384,9 +387,7 @@ try {
       const drawn = await until(() => note.textContent(), (t) => t.includes("Edited in place."), 5000)
       await page.keyboard.press("Control+S")
       const after = await until(() => fs.readFileSync(viewFile, "utf8"), (t) => t !== before, 10000)
-      const store = new oxigraph.Store()
-      store.load(after, { format: "application/trig" })
-      const texts = store.match(null, oxigraph.namedNode("https://cristianvasquez.github.io/catenary/vocab/view#text"), null, null).map((q) => q.object.value)
+      const texts = trig(after).filter((q) => q.predicate.value === VIEW + "text").map((q) => q.object.value)
       check("double click on the note edits its text in place", drawn.includes("Edited in place."), drawn.slice(0, 80))
       check("after Ctrl+S the view file holds the note text", texts.some((t) => t.includes("Edited in place.")), JSON.stringify(texts))
     }
@@ -412,9 +413,7 @@ try {
       const placement = decodeURIComponent(id.replace(/^.*?_n-/, "").replace(/_([0-9a-f]{2})/g, "%$1"))
       /** The view:x of the placement in a view file (TriG). */
       const xOf = (text) => {
-        const store = new oxigraph.Store()
-        store.load(text, { format: "application/trig" })
-        const x = store.match(oxigraph.namedNode(placement), oxigraph.namedNode("https://cristianvasquez.github.io/catenary/vocab/view#x"), null, null)[0]
+        const x = trig(text).find((q) => q.subject.value === placement && q.predicate.value === VIEW + "x")
         return x ? Number(x.object.value) : undefined
       }
       const before = fs.readFileSync(viewFile, "utf8")
@@ -676,9 +675,7 @@ try {
       }
       /** The view file places `iri`. */
       const places = (file, iri) => {
-        const store = new oxigraph.Store()
-        store.load(fs.readFileSync(file, "utf8"), { format: "application/trig" })
-        return store.match(null, oxigraph.namedNode("https://cristianvasquez.github.io/catenary/vocab/view#element"), oxigraph.namedNode(iri), null).length > 0
+        return trig(fs.readFileSync(file, "utf8")).some((q) => q.predicate.value === VIEW + "element" && q.object.value === iri)
       }
 
       await open("model.trig", BOXES)

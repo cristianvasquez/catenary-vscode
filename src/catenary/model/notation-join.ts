@@ -205,24 +205,6 @@ function grow(figs: Figure[], after: Map<string, unknown>, added: string[], touc
 
 
 /**
- * Data arrival: a data change adds statements or Line figures (`terms`, keys of new connectors and new figure
- * foci). Each one whose start and end are shown gets a placement, in the same command. A hub member never arrives alone.
- * Returns the placed term keys.
- */
-export function dataArrival(figs: Figure[], placed: Placements, terms: ReadonlySet<string>): string[] {
-    const s = joinState(figs, placed), out: string[] = [];
-    const inHub = new Set(figs.filter(f => f.fs.kind === 'Hub').flatMap(h => h.memberFigs.filter(m => m.fs.kind === 'Line').map(m => m.id)));
-    for (const l of figs) if (l.fs.kind === 'Line' && terms.has(nkey(l.focus)) && !s.isPlaced(l) && !inHub.has(l.id)
-        && s.shown(l.end) && l.starts.some(s.shown)) out.push(nkey(l.placedAs));
-    for (const f of figs) for (const c of f.connectors) {
-        const k = nkey(c.statement);
-        if (terms.has(k) && !placed.has(k) && !out.includes(k) && s.showsEnd(c.start) && s.showsEnd(c.end) && !s.covered.has(k)) out.push(k);
-    }
-    return out;
-}
-
-
-/**
  * The placed terms (keys) that a removal of `t` takes with it: the placements that need a figure that is no longer shown (rule 6),
  * and each box kept by lines (nt:keptByLines, view:keptByLines) whose last line this removal took.
  */

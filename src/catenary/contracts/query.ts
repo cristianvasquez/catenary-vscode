@@ -1,4 +1,4 @@
-// Host query port, namespaces and SPARQL IRI escaping; adapted from Catenary packages/contracts/src/query.ts.
+// Namespaces, query terms and SPARQL IRI escaping; adapted from Catenary packages/contracts/src/query.ts.
 
 export const RDF = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
 
@@ -13,16 +13,6 @@ export const OWL = 'http://www.w3.org/2002/07/owl#';
 
 /** An RDF term of a query result. */
 export interface QueryTerm { termType: string; value: string }
-
-
-/** The store of the host, for SPARQL SELECT over the graphs of the files. */
-export interface QueryPort {
-    select(query: string): readonly Record<string, QueryTerm>[];
-    /** `GRAPH <variable> { pattern }` over the graphs of the files (not the validation report). Variable default: `?g`. */
-    graph(pattern: string, variable?: string): string;
-    /** The display label of each IRI (the label rule of the host). */
-    labels(iris: readonly string[]): Map<string, string>;
-}
 
 
 /** An IRI as SPARQL text. Refuses a value that would change the query. */

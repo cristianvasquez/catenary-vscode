@@ -1,11 +1,10 @@
-// Read model and view records from graph quads; adapted from Catenary packages/rdf/src/records.ts.
+// Read model and view records from query rows; adapted from Catenary packages/rdf/src/records.ts.
 import { Box, DEFAULT_COLLECTION_SIZE, DEFAULT_NOTE_SIZE, DEFAULT_SIZE, DEFAULT_VIEW_REFERENCE_SIZE, Doc, EdgeLayout, GROUP_SIZE, Instance, SIDES, Side, View, ViewGroup, ViewArrow, ViewCard, ViewCollection, ViewNote, ViewReference, parseVertices } from '../model/doc';
 import { localName, termKey, termToJSON } from '../model/terms';
 import { pickLabel } from '../model/labels';
 import { pills } from '../model/shapes-schema';
 import type { NamedNode, Term } from '@rdfjs/types';
-import { ModelGraph } from './graph';
-import { cmp } from '../rdf-core/graph';
+import { cmp } from '../rdf-core/terms';
 import { elementId, relationId } from './ids';
 import { rdf } from './terms';
 import { termKey as rdfTermKey } from '../rdf-files/terms';
@@ -19,16 +18,7 @@ const TYPE = P.type.value, LABEL = P.label.value;
 /** A term of a result row, read once. */
 export type Plain = { termType: Term['termType']; value: string; term: Term };
 
-export type Row = Record<string, Plain>;
-
-
-export function select(g: ModelGraph, query: string): Row[] {
-    return g.select(query).map(r => {
-        const row: Row = {};
-        for (const k in r) row[k] = { termType: r[k].termType, value: r[k].value, term: r[k] };
-        return row;
-    });
-}
+type Row = Record<string, Plain>;
 
 
 /** Key of a term: a blank node and an IRI with the same value are different. */

@@ -6,7 +6,7 @@ import { LABEL_PREDICATES, pickLabel } from '../catenary/model/labels';
 import { type Choices, neighborChoices, shapeSourceChoices } from '../catenary/model/prompts';
 import { shortIri } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
-import { UNION_GRAPH } from '../catenary/rdf/graph-names';
+import { UNION_GRAPH } from '../catenary/rdf/files';
 import { elementId } from '../catenary/rdf/ids';
 import { rdf } from '../catenary/rdf/terms';
 import { labelFromIri, labelLiterals } from '../catenary/rdf/vocabulary';

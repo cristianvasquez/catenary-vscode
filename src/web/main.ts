@@ -4,20 +4,14 @@
 import './shims/globals';
 import './notations';
 import '@vscode/codicons/dist/codicon.css';
-import initOxigraph from 'oxigraph/web.js';
+import { Parser } from 'n3';
 import { StatusAction } from '@eclipse-glsp/protocol';
 import samples from 'catenary:samples';
 import pkg from '../../package.json';
-import { boxes } from '../catenary/model/doc';
 import { idIri, iriId } from '../catenary/model/ids';
-import { pickLabel } from '../catenary/model/labels';
 import { NS } from '../catenary/model/terms';
-import { readView } from '../catenary/rdf/view-read';
-import { shapesIndexOf } from '../catenary/rdf/shapes-read';
-import { rdf } from '../catenary/rdf/terms';
-import { isInstance, labelLiterals } from '../catenary/rdf/vocabulary';
 import { DROP_FILES_EVENT, INSERT_ELEMENT, OPEN_IN_EVENT, OPEN_TEXT } from '../common/protocol';
-import { isViewFile, toEngine, viewIriOf } from '../model/graph-input';
+import { toEngine } from '../model/port';
 import { newViewText, viewFileName } from '../node/new-view';
 import { pasteTurtle } from '../vscode/paste-rdf';
 import { PASTE_RDF_EVENT } from '../webview/clipboard';
@@ -110,11 +104,24 @@ function ask(question: string, value = ''): string | undefined {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
-// Start: Oxigraph, Monaco, turtle-lsp, the workspace and the GLSP server
+// Start: Monaco, turtle-lsp, the workspace and the GLSP server
 
 const files = new FileStore(samples);
-/** A view file: a saved .trig file with a view:View. */
-const isView = (rel: string) => isViewFile(rel, files.read(rel));
+/**
+ * The view IRI of a TriG text: the graph `?g` of its statement `?g a view:View`; undefined when it has none or does not parse. The page
+ * parses the saved text with n3 until its engine answers turtle/query (K13).
+ */
+function viewIriOf(text: string | undefined): string | undefined {
+    if (!text) return undefined;
+    try {
+        return new Parser({ format: 'application/trig' }).parse(text)
+            .find(q => q.predicate.value === NS.rdf + 'type' && q.object.value === NS.view + 'View' && q.graph.termType === 'NamedNode' && q.subject.equals(q.graph))?.graph.value;
+    } catch {
+        return undefined;
+    }
+}
+/** A view file: a saved .trig file with a view:View graph. */
+const isView = (rel: string) => rel.endsWith('.trig') && viewIriOf(files.read(rel)) !== undefined;
 let monaco: Monaco, editor: Monaco;
 const lsp = new LspClient(new URL('turtle-lsp/lsp-worker.js', location.href));
 let hooks: { refresh(method: string): void; shown(): void } | undefined;
@@ -271,13 +278,13 @@ async function openCanvas(rel: string, fromText = false): Promise<void> {
     const existing = tabs.find(t => t.rel === rel && t.kind === 'canvas');
     if (existing) return activate(existing);
     const text = files.read(rel) ?? '';
-    let iri: string;
-    try { iri = viewIriOf(text); } catch (e) {
-        toast(`${rel} holds no view: ${e instanceof Error ? e.message : String(e)}`, 'warning');
+    const iri = viewIriOf(text);
+    if (!iri) {
+        toast(`${rel} holds no view graph.`, 'warning');
         return openText(rel);
     }
     if (fromText) await ws.refresh(); else await ws.ready();
-    if (!ws.graph) return toast(`${rel}: ${ws.error ?? 'no workspace graph'}`, 'warning');
+    if (ws.error) return toast(`${rel}: ${ws.error}`, 'warning');
     if (ws.viewFiles.get(iri) !== pathOf(rel)) return toast(`${rel} was skipped: invalid or duplicate view file.`, 'warning');
     const frame = document.createElement('iframe');
     frame.className = 'canvas-frame';
@@ -325,7 +332,7 @@ function fromCanvas(tab: Tab & { kind: 'canvas' }, m: FromCanvas): void {
         return;
     }
     switch (m.name) {
-        case INSERT_ELEMENT: void insertElement(doc); break;
+        case INSERT_ELEMENT: void insertElement(); break;
         case OPEN_TEXT: void canvasToText(tab); break;
         case OPEN_IN_EVENT: void openIn(doc, m.detail as { view?: string; file?: string; element?: string; problem?: string }); break;
         case DROP_FILES_EVENT: {
@@ -363,44 +370,9 @@ async function textToCanvas(): Promise<void> {
 // ---------------------------------------------------------------------------------------------------------------------------------
 // Canvas requests (vscode/canvas-editor.ts)
 
-/** One pick, one store command and one undo step. No canvas position supplied: fixed point (300, 300). */
-async function insertElement(doc: ViewDoc): Promise<void> {
-    const graph = ws.graph;
-    if (!graph) return;
-    const view = readView(graph, iriId(doc.iri)).views[iriId(doc.iri)];
-    const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
-    const seen = new Set<string>();
-    const items: (PickItem & { id?: string; link?: 'file' | 'view' })[] = [];
-    for (const node of ws.result?.nodes ?? []) {
-        if (node.literal || seen.has(node.id) || relOfUri(node.uri) === undefined) continue;
-        seen.add(node.id);
-        const iri = toEngine(node.id), term = rdf.namedNode(iri);
-        if (placed.has(iriId(iri))) continue;
-        const types = graph.match(term, rdf.namedNode(NS.rdf + 'type'), null).map(q => q.object.value);
-        const kind = types.includes(NS.sh + 'NodeShape') ? 'shape' : types.some(t => t === NS.rdfs + 'Class' || t === NS.owl + 'Class') ? 'class'
-            : types.includes(NS.skos + 'Concept') ? 'concept' : types.includes(NS.skos + 'Collection') ? 'collection' : isInstance(graph, term) ? 'instance' : undefined;
-        if (kind) items.push({ id: iriId(iri), label: node.label || node.name || iri, description: iri, detail: kind });
-    }
-    items.sort((a, b) => a.label.localeCompare(b.label));
-    const picked = await pick([{ label: 'Link to a file…', link: 'file' as const, action: true }, { label: 'Link to a view…', link: 'view' as const, action: true }, ...items], 'Insert elements from the workspace', true);
-    for (const item of picked) {
-        if (!item.link) continue;
-        let rel: string | undefined;
-        if (item.link === 'file') rel = (await pick(files.list().map(f => ({ label: f })), 'Link to a file'))[0]?.label;
-        else {
-            const choices = [...ws.viewFiles].filter(([iri]) => iri !== doc.iri).map(([iri, file]) => ({
-                label: pickLabel(labelLiterals(p => p === NS.rdfs + 'label' ? graph.match(rdf.namedNode(iri), rdf.namedNode(p), null, rdf.namedNode(iri)).map(q => q.object) : []), graph.language) || file.split('/').pop()!,
-                description: relOfPath(file), rel: relOfPath(file)
-            })).sort((a, b) => a.label.localeCompare(b.label));
-            rel = (await pick(choices, 'Link to a view'))[0]?.rel;
-        }
-        if (rel) await linkFile(doc, uriOf(rel), { x: 300, y: 300 });
-    }
-    const ids = picked.flatMap(item => item.id ? [item.id] : []);
-    if (ids.length) {
-        const result = await ws.execute(iriId(doc.iri), { kind: 'addToView', view: iriId(doc.iri), ids, at: { x: 300, y: 300 } });
-        if (!result.ok) toast(result.error, 'warning');
-    }
+/** Insert reads the model of the page: refused until its engine answers turtle/query (K13). */
+async function insertElement(): Promise<void> {
+    toast(`Insert: ${ws.error ?? 'the browser page needs the fork engine.'}`, 'warning');
 }
 
 /** A dropped or picked file becomes one undoable reference at the supplied point. */
@@ -411,7 +383,7 @@ async function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number })
         if (rel === undefined || !files.has(rel)) throw new Error(`${uri} is not a workspace file.`);
         let result;
         if (isView(rel)) {
-            const target = viewIriOf(files.read(rel)!);
+            const target = viewIriOf(files.read(rel))!;
             if (target === doc.iri) throw new Error('The target view is the open view itself.');
             result = await ws.execute(view, { kind: 'addViewReference', view, target: iriId(target), at });
         } else {
@@ -431,7 +403,7 @@ async function linkFile(doc: ViewDoc, uri: string, at: { x: number; y: number })
 async function openIn(doc: ViewDoc, request: { view?: string; file?: string; element?: string; problem?: string }): Promise<void> {
     try {
         if (request.problem) {
-            const properties = ws.graph ? shapesIndexOf(ws.graph).model.nodeShapes[request.problem]?.properties ?? [] : [];
+            const properties = ws.shapes?.index.model.nodeShapes[request.problem]?.properties ?? [];
             const problems = ws.violations.filter(v => v.instance === request.problem || iriId(toEngine(v.focus)) === request.problem
                 || (v.shape !== undefined && properties.includes(v.shape)));
             if (!problems.length) throw new Error('No problem was found for this element.');
@@ -536,7 +508,6 @@ function resetSamples(): void {
 
 async function main(): Promise<void> {
     renderStatus();
-    await initOxigraph({ module_or_path: new URL('oxigraph_bg.wasm', location.href) });
     monaco = await loadMonaco();
     registerSyntax(monaco);
     const dark = matchMedia('(prefers-color-scheme: dark)');

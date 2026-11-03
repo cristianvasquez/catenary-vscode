@@ -1,17 +1,13 @@
-// Load RDF notations and derive view figures from quads; adapted from Catenary packages/rdf/src/notations.ts.
+// Load the RDF notations; adapted from Catenary packages/rdf/src/notations.ts.
 import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import path from 'path';
 import { Parser } from 'n3';
 import type { Quad, Term } from '@rdfjs/types';
-import { Derivation, ListHeads, Notations, deriveFigures, notations } from '../model/notation';
-import { LazyTripleIndex, NQuad, NTerm, TripleIndex, nkey } from '../model/notation-graph';
+import { Notations, notations } from '../model/notation';
+import type { NQuad, NTerm } from '../model/notation-graph';
 import { TermJSON, termToJSON } from '../model/terms';
-import { ViewFigures, placementsOf, viewFigures } from '../model/notation-join';
-import { ModelGraph } from './graph';
-import { REPORT_GRAPH } from './graph-names';
 import { skolemize } from '../rdf-core/skolem';
-import { jsonToTerm } from '../rdf-core/terms';
 import { rdf } from './terms';
 
 
@@ -62,67 +58,6 @@ export function readNotations(dir = NOTATIONS_DIR): Notations {
 }
 
 
-const isReport = (q: Quad) => q.graph.termType === 'NamedNode' && q.graph.value === REPORT_GRAPH;
-
-
-/** An engine term as a store term. Undefined: a term that no statement of the store can have. */
-function storeTerm(t: NTerm): Term | undefined {
-    if (t.termType !== 'Triple') return jsonToTerm(t);
-    const s = storeTerm(t.subject), o = storeTerm(t.object);
-    return s && o ? rdf.quad(s as Quad['subject'], rdf.namedNode(t.predicate.value), o as Quad['object']) : undefined;
-}
-
-
-/**
- * The engine input of a store, read on demand (LazyTripleIndex): all graphs except the validation report. A view reads the triples
- * around its elements only. Make a new one after each change: it keeps what it read.
- */
-function storeInput(g: ModelGraph): TripleIndex {
-    const read = (s?: Term, p?: Term, o?: Term) => nquads(g.store.match(s, p, o, null).filter(q => !isReport(q)));
-    return new LazyTripleIndex({
-        outgoing: s => { const t = storeTerm(s); return t && t.termType !== 'Literal' ? read(t) : []; },
-        incoming: (o, p) => { const t = storeTerm(o); return t ? read(undefined, p === undefined ? undefined : rdf.namedNode(p), t) : []; },
-        withPredicate: p => read(undefined, rdf.namedNode(p))
-    });
-}
-
-
-/** A patch with more quads than this (a load, a file read) starts a new kept input: forgetting each term costs more. */
-const KEPT_PATCH_LIMIT = 2000;
-
-const kept = new WeakMap<ModelGraph, { index: LazyTripleIndex }>();
-
-
-/**
- * The engine input of a store kept across changes: each committed patch forgets the subjects, objects and predicates
- * of its triples, so a later derivation reads only those again. Inside a transaction with changes, a new input (the kept one is behind).
- * Only reads outside commands use it: a command reads the store while it changes it.
- */
-function keptStoreInput(g: ModelGraph): TripleIndex {
-    if (g.changes().length) return storeInput(g);
-    let k = kept.get(g);
-    if (!k) {
-        const entry = k = { index: storeInput(g) as LazyTripleIndex };
-        kept.set(g, k);
-        g.onDidChange(e => {
-            if (!e.patch.length) { if (e.data || e.query || e.shapes || e.persisted) entry.index = storeInput(g) as LazyTripleIndex; return; }
-            // The report is not engine input (a validation run replaces it).
-            const quads = e.patch.filter(c => !isReport(c.quad));
-            if (quads.length > KEPT_PATCH_LIMIT) { entry.index = storeInput(g) as LazyTripleIndex; return; }
-            const subjects = new Set<string>(), objects = new Set<string>(), predicates = new Set<string>();
-            for (const { quad: q } of quads) {
-                const s = nterm(q.subject), o = nterm(q.object);
-                if (s) subjects.add(nkey(s));
-                if (o) objects.add(nkey(o));
-                predicates.add(q.predicate.value);
-            }
-            entry.index.forget(subjects, objects, predicates);
-        });
-    }
-    return k.index;
-}
-
-
 /** A placement key (nkey) as an engine term: an IRI, or a statement between IRIs. */
 export function keyTerm(k: string): NTerm {
     const m = /^<<\(<([^<>]*)> <([^<>]*)> <([^<>]*)>\)>>$/.exec(k);
@@ -130,27 +65,3 @@ export function keyTerm(k: string): NTerm {
     const iri = /^<([^<>]*)>$/.exec(k);
     return { termType: 'NamedNode', value: iri ? iri[1] : k };
 }
-
-
-/**
- * The figures of a view and their join, from the store read around the view without changing placement rules. `also`: terms
- * that the view does not place yet but that the caller asks about (removed placements, pasted elements). `derivation`: an earlier one,
- * kept while the store changed only in what the figures do not read. `keep`: read the store through the kept input (keptStoreInput).
- */
-export function viewFiguresOf(g: ModelGraph, viewIri: string, also: Iterable<NTerm> = [], derivation?: Derivation, keep = false): ViewFigures {
-    const D = keep ? keptStoreInput(g) : storeInput(g), notes = readNotations();
-    const placed = placementsOf(D, viewIri);
-    // A placement of another term (a statement with a literal) has no figure, and the store cannot look it up: the join reports it.
-    const scope = [...[...placed.keys()].map(keyTerm), ...also].filter(t => t.termType === 'Triple' || IRI.test(t.value));
-    let heads = listHeads.get(g);
-    if (!heads) listHeads.set(g, heads = new Map());
-    return viewFigures(D, notes, viewIri, derivation ?? deriveFigures(D, notes, viewIri, scope, heads));
-}
-
-
-const IRI = /^[^\s<>"{}|^`\\]+$/;
-
-
-/** The list heads of each store, kept between derivations (`ListHeads`). */
-const listHeads = new WeakMap<ModelGraph, ListHeads>();
-
