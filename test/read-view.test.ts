@@ -146,3 +146,22 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         expect(doc.views[iriId(BLANKS)].boxes).toMatchObject([{ kind: 'card', id: iriId('urn:x:bp'), element: iriId(blank) }]);
     });
 });
+
+test('an unplaced object typed or labelled in another model file is a hidden relation, not an ordinary field', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'catenary-cross-file-'));
+    let server: Awaited<ReturnType<typeof startServer>> | undefined;
+    const VIEW = 'urn:x:cross-file', V = 'https://cristianvasquez.github.io/catenary/vocab/view#';
+    try {
+        writeFileSync(join(dir, 'data.ttl'), '<urn:x:a> a <urn:x:T> ; <urn:x:typed> <urn:x:b> ; <urn:x:labelled> <urn:x:c> ; <urn:x:unknown> <urn:x:d> .');
+        writeFileSync(join(dir, 'other.ttl'), '<urn:x:b> a <urn:x:T> . <urn:x:c> <http://www.w3.org/2000/01/rdf-schema#label> "C" .');
+        writeFileSync(join(dir, 'view.trig'), `<${VIEW}> { <${VIEW}> a <${V}View> . <urn:x:placement> a <${V}Placement> ; <${V}view> <${VIEW}> ; <${V}element> <urn:x:a> . }`);
+        server = await startServer(dir, 10);
+        const files = ['data.ttl', 'other.ttl'].map(f => join(dir, f));
+        const shapes = await shapesModelOf(server.port(), files, {});
+        const doc = await viewDocOf(server.port(), new Map([[VIEW, join(dir, 'view.trig')]]), VIEW, shapes, {});
+        expect(doc.instances[iriId('urn:x:a')].fields).toEqual({ 'urn:x:unknown': [{ termType: 'NamedNode', value: 'urn:x:d' }] });
+    } finally {
+        await server?.stop();
+        rmSync(dir, { recursive: true, force: true });
+    }
+}, 20000);

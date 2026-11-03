@@ -248,12 +248,20 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     const blanks = new Set([...wanted].filter(s => s.startsWith(BLANK)));
     const [namedRows, blankRows] = await Promise.all([chunked(port, [...wanted].filter(s => !blanks.has(s)), statementsQuery, modelFiles),
         blanks.size ? port.select(BLANK_STATEMENTS).then(rows => rows.filter(r => blanks.has(r.s.value))) : []]);
+    // File-scoped statements still use the model-wide known-object test of the old query. Only query real IRIs here;
+    // blank-node rows and their labels keep their existing scope and filters.
+    const unknown = [...new Set(namedRows.filter(r => r.known?.value !== 'true' && r.o.termType === 'NamedNode' && !r.o.value.startsWith(BLANK)).map(r => r.o.value))];
+    const knownQueries: Promise<Row[]>[] = [];
+    for (let i = 0; i < unknown.length; i += CHUNK) knownQueries.push(port.select(`${PREFIXES} SELECT DISTINCT ?o WHERE {
+        VALUES ?o { ${unknown.slice(i, i + CHUNK).map(o => `<${o}>`).join(' ')} } ?o rdf:type|rdfs:label ?any }`, modelFiles));
+    const knownObjects = new Set((await Promise.all(knownQueries)).flat().map(r => publishedIri(r.o.value)));
     const placedRows = legacyRows<Row & { file?: string }>([...namedRows, ...blankRows]);
     const modelRows = placedRows.filter(r => !shapeRow(r)), shapeRows = placedRows.filter(shapeRow);
     const valueSetTypes = new Set(SKOS_TYPES.filter(t => !t.value.endsWith('#Concept')).map(t => t.value));
     const shows = !elements && elementObjects.some(o => shapes.shapeSubjects.has(`<${o}>`)
         || modelRows.some(r => r.s.value === o && r.p.value === TYPE && valueSetTypes.has(r.o.value)));
-        const keep = (r: Row) => !!elements || r.p.value === TYPE || r.o.termType !== 'NamedNode' || placed.has(r.o.value) || !(r.known?.value === 'true' && !isShape(r.o));
+    const keep = (r: Row) => !!elements || r.p.value === TYPE || r.o.termType !== 'NamedNode' || placed.has(r.o.value)
+        || !((r.known?.value === 'true' || knownObjects.has(r.o.value)) && !isShape(r.o));
 
     const statements = new Map<string, Statements>();
     const seen = new Set<string>();
