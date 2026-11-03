@@ -179,6 +179,9 @@ try {
   const instances = await until(state, (s) => s.boxes.includes("Animal Farm") && s.boxes.includes("George Orwell"), 30000)
   await page.screenshot({ path: path.join(out, "web-bookshop.png") })
   check("the instance view opens in a second canvas tab", (await page.locator("#tabs .tab").count()) === 2 && instances?.boxes.includes("Little corner Bookshop"), JSON.stringify(instances?.boxes))
+  await svgOf().locator(".catenary-card", { hasText: "Animal Farm" }).first().locator(".badge text").click()
+  const problemTab = await until(() => tab("data.ttl").count(), (n) => n === 1)
+  check("a click on the violation badge opens the problem", problemTab === 1 && (await tab("data.ttl").getAttribute("class")).includes("active"), `${problemTab} data.ttl tabs`)
   check("no page errors", errors.length === 0, errors.join(" | "))
 } catch (e) {
   check("the run completes", false, e.message)

@@ -155,6 +155,11 @@ export function resizeHandle(location: string, p: { x: number; y: number }, k: n
     return s('g', { ...extra, class: { 'catenary-resize-handle': true, ...(extra.class ?? {}) }, attrs: { ...(extra.attrs ?? {}), 'data-kind': location } }, shape);
 }
 
+/** Hover text of a violation badge: the click action, then the violation messages. */
+function badgeTitle(message = ''): string {
+    return message ? `Show the problem: ${message}` : 'Show the problem';
+}
+
 /**
  * The card: body, content (class, name, field lines; the name wraps), violation badge,
  * then the resize handles (`handles`, rendered by the caller). The halo is drawn above all elements (CatenaryGraphView).
@@ -169,7 +174,7 @@ export function renderCard(p: CardProps, handles: VNode[]): VNode {
     ]);
     const badge = p.violations > 0
         ? [s('g', { class: { badge: true } }, [
-            s('title', {}, [p.violationMessage ?? '']),
+            s('title', {}, [badgeTitle(p.violationMessage)]),
             s('circle', { attrs: { cx: width - 4, cy: 4, r: 16 } }),
             s('text', { attrs: { x: width - 4, y: 5 } }, [String(p.violations)])])]
         : [];
@@ -288,6 +293,7 @@ export function renderShapeCard(p: ShapeCardProps, rows: VNode[], handles: VNode
     ]);
     const badge = p.violations > 0
         ? [s('g', { class: { badge: true } }, [
+            s('title', {}, [badgeTitle()]),
             s('circle', { attrs: { cx: width - 4, cy: 4, r: 12 } }),
             s('text', { attrs: { x: width - 4, y: 5 } }, [String(p.violations)])])]
         : [];

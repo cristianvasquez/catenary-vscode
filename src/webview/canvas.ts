@@ -107,6 +107,14 @@ export class CanvasInteractions implements IDiagramStartup {
                 }
             }
             if (this.containerPress(w, target, e) || this.shapesPress(w, target, e)) return;
+            const badged = target.closest?.('.catenary-card > .badge') ? idOf(target, '.catenary-card') : undefined;
+            if (badged) {
+                // The violation badge: show the problem, no drag and no selection change.
+                e.preventDefault();
+                e.stopPropagation();
+                this.showProblem(badged);
+                return;
+            }
             const halo = target.closest?.('.halo-action');
             if (halo) {
                 const box = halo.closest('.catenary-halo')?.getAttribute('data-element');
@@ -203,6 +211,11 @@ export class CanvasInteractions implements IDiagramStartup {
         document.dispatchEvent(new CustomEvent(OPEN_IN_EVENT, { detail }));
     }
 
+    /** Show the problem of the element `id` in the host (one problem: its location; several: a picker). Halo menu and violation badge. */
+    protected showProblem(id: string): void {
+        document.dispatchEvent(new CustomEvent(OPEN_IN_EVENT, { detail: { problem: id } }));
+    }
+
     /** The "…" of the halo: the view actions of the selection in the popup picker. */
     protected menu(w: CanvasWidget, id: string, button: Element, selected: string[]): void {
         const b = button.getBoundingClientRect(), view = viewIdOf(w), anchor = { x: b.left, y: b.bottom + 6 };
@@ -221,7 +234,7 @@ export class CanvasInteractions implements IDiagramStartup {
             { label: 'Remove from view', description: 'Del', run: () => id.endsWith(LEAF_SUFFIX) ? this.actions.removeFromView(view, id)
                 : w.actionDispatcher.dispatch(DeleteElementOperation.create(this.selectedIn(w))) },
             ...(Number(shown?.violations) > 0 ? [{ label: Number(shown?.violations) > 1 ? 'Show the problems' : 'Show the problem',
-                run: () => document.dispatchEvent(new CustomEvent(OPEN_IN_EVENT, { detail: { problem: id } })) }] : []),
+                run: () => this.showProblem(id) }] : []),
             ...(openable ? [{ label: 'Open in the editor', run: () => this.openIn(w, id) }] : []),
             ...(selected.length > 1 ? [{ label: 'Collect into one box', run: () => this.actions.collect(view, selected) }] : []),
             ...(shown?.type === TYPES.COLLECTION ? [{ label: 'Expand: show the cards again', run: () => this.actions.uncollect(view, [id]) }] : []),

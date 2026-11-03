@@ -804,6 +804,17 @@ try {
       check('Show the problem opens data.ttl in the active editor', opened)
       const problems = await until(() => page.locator('.markers-panel').isVisible(), visible => visible)
       check('Show the problem opens the Problems panel', problems)
+      await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^instances\.trig$/ }) }).first().click()
+      await activeData.waitFor({ state: 'hidden' })
+      // Zoom in again at the badge: at the zoom above, an edge of the Bookshop card lies over the badge.
+      const zoomed = (await state(svg)).viewport
+      const b = await badge.locator('text').boundingBox()
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2)
+      await page.mouse.wheel(0, -400)
+      await until(() => state(svg), s => s.viewport !== zoomed)
+      await badge.locator('text').click()
+      const badgeOpened = await until(() => activeData.isVisible(), visible => visible)
+      check('a click on the violation badge opens data.ttl in the active editor', badgeOpened)
     }
 
     // Book shape aggregates the publicationYear violation of Animal Farm.
