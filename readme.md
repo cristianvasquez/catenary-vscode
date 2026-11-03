@@ -67,6 +67,8 @@ pnpm ui:markdown    # export a Markdown document with an embedded view
 
 `pnpm web:build` writes `dist-web/`, a static site that runs Catenary in the browser tab like the [turtle-lsp browser editor](https://abhishekkundu25.github.io/turtle-lsp/): a file list, Monaco text editors and Catenary canvases. Nothing is uploaded; files stay in the browser's localStorage, and Download writes them as a ZIP file. `pnpm web:serve` serves `dist-web/` at `http://127.0.0.1:8124/`; `pnpm web:ui` checks the page in headless Chromium (`CHROMIUM` sets the binary, default `/usr/bin/chromium`).
 
+The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages on each push to `main`; set the repository's Pages source to "GitHub Actions" once.
+
 - turtle-lsp runs as WebAssembly in a worker. `scripts/fetch-turtle-lsp.mjs` downloads `engine.wasm` and its modules from the turtle-lsp GitHub Pages site and checks the SHA-256 pinned in the script (turtle-lsp 0.13.1). turtle-lsp publishes no versioned web build: when upstream deploys again, a build without the cache in `.cache/turtle-lsp-web/` fails until the pins are updated with `--pin`.
 - The GLSP server runs in the page (`src/web/server.ts`), one server instance per canvas over a `MessagePort`. Each canvas is an iframe (`src/web/canvas.ts`), as a VS Code webview is.
 - The shared code is not changed for the browser: the web build maps `node:fs`, `node:url`, `node:path` and `node:crypto` to shims (`src/web/shims/`) over an in-memory file system. The SHA-256 shim gives the same placement IRIs as Node.
