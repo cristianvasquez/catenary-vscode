@@ -5,6 +5,7 @@
 - Local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` over the workspace through the Turtle language server `turtle/query` request: setting `catenary.sparql.port`, commands Start, Stop and Copy SPARQL Endpoint URL, a status bar item, and browser pages from the origins in `catenary.sparql.allowOrigins`.
 - The workspace graph is read without a layout and loaded in bulk as N-Quads. On a 20k-triple workspace the refresh went from about 5.6 s to under 1 s (754 ms + 4.8 s before; 116 ms + about 0.5 s after).
 - The store graph of a model file is its file URI, and its shapes are in `<file URI>#shapes` (was `urn:data:` / `urn:shapes:`).
+- The canvas draws from `turtle/query` of the Turtle language server (fork `cristianvasquez/turtle-lsp`, branch `turtle-query`): no model copy for the drawing. A change of an open model document redraws the canvas before a save. Known limit until the text editor (K10): an unsaved canvas edit is not drawn; the canvas shows it after the view file is saved. The browser page still draws from the old graph.
 
 ## 0.0.3
 

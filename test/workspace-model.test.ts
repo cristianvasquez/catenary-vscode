@@ -1,11 +1,15 @@
 import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { expect, test, vi } from 'vitest';
-import type { Uri, WorkspaceFolder } from 'vscode';
+import type { TextDocumentChangeEvent, Uri, WorkspaceFolder } from 'vscode';
 import { iriId } from '../src/catenary/model/ids';
 import { graphOf } from '../src/model/graph-input';
-import type { GraphResult } from '../src/node/turtle-api';
+import type { TurtleApi } from '../src/node/turtle-api';
+
+/** The listeners of onDidChangeTextDocument, and the files that findFiles gives. */
+const host = vi.hoisted(() => ({ changes: [] as ((e: TextDocumentChangeEvent) => void)[], files: [] as string[], folder: undefined as unknown }));
 
 vi.mock('../src/node/glsp/server', () => ({ createCanvasServer: vi.fn() }));
 vi.mock('@eclipse-glsp/vscode-integration', () => ({ GlspVscodeConnector: class {}, WebviewEndpoint: class {} }));
@@ -16,13 +20,17 @@ vi.mock('vscode', () => {
         RelativePattern: class {},
         workspace: {
             createFileSystemWatcher: () => ({ dispose() {}, onDidChange: disposable, onDidCreate: disposable, onDidDelete: disposable }),
-            onDidSaveTextDocument: disposable
+            onDidSaveTextDocument: disposable,
+            onDidChangeTextDocument: (listener: (e: TextDocumentChangeEvent) => void) => { host.changes.push(listener); return disposable(); },
+            findFiles: async () => host.files.map(fsPath => ({ fsPath })),
+            getWorkspaceFolder: () => host.folder
         },
-        languages: { onDidChangeDiagnostics: disposable }
+        languages: { onDidChangeDiagnostics: disposable, getDiagnostics: () => [] }
     };
 });
 import { WorkspaceModel } from '../src/node/workspace-model';
-import { fixtureGraph } from './fixture-graph';
+import { FIXTURE, fixtureGraph } from './fixture-graph';
+import { startServer } from './server';
 
 const result = fixtureGraph();
 const file = resolve('test/fixtures/shapes/instances.trig');
@@ -102,3 +110,55 @@ test('bad and duplicate view files are reported without blocking a valid view', 
         rmSync(dir, { recursive: true });
     }
 });
+
+test('a refresh over the port reads the view files, the shapes and the diagram; a model document change schedules a refresh', async () => {
+    const server = await startServer(FIXTURE, 282);
+    /** `hidden`: a document that turtle/graph does not give, as if it were in another folder of the window. */
+    const apiOf = (hidden?: string): TurtleApi => ({
+        client: () => ({ isRunning: () => true, sendRequest: async <R>(method: string, params: unknown) => {
+            if (method === 'turtle/query') return await server.query(params as never) as R;
+            const graph = await server.graph(params as never);
+            return { ...graph, edges: graph.edges.filter(e => !hidden || e.uri !== pathToFileURL(hidden).href) } as R;
+        } }),
+        idle: async () => {}
+    });
+    const api = apiOf();
+    host.files = ['instances', 'model'].map(f => join(FIXTURE, `${f}.trig`));
+    const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(folder, () => api, () => undefined);
+    try {
+        await model.refresh();
+        expect(model.error).toBeUndefined();
+        expect(model.generation).toBe(1);
+        expect(Object.fromEntries(model.viewFiles)).toEqual({ 'urn:name:Bookshop': host.files[0], 'urn:name:Bookshop%20model': host.files[1] });
+        expect(model.manifest.file).toBe(join(FIXTURE, 'prefixes.ttl'));
+        expect(model.modelFiles).toEqual(['cities.ttl', 'data.ttl', 'shapes.ttl'].map(f => join(FIXTURE, f)));
+        const { schema, doc } = await model.diagram(iriId('urn:name:Bookshop'), {});
+        expect(schema.children!.filter(e => e.type === 'node:card')).toHaveLength(7);
+        expect(doc.views[iriId('urn:name:Bookshop')]).toBeDefined();
+        const schedule = vi.spyOn(model as unknown as { schedule(): void }, 'schedule').mockImplementation(() => undefined);
+        const change = (fsPath: string) => host.changes.at(-1)!({ document: { uri: { fsPath } }, contentChanges: [{}] } as unknown as TextDocumentChangeEvent);
+        change(join(FIXTURE, 'data.ttl'));
+        // A new empty model document is in no list yet; a view file and a file that is not RDF do not refresh the model.
+        change(join(FIXTURE, 'new.ttl'));
+        change(host.files[0]);
+        change(join(FIXTURE, 'readme.md'));
+        expect(schedule).toHaveBeenCalledTimes(2);
+        await model.refresh();
+        expect(model.generation).toBe(2);
+        // The server holds the view of another folder; this folder's canvas does not draw it.
+        const other = new WorkspaceModel(folder, () => apiOf(host.files[0]), () => undefined);
+        try {
+            await other.refresh();
+            expect(other.viewFiles.has('urn:name:Bookshop')).toBe(false);
+            expect((await other.diagram(iriId('urn:name:Bookshop'), {})).schema).toEqual({ type: 'graph', id: 'root', children: [] });
+        } finally {
+            other.dispose();
+        }
+    } finally {
+        model.dispose();
+        host.files = [];
+        host.folder = undefined;
+        await server.stop();
+    }
+}, 20000);

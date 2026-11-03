@@ -1,5 +1,7 @@
-// The platform-free part of one folder's workspace graph: open view stores, edits, view replacement and refresh. The VS Code host
-// (node/workspace-model.ts) and the browser page (web/workspace.ts) supply the turtle-lsp graph, the view files and the diagnostics.
+// The platform-free part of one folder's workspace: the model records read through turtle/query (the canvas draws from them), and until
+// K10 the old graph with the open view stores for the edits. The VS Code host (node/workspace-model.ts) and the browser page
+// (web/workspace.ts) supply the port, the turtle-lsp graph, the view files and the diagnostics.
+import { fileURLToPath } from 'node:url';
 import type { Diagnostic } from 'vscode';
 import type { ViewCommand } from '../catenary/model/commands';
 import { iriId } from '../catenary/model/ids';
@@ -16,7 +18,12 @@ import { graphOf } from './graph-input';
 import { ViewStore } from './store';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
-import { diagnosticsOf } from '../node/diagnostics';
+import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDrawn, modelContextOf } from '../read/diagram';
+import { diagnosticsOf } from '../read/diagnostics';
+import type { ManifestRecords } from '../read/manifest';
+import type { ShapesModelRecords } from '../read/shapes';
+import { expandChoices, instancesNamed, memberOptions } from './choices';
+import type { ModelPort } from './port';
 
 /** The quads of a view file, as graphOf reads them. */
 function viewQuads(text: string) {
@@ -34,17 +41,28 @@ export interface OpenView {
 export interface Releasable { dispose(): void }
 
 export abstract class WorkspaceCore implements ViewSource {
-    /** The last graph; undefined before the first answer. */
+    /** The old graph, for the write path (execute, open view stores) and the pickers until K7 and K10; undefined before the first answer. */
     graph: ModelGraph | undefined;
+    /** The turtle/graph answer: node ranges of the diagnostics. */
     result: GraphResult | undefined;
-    /** View IRI to its workspace file path, refreshed with the graph. */
+    /** View IRI to its workspace file path (viewFilesOf; without a port: graphOf), refreshed on each refresh. */
     readonly viewFiles = new Map<string, string>();
+    /** The model documents without the manifest document (ShapesModelRecords.files). */
+    modelFiles: string[] = [];
+    /** The shapes model of the model documents, computed once per refresh; undefined before the first answer or without a port. */
+    shapes: ShapesModelRecords | undefined;
+    manifest: ManifestRecords = {};
+    /** Incremented on each refresh that succeeds. */
+    generation = 0;
+    /** The context of the reads (modelContextOf): its port reads the documents of this folder only. */
+    protected ctx: ModelContext | undefined;
     violations: Violation[] = [];
     /** Why the last refresh failed; undefined after a success. */
     error: string | undefined;
     /** The last clip of a copy or cut in a canvas of this folder (glsp/handlers.ts). */
     clip?: { id: string; data: string };
     protected seq = 0;
+    protected diagnosticsSeq = 0;
     protected first?: Promise<void>;
     protected readonly listeners = new Set<() => void>();
     /** The views open in an editor, by view id. */
@@ -52,6 +70,8 @@ export abstract class WorkspaceCore implements ViewSource {
 
     /** A short name of the folder, for log lines. */
     protected abstract readonly name: string;
+    /** turtle/query of this host; undefined: the host has none (the browser page until K13), the old graph draws. */
+    protected abstract readonly port: ModelPort | undefined;
     /** turtle-lsp `turtle/graph`, limited to the documents of this folder. */
     protected abstract requestGraph(): Promise<GraphResult>;
     /** The view file paths of this folder, sorted. */
@@ -149,8 +169,12 @@ export abstract class WorkspaceCore implements ViewSource {
         try {
             const result = await this.requestGraph();
             const views = await this.viewFilePaths();
-            const { graph, views: viewFiles, skipped } = graphOf(result, views);
+            const old = graphOf(result, views);
+            // The RDF documents of the folder: the documents of the turtle/graph answer (requestGraph keeps this folder's).
+            const documents = [...new Set(result.edges.map(e => e.uri).filter(u => u.startsWith('file:')))].map(u => fileURLToPath(u)).sort();
+            const records = this.port ? await modelContextOf(this.port, documents) : undefined;
             if (seq !== this.seq) return;
+            const { graph } = old, { views: viewFiles, skipped } = records?.viewFiles ?? old;
             if (this.graph) this.keepOpenViews(this.graph, graph);
             for (const { file, reason } of skipped) this.log(`workspace ${this.name}: skipped ${file}: ${reason}`);
             if (skipped.length) this.warn(`Catenary: skipped ${skipped.length} view file(s) in ${this.name}. See the Catenary output for details.`);
@@ -158,15 +182,42 @@ export abstract class WorkspaceCore implements ViewSource {
             for (const [iri, file] of viewFiles) this.viewFiles.set(iri, file);
             this.graph = graph;
             this.result = result;
-            this.readDiagnostics();
+            if (records) ({ manifest: this.manifest, shapes: this.shapes, modelFiles: this.modelFiles } = this.ctx = records.ctx);
+            this.generation++;
+            await this.readDiagnostics();
+            if (seq !== this.seq) return;
             this.error = undefined;
-            this.log(`workspace ${this.name}: ${result.edges.length} edges, ${views.length} view files`);
+            this.log(`workspace ${this.name}: ${result.edges.length} edges, ${viewFiles.size} view files`);
         } catch (e) {
             if (seq !== this.seq) return;
             this.error = e instanceof Error ? e.message : String(e);
             this.log(`workspace ${this.name}: ${this.error}`);
         }
         this.fire();
+    }
+
+    /** The context of the reads; undefined before the first refresh or without a port. */
+    protected context(): ModelContext | undefined {
+        return this.ctx;
+    }
+
+    /** The diagram of the view `viewId` from turtle/query: the saved view file (an unsaved canvas edit is not drawn until K10). */
+    async diagram(viewId: string, opts: DiagramOptions): Promise<Drawn> {
+        const ctx = this.context();
+        return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
+    }
+
+    /** The pickers on the old graph until K7. */
+    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets') {
+        return this.graph ? expandChoices(this.graph, viewId, from, dir) : undefined;
+    }
+
+    memberOptions(viewId: string, collection: string): string[] {
+        return this.graph ? memberOptions(this.graph, viewId, collection) : [];
+    }
+
+    instancesNamed(text: string): string[] {
+        return this.graph ? instancesNamed(this.graph, text) : [];
     }
 
     /**
@@ -186,9 +237,15 @@ export abstract class WorkspaceCore implements ViewSource {
         }
     }
 
-    /** Diagnostics of turtle-lsp as SHACL violations of the graph. */
-    readDiagnostics(): void {
-        if (!this.graph || !this.result) return;
-        this.violations = diagnosticsOf(this.graph, this.result, this.diagnosticsByUri(), uri => this.textOf(uri));
+    /** Diagnostics of turtle-lsp as SHACL violations: one turtle/query for the focus terms. A later call wins over an earlier one. */
+    async readDiagnostics(): Promise<void> {
+        const ctx = this.context(), result = this.result, seq = ++this.diagnosticsSeq;
+        if (!ctx || !result) return;
+        try {
+            const violations = await diagnosticsOf(ctx, result, this.diagnosticsByUri(), uri => this.textOf(uri));
+            if (seq === this.diagnosticsSeq) this.violations = violations;
+        } catch (e) {
+            this.log(`workspace ${this.name}: diagnostics: ${e instanceof Error ? e.message : String(e)}`);
+        }
     }
 }

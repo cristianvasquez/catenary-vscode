@@ -1,5 +1,6 @@
 // Read and refresh one GLSP view and route edits to its ViewStore; adapted from Catenary modeler/src/node/glsp/view-session.ts.
-// Each store step is one VS Code undo step; refreshes must not replace a newer edit model.
+// Each store step is one VS Code undo step; refreshes must not replace a newer edit model. The session computes the diagram (async,
+// turtle/query) into ViewState before it submits; the synchronous GModelFactory reads it.
 
 import {
     Action, ClientActionForwarder, ClientActionKinds, ClientId, ClientSessionManager, GModelFactory, GModelRoot, GModelSerializer,
@@ -8,20 +9,21 @@ import {
 import { inject, injectable } from 'inversify';
 import { viewIdOfUri } from '../../common/protocol';
 import type { ViewCommand } from '../../catenary/model/commands';
-import { Doc, View, emptyDoc, placementOfId } from '../../catenary/model/doc';
-import { TYPES } from '../../catenary/model/diagram-schema';
-import type { ModelGraph } from '../../catenary/rdf/graph';
+import { Doc, View, placementOfId } from '../../catenary/model/doc';
+import type { Choices } from '../../catenary/model/prompts';
 import type { Result } from '../../catenary/rdf/ops';
-import { shapesIndexOf } from '../../catenary/rdf/shapes-read';
-import { readView } from '../../catenary/rdf/view-read';
 import type { Violation } from '../../catenary/model/validation';
-import { diagramOf } from '../../model/diagram';
-import { graphPrefixes } from '../../model/graph-input';
+import { type DiagramOptions, type Drawn, emptyDrawn } from '../../read/diagram';
 
-/** The workspace graph that the sessions read: undefined before the first turtle-lsp answer. */
+/** The workspace that the sessions read and edit. */
 export interface ViewSource {
-    readonly graph: ModelGraph | undefined;
     readonly violations?: Violation[];
+    /** The schema, the Doc and the figures of the view `viewId` (element id); an empty diagram before the first turtle-lsp answer. */
+    diagram(viewId: string, opts: DiagramOptions): Promise<Drawn>;
+    /** The pickers of the halo and of "+ member" (model/choices.ts). */
+    expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Choices | undefined;
+    memberOptions(viewId: string, collection: string): string[];
+    instancesNamed(text: string): string[];
     onDidChange(listener: () => void): { dispose(): void };
     /** One edit of the view `viewId` (element id) through the ViewStore of its document; refused when no editor has the view open. */
     execute(viewId: string, command: ViewCommand): Result<unknown>;
@@ -37,6 +39,8 @@ export class ViewState {
     viewId = '';
     /** Card text scale of the client (`catenarySetCardScale`): minimum heights of cards with rows. */
     cardScale = 1;
+    /** The last diagram computed (ViewSession.draw): createModel submits its schema; `doc` is the read model of the handlers. */
+    drawn: Drawn = emptyDrawn();
 }
 
 /** The ids that an edit made (Result.value: an id or ids) and the follow-up of the session (Catenary CommandResult). */
@@ -57,17 +61,14 @@ export class ViewSession {
     protected started = false;
     /** During an edit: the workspace change of the edit does not refresh this session (the edit sends its own update). */
     protected muted = false;
+    /** The number of the last draw started: an earlier draw that ends later does not replace its result. */
+    protected draws = 0;
 
     get store(): ViewSource { return this.state.store; }
     get viewId(): string { return this.state.viewId; }
 
-    /** The read model of this view: the view, its instances, the relations between them and the shapes. */
-    get part(): Doc {
-        const graph = this.store.graph;
-        if (!graph) return emptyDoc();
-        graphPrefixes(graph);
-        return readView(graph, this.viewId, shapesIndexOf(graph).model);
-    }
+    /** The read model of this view, from the last draw: the view, its instances, the relations between them and the shapes. */
+    get part(): Doc { return this.state.drawn.doc; }
 
     get view(): View | undefined { return this.part.views[this.viewId]; }
 
@@ -85,11 +86,19 @@ export class ViewSession {
         this.sessions.addListener(sessionListener, this.clientId);
     }
 
-    /** Send the current graph to the client. */
+    /** Computes the diagram of the view into the state. */
+    async draw(): Promise<void> {
+        const n = ++this.draws;
+        const drawn = await this.store.diagram(this.viewId, { cardScale: this.state.cardScale, violations: this.store.violations });
+        if (n === this.draws) this.state.drawn = drawn;
+    }
+
+    /** Send the current diagram to the client. */
     async refresh(): Promise<void> {
         // Yield so display work starts after the caller has returned.
         await new Promise<void>(resolve => setImmediate(resolve));
         try {
+            await this.draw();
             const actions = await this.submission.submitModel('operation');
             await this.dispatcher.dispatchAll(actions);
         } catch (e) {
@@ -116,9 +125,11 @@ export class ViewSession {
             this.muted = false;
         }
         if (!r.ok) {
+            await this.draw();
             await this.dispatcher.dispatchAll([editWarning(command.kind, 'refused', r.error), ...await this.submission.submitModel('operation')]);
             return { ok: false, error: r.error };
         }
+        await this.draw();
         const actions = await this.submission.submitModel('operation');
         // The diagram identifies a card or an edge by its placement: the created elements by their placement in this view.
         const view = this.view, shown = (id: string) => placementOfId(view, id);
@@ -169,11 +180,13 @@ export class RevisionGuardForwarder extends ClientActionForwarder {
 export class ViewModelStorage implements SourceModelStorage {
     @inject(ViewSession) protected readonly session: ViewSession;
 
-    loadSourceModel(action: RequestModelAction): void {
+    /** Starts the session and computes the first diagram before GLSP calls createModel. */
+    async loadSourceModel(action: RequestModelAction): Promise<void> {
         const uri = String(action.options?.uri ?? action.options?.sourceUri ?? '');
         const viewId = viewIdOfUri(uri);
         if (!viewId) throw new Error(`Not a view URI: ${uri}`);
         this.session.start(viewId);
+        await this.session.draw();
     }
 
     /** VS Code saves the view document (CanvasEditorProvider.saveCustomDocument); a GLSP save has nothing to write. */
@@ -186,10 +199,9 @@ export class ViewGModelFactory implements GModelFactory {
     @inject(ModelState) protected readonly modelState: ModelState;
     @inject(GModelSerializer) protected readonly serializer: GModelSerializer;
 
-    /** Catenary's options of toSchema, through diagramOf (src/model/diagram.ts). Diagnostics come from turtle-lsp. */
+    /** The schema of the last draw (ViewSession.draw, read/diagram.ts diagramOf). Diagnostics come from turtle-lsp. */
     createModel(): void {
-        const { graph } = this.session.store, { viewId, cardScale } = this.session;
-        const schema = graph ? diagramOf(graph, viewId, { cardScale, violations: this.session.store.violations }) : { id: viewId, type: TYPES.GRAPH, children: [] };
+        const schema = this.session.drawn.schema;
         const root = this.serializer.createRoot(schema as never) as GModelRoot;
         this.modelState.updateRoot(root);
     }

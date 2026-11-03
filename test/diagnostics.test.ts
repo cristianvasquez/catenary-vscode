@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { expect, test } from 'vitest';
 import type { Diagnostic } from 'vscode';
 import { iriId } from '../src/catenary/model/ids';
@@ -7,7 +7,10 @@ import { diagramOf } from '../src/model/diagram';
 import { graphOf } from '../src/model/graph-input';
 import { diagnosticsOf, SHACL_CODE } from '../src/node/diagnostics';
 import type { GraphResult } from '../src/node/turtle-api';
-import { fixtureGraph } from './fixture-graph';
+import { modelContextOf } from '../src/read/diagram';
+import { diagnosticsOf as portDiagnosticsOf } from '../src/read/diagnostics';
+import { FIXTURE, fixtureGraph } from './fixture-graph';
+import { startServer } from './server';
 
 const result = fixtureGraph();
 const graph = graphOf(result, [resolve('test/fixtures/shapes/instances.trig')]).graph;
@@ -65,3 +68,23 @@ test('VS Code warning and information severities are not violation counts', () =
         expect(diagramOf(graph, 'urn:name:Bookshop', { violations }).children!.find(x => x.name === 'Animal Farm')!.violations).toBe(0);
     }
 });
+
+test('over the port: the same violations as on the old graph, with the classes and the instance test from one query', async () => {
+    const server = await startServer(FIXTURE, 282);
+    try {
+        const live = await server.graph({ literals: true, types: true, maxNodes: 20000, layout: { iterations: 0 } });
+        const old = graphOf(live, [resolve('test/fixtures/shapes/instances.trig'), resolve('test/fixtures/shapes/model.trig')]).graph;
+        const { ctx } = await modelContextOf(server.port(), readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(FIXTURE, f)));
+        const e = live.edges.find(x => live.nodes[x.source].id === animal && x.predicate.endsWith('publicationYear'))!, v = live.nodes[e.target];
+        const line = v.range.start.line;
+        // A literal range; a predicate-only range without relatedInformation (the shape comes from the rdf:type of the focus); a node range.
+        const byUri = { [v.uri]: [diagnostic(v.range), diagnostic({ start: { line, character: 4 }, end: { line, character: v.range.start.character - 1 } }),
+            diagnostic(live.nodes[e.source].range)] };
+        const now = await portDiagnosticsOf(ctx, live, byUri, textOf);
+        expect(now).toEqual(diagnosticsOf(old, live, byUri, textOf));
+        expect(now.map(x => [x.instance, x.shape])).toEqual(Array(2).fill([iriId(animal), iriId('urn:name:Book%20shape-publicationYear')]).concat([[iriId(animal), undefined]]));
+        expect(await portDiagnosticsOf(ctx, live, {}, textOf)).toEqual([]);
+    } finally {
+        await server.stop();
+    }
+}, 20000);

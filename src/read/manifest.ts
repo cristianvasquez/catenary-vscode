@@ -31,7 +31,7 @@ export async function manifestOf(port: ModelPort, modelFiles: string[]): Promise
     return { file, ...(prefixes ? { prefixes } : {}), ...(language ? { language } : {}) };
 }
 
-/** Sets the prefix table of compactIri and shortIri: the manifest's, else the defaults (graphPrefixes of graph-input.ts). */
+/** Sets the prefix table of compactIri and shortIri: the manifest's, else the defaults (as graphPrefixes on the old graph). */
 export function applyPrefixes(manifest: ManifestRecords): void {
     setPrefixes(manifest.prefixes ?? DEFAULT_PREFIXES);
 }
