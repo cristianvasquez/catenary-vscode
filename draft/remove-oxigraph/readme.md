@@ -69,6 +69,31 @@ Four rounds (katas ansc, mzg2, 9k26, mh0y, y4mq) changed how quads get into the 
 - `test/fixtures/shapes/graph.json` (the recorded turtle/graph answer of the old pipeline) is stale against `data.ttl`. K11 deletes it.
 - Decision 6 changed these ops to this-view-only (K8): mark statements, `view:arrow`, `view:member`, `placeConnectors`, `pruneArrows`, `createArrow`, `elementIdOf`, `markIri`, `ownedBy`; `uncollect` releases members in IRI order.
 
+## State on 2026-11-03 evening
+
+Merged on main: K1 `1rhb`, K2 `q74p`, K3 `1sx9`, K4 `af1j`, K5 `w1pm`, K6 `8twe`, K7 `dxwx`, K8 `sef3`, K9 `mydh`, K10 `v3y7`, K11 `qhck`, K12 `h3bm`. The store is gone: `grep -rn "oxigraph\|ModelGraph\|QuadStore\|graphOf\b" src test scripts package.json` finds nothing. 230 tests against the fork binary. The extension builds. The canvas reads through `turtle/query` and edits the view file with the tree-sitter patcher, undo is VS Code's.
+
+Running at the end of the session: K13 `thfz` (browser page, worktree `wt-thfz` in the session scratchpad, branch `kata/thfz-web`). When it closes: merge, `pnpm install`, verify, remove the worktree, then K14 `401x`. The user's VS Code settings got `turtle.server.path` = the fork binary (backup `settings.json.bak-before-turtle-fork`).
+
+## The round is functionally done and unusably slow: diagnosis
+
+Measured on `/home/cvasquez/doing/EP-catenary-dprod` (37 RDF files, 20k triples, 17 views), with the harness copy in `perf-harness.ts.txt` (put it back as `test/_perf.test.ts` to run it) and with timing lines in the Catenary output channel (not committed). Facts:
+
+- turtle-lsp is not the problem. Every query answers in milliseconds, also right after a `didChange`. The model context is 27 queries, 700 ms; a draw of a small view is 21 queries, 170 ms; a move is 12 queries, 110 ms.
+- One query shape is 4 to 8 s: the notation-figures prefetch of K4 (`src/read/figures.ts` `prefetchFigures`). It walks 5 hops from the placed terms in both directions with no predicate bound; on the view `urn:name:dprod-datasets` (9 cards, file `views/sources/EP-portal-datasets.view.trig`) the frontier reaches 3,540 terms and the query text is 836 KB with 1,176 `UNION` branches, one pair per blank node reached (the `isBlank` anchor workaround). Catenary v1 reads figures lazily: only the statements a notation role path asks for, from a placed term along that path's predicate and direction (`packages/rdf/src/notations.ts` `storeInput`, `LazyTripleIndex`).
+- One change causes 5 to 7 full draws of every open canvas: `WorkspaceCore.execute` fires, then the document change event fires again (`viewChanged`, 100 ms), each fire makes every session draw from scratch (hidden tabs included), plus the command's own draw. Nothing is kept per session. The user saw 21 s for "Show all 3" and 10 s for an undo on that view: one 4 s command plus six 5 s draws.
+- The blank-node workaround is everywhere (K3, K4, K5, K7, K9: a second query with `FILTER(isBlank(…))` matched in code by label) because this handoff did not carry the v1 rule (Catenary `AGENTS.md` "No blank nodes": the read skolemizes every blank node immediately, every node is an IRI, no code handles blank nodes).
+
+The history that applies, from the sessions of 2026-10-09 to 11 on Catenary v1 (agentsview project `catenary`, session `06a5abc9-5a4f-471d-8e53-6adc8e350bfd`, messages 1, 82, 90, 104, 136, 248): the same lag came from "no component keeps a read model, request-scoped reads" (ADR 0012), the user called it limiting, and the fix (commit a674342 "Keep the view model of a canvas across changes", kata 8v6d) made a move 0.1 to 0.3 ms: a session keeps the read model of its view; a view-graph change applies to it in place with no read; a data change re-reads only the shown elements; a shapes change or a reload re-reads fully; a hidden canvas marks a refresh due and refreshes when shown; one tested law: after any change the kept model equals a fresh read. A kept read model of one view is not a copy of the model and does not break the intent of this round.
+
+## Next round (not created yet; decision F0 open with the user)
+
+- F0 (fork): `turtle/query` returns every blank node as a skolem IRI, stable per document and label (the `<document>:<n>` labels exist), and accepts those IRIs in queries. Then delete every `isBlank` branch in `src/read/*.ts` and `src/edit/facts-of.ts`. The user asked why blank nodes matter at all; the answer is that they do not, and the rule belongs in the server.
+- F1: bound the figures prefetch to the predicates and directions of the loaded notation role paths, as `LazyTripleIndex` did; target `dprod-datasets` draw under 500 ms in the harness; the K4 oracle tests stay.
+- F2: kept session model with the v1 tiers: a command updates the kept view quads, `Doc`, prefetch and schema in memory and its own text edit (known `version`) does not trigger a re-read; an outside text change (undo, text editor) re-reads the view quads only, one query; a model change invalidates. Oracle test: kept equals fresh after each command and after an undo.
+- F3: one draw per canvas per change: coalesce the two fires, no draw while one is in flight for that session (one more after, if due), hidden webviews (`webviewPanel.visible`) mark due and draw when shown.
+- F4: on a model change recompute the shapes model only when a shapes file changed; a view redraws from the kept model with new facts for its shown elements only. `requestGraph` (turtle/graph, 9 MB) still runs on every refresh for the diagnostic ranges: replace.
+
 ## Katas
 
 Order and dependencies. One kata = one agent session. K1 blocks everything.

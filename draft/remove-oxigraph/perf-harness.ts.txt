@@ -1,0 +1,91 @@
+// Temporary measurement, not committed: where the time goes on EP-catenary-dprod.
+import { readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { test } from 'vitest';
+import type { ModelPort } from '../src/model/port';
+import { diagramOf, modelContextOf } from '../src/read/diagram';
+import { runCommand } from '../src/edit/executor';
+import { startServer } from './server';
+
+const FOLDER = '/home/cvasquez/doing/EP-catenary-dprod';
+const VIEW_FILE = process.env.PERF_VIEW ?? join(FOLDER, 'views/shacl-models/dcat-ep-ed-shapes.view.trig');
+
+function rdfFiles(dir: string, out: string[] = []): string[] {
+    for (const name of readdirSync(dir)) {
+        if (name === 'node_modules' || name.startsWith('.')) continue;
+        const p = join(dir, name);
+        if (statSync(p).isDirectory()) rdfFiles(p, out);
+        else if (/\.(ttl|trig)$/.test(name)) out.push(p);
+    }
+    return out.sort();
+}
+
+const lines: string[] = [];
+function timed(port: ModelPort, label: { v: string }): ModelPort {
+    const wrap = <K extends 'select' | 'construct' | 'ask'>(k: K) => async (q: string, files?: string[]) => {
+        const t = performance.now();
+        const r = await (port[k] as (q: string, f?: string[]) => Promise<unknown>)(q, files);
+        const n = Array.isArray(r) ? r.length : r;
+        if (performance.now() - t > 1000) { const { appendFileSync } = await import('node:fs'); appendFileSync('/tmp/claude-1000/-home-cvasquez-os-rdf-catenary-vscode/539cb74d-f698-4f16-bd12-69a5682e7bf2/scratchpad/slow-queries.txt', `\n==== ${(performance.now() - t).toFixed(0)} ms ${n} rows\n${q}\n`); }
+        lines.push(`${label.v}\t${k}\t${(performance.now() - t).toFixed(0)} ms\t${String(n).padStart(6)} rows\tfiles=${files?.length ?? 'all'}\t${q.replace(/\s+/g, ' ').slice(0, 110)}`);
+        return r;
+    };
+    return { select: wrap('select'), construct: wrap('construct'), ask: wrap('ask') } as ModelPort;
+}
+
+test('perf', async () => {
+    const s = await startServer(FOLDER, 15000, 120000);
+    try {
+        const label = { v: 'context' };
+        const port = timed(s.port(), label);
+        const files = rdfFiles(FOLDER);
+        let t = performance.now();
+        const { ctx, viewFiles } = await modelContextOf(port, files);
+        const tContext = performance.now() - t;
+        const viewIri = [...viewFiles.views].find(([, f]) => f === VIEW_FILE)?.[0];
+        if (!viewIri) throw new Error(`no view for ${VIEW_FILE}: ${[...viewFiles.views.values()].join(', ')}`);
+        label.v = 'draw';
+        t = performance.now();
+        const drawn = await diagramOf(ctx, viewIri, {});
+        const tDraw = performance.now() - t;
+        const view = Object.values(drawn.doc.views)[0];
+        const card = view?.boxes.find(b => b.kind === 'card');
+        label.v = 'move';
+        t = performance.now();
+        const run = card ? await runCommand(ctx, [{ iri: viewIri, uri: 'file://' + VIEW_FILE }], { kind: 'setBounds', view: viewIri, bounds: [{ id: card.id, x: (card.x ?? 0) + 10, y: card.y ?? 0 }] }, () => undefined) : undefined;
+        const tMove = performance.now() - t;
+        label.v = 'after-view-change';
+        const { readFileSync } = await import('node:fs');
+        const viewText = readFileSync(VIEW_FILE, 'utf8');
+        await s.open(pathToFileURL(VIEW_FILE).href, viewText);
+        t = performance.now();
+        await s.change(pathToFileURL(VIEW_FILE).href, viewText + '\n');
+        await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }');
+        console.log(`after a view-file change, first query answered after ${(performance.now() - t).toFixed(0)} ms`);
+        const MODEL = join(FOLDER, 'workspace.data.ttl');
+        const modelText = readFileSync(MODEL, 'utf8');
+        await s.open(pathToFileURL(MODEL).href, modelText);
+        t = performance.now();
+        await s.change(pathToFileURL(MODEL).href, modelText + '\n');
+        await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }');
+        console.log(`after a model-file change, first query answered after ${(performance.now() - t).toFixed(0)} ms`);
+        t = performance.now();
+        await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }');
+        console.log(`second query after that: ${(performance.now() - t).toFixed(0)} ms`);
+        label.v = 'redraw';
+        t = performance.now();
+        await diagramOf(ctx, viewIri, {});
+        const tRedraw = performance.now() - t;
+        const by: Record<string, { n: number; ms: number }> = {};
+        for (const l of lines) { const [k, , ms] = l.split('\t'); by[k] ??= { n: 0, ms: 0 }; by[k].n++; by[k].ms += parseFloat(ms); }
+        console.log('\n' + lines.join('\n'));
+        console.log(`\nSUMMARY files=${files.length} views=${viewFiles.views.size} view=${viewIri} cards=${view?.boxes.length} schemaChildren=${drawn.schema.children?.length}`);
+        console.log(`context: ${tContext.toFixed(0)} ms, ${by.context?.n} queries (${by.context?.ms.toFixed(0)} ms in queries)`);
+        console.log(`draw:    ${tDraw.toFixed(0)} ms, ${by.draw?.n} queries (${by.draw?.ms.toFixed(0)} ms in queries)`);
+        console.log(`move:    ${tMove.toFixed(0)} ms, ${by.move?.n} queries (${by.move?.ms.toFixed(0)} ms in queries) ok=${run?.ok} edits=${run?.edits.length}`);
+        console.log(`redraw:  ${tRedraw.toFixed(0)} ms, ${by.redraw?.n} queries (${by.redraw?.ms.toFixed(0)} ms in queries)`);
+    } finally {
+        await s.stop();
+    }
+}, 300000);
