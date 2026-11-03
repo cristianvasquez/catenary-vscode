@@ -1,9 +1,11 @@
-import { beforeAll, describe, expect, test } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+// Kata 8twe: the diagram of each fixture view from turtle/query (fork binary over stdio), against the expected schemas and against
+// diagramOf of the old pipeline. The read builders of the old pipeline keep their tests on the recorded graph.json until K11.
+import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { readdirSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { graphOf } from '../src/model/graph-input';
-import { diagramOf } from '../src/model/diagram';
-import type { GraphResult } from '../src/node/turtle-api';
+import { diagramOf as oldDiagramOf } from '../src/model/diagram';
+import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
 import type { ElementSchema } from '../src/catenary/model/diagram-schema';
 import type { ModelGraph } from '../src/catenary/rdf/graph';
 import { iriId } from '../src/catenary/model/ids';
@@ -15,11 +17,15 @@ import { hiddenNeighborCounts, scopedDoc } from '../src/catenary/rdf/scoped-doc'
 import { homesAmong, inModelAmong, instancesAmong, labels } from '../src/catenary/rdf/quad-read';
 import { dataGraphIri } from '../src/catenary/rdf/graph-names';
 import { FIXTURE, fixtureGraph } from './fixture-graph';
+import { startServer } from './server';
 
 const result = fixtureGraph();
 const viewFiles = ['instances', 'model'].map(f => resolve(`test/fixtures/shapes/${f}.trig`));
 const modelIri = 'urn:name:Bookshop%20model', instancesIri = 'urn:name:Bookshop';
+/** Triples of the six fixture documents (port.test.ts). */
+const TRIPLES = 282;
 const id = (local: string) => iriId(`urn:name:${local}`);
+let server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
 let graph: ModelGraph, model: ElementSchema[], instances: ElementSchema[];
 const named = (elements: ElementSchema[], name: string): ElementSchema => {
     const element = elements.find(e => e.name === name);
@@ -27,10 +33,22 @@ const named = (elements: ElementSchema[], name: string): ElementSchema => {
     return element!;
 };
 
-beforeAll(() => {
+beforeAll(async () => {
+    server = await startServer(FIXTURE, TRIPLES);
+    ctx = (await modelContextOf(server.port(), readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(f => join(FIXTURE, f)))).ctx;
+    model = (await diagramOf(ctx, modelIri)).schema.children!;
+    instances = (await diagramOf(ctx, instancesIri)).schema.children!;
     graph = graphOf(result, viewFiles).graph;
-    model = diagramOf(graph, modelIri).children!;
-    instances = diagramOf(graph, instancesIri).children!;
+}, 20000);
+afterAll(async () => { await server?.stop(); });
+
+describe('the old pipeline as oracle', () => {
+    test.each([modelIri, instancesIri])('%s: the schema is byte-identical to diagramOf of the old pipeline on the same files', async iri => {
+        // The old graph from the live turtle/graph answer of the same server, not from graph.json (recorded before data.ttl changed).
+        const live = graphOf(await server.graph({ literals: true, types: true, maxNodes: 20000, layout: { iterations: 0 } }), viewFiles).graph;
+        const before = JSON.stringify(oldDiagramOf(live, iri));
+        expect(JSON.stringify((await diagramOf(ctx, iri)).schema)).toBe(before);
+    });
 });
 
 describe('Bookshop model', () => {
@@ -79,7 +97,8 @@ describe('Bookshop instances', () => {
     test('seven cards retain their model ids, classes, labels and row texts', () => {
         const expected = [
             ['Alice’s Adventures in Wonderland', 'Alice%E2%80%99s%20Adventures%20in%20Wonderland', 'Book', ['publication year: 1865']],
-            ['Animal Farm', 'Animal%20Farm', 'Book', ['publication year: 1945']],
+            // data.ttl: "nineteen forty-five" (the SHACL error of the sample); graph.json still has 1945.
+            ['Animal Farm', 'Animal%20Farm', 'Book', ['publication year: nineteen forty-five']],
             ['Nineteen Eighty-Four', 'Nineteen%20Eighty-Four', 'Book', ['publication year: 1949']],
             ['George Orwell', 'George%20Orwell', 'Author', ['birth date: 1903-06-25']],
             ['Lewis Carroll', 'Lewis%20Carroll', 'Author', ['birth date: 1832-01-27']],
@@ -152,9 +171,9 @@ describe('read builders', () => {
         expect(full.get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
     });
 
-    test('accepts a view id without changing placements', () => {
-        const shown = diagramOf(graph, iriId(modelIri));
+    test('accepts a view id without changing placements', async () => {
+        const shown = (await diagramOf(ctx, iriId(modelIri))).schema;
         expect(shown.children!.filter(e => e.type === 'node:shape').map(e => e.id)).toEqual(model.filter(e => e.type === 'node:shape').map(e => e.id));
-        expect(diagramOf(graph, 'urn:test:missing')).toEqual({ type: 'graph', id: 'root', children: [] });
+        expect((await diagramOf(ctx, 'urn:test:missing')).schema).toEqual({ type: 'graph', id: 'root', children: [] });
     });
 });

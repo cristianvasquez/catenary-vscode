@@ -1,9 +1,17 @@
 // The workspace graph of the page: turtle-lsp in a worker (engine.wasm) answers turtle/graph for the open buffers; view files are read
 // from the saved files (FileStore), as the VS Code host reads them from disk. Diagnostics arrive as LSP notifications.
+// The engine has no turtle/query until K13: the page draws from the old graph (model/diagram.ts) and maps diagnostics on it.
 import type { Diagnostic } from 'vscode';
-import { isViewFile } from '../model/graph-input';
+import { iriId } from '../catenary/model/ids';
+import { shapesIndexOf } from '../catenary/rdf/shapes-read';
+import { viewFiguresOf } from '../catenary/rdf/notations';
+import { readView } from '../catenary/rdf/view-read';
+import { diagramOf } from '../model/diagram';
+import { graphPrefixes, isViewFile } from '../model/graph-input';
 import { WorkspaceCore } from '../model/workspace-core';
+import { diagnosticsOf } from '../node/diagnostics';
 import type { GraphResult } from '../node/turtle-api';
+import { type DiagramOptions, type Drawn, emptyDrawn } from '../read/diagram';
 import { type FileStore, ROOT, pathOf } from './files';
 import type { LspClient, LspDiagnostic } from './turtle-lsp/editor-lsp.js';
 
@@ -12,6 +20,7 @@ const REFRESH_MS = 300;
 
 export class WebWorkspace extends WorkspaceCore {
     protected readonly name = 'workspace';
+    protected readonly port = undefined;
     /** The last diagnostics of turtle-lsp by document URI. */
     readonly diagnostics = new Map<string, LspDiagnostic[]>();
     protected timer: ReturnType<typeof setTimeout> | undefined;
@@ -46,8 +55,20 @@ export class WebWorkspace extends WorkspaceCore {
     /** New diagnostics of a document: the canvases draw their badges again. */
     setDiagnostics(uri: string, list: LspDiagnostic[]): void {
         this.diagnostics.set(uri, list);
-        this.readDiagnostics();
-        this.fire();
+        void this.readDiagnostics().then(() => this.fire());
+    }
+
+    override async diagram(viewId: string, opts: DiagramOptions): Promise<Drawn> {
+        const graph = this.graph;
+        if (!graph) return emptyDrawn();
+        const id = viewId.includes(':') ? iriId(viewId) : viewId;
+        graphPrefixes(graph);
+        const doc = readView(graph, id, shapesIndexOf(graph).model), view = doc.views[id];
+        return { schema: diagramOf(graph, id, opts), doc, ...(view ? { figures: viewFiguresOf(graph, view.uri) } : {}) };
+    }
+
+    override async readDiagnostics(): Promise<void> {
+        if (this.graph && this.result) this.violations = diagnosticsOf(this.graph, this.result, this.diagnosticsByUri(), uri => this.textOf(uri));
     }
 
     override refresh(): Promise<void> {

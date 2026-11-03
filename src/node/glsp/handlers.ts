@@ -15,8 +15,6 @@ import {
     type RequestExpandAction, type RequestGestureAction
 } from '../../common/protocol';
 import { isTakenOut, propertyNodeId } from '../../catenary/model/shapes-schema';
-import { expandChoices } from '../../model/choices';
-import { instancesNamed, memberOptions } from '../../model/choices';
 import { MEMBER_CHOICES, REQUEST_MEMBERS, type MemberChoicesAction, type RequestMembersAction } from '../../common/protocol';
 import { EDIT_RESULT, REQUEST_EDIT, type EditResultAction, type RequestEditAction } from '../../common/protocol';
 import { ViewSession, type EditResult } from './view-session';
@@ -135,8 +133,7 @@ export class RequestExpandHandler implements ActionHandler {
 
     execute(action: Action): Action[] {
         const { from, dir, requestId } = action as RequestExpandAction;
-        const graph = this.session.store.graph;
-        const choices = graph ? expandChoices(graph, this.session.viewId, from, dir) : undefined;
+        const choices = this.session.store.expandChoices(this.session.viewId, from, dir);
         return [{ kind: EXPAND_CHOICES, responseId: requestId, choices } as ExpandChoicesAction];
     }
 }
@@ -162,8 +159,8 @@ export class RequestMembersHandler implements ActionHandler {
 
     execute(action: Action): Action[] {
         const { collection, text, requestId } = action as RequestMembersAction;
-        const graph = this.session.store.graph;
-        const values = !graph ? [] : text === undefined ? memberOptions(graph, this.session.viewId, collection) : instancesNamed(graph, text);
+        const store = this.session.store;
+        const values = text === undefined ? store.memberOptions(this.session.viewId, collection) : store.instancesNamed(text);
         return [{ kind: MEMBER_CHOICES, responseId: requestId, values } as MemberChoicesAction];
     }
 }

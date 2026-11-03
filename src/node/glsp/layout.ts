@@ -10,7 +10,6 @@ import { ElementSchema, LEAF_SUFFIX, TYPES } from '../../catenary/model/diagram-
 import { Box, Doc, boxes, collectionOf, groupOf } from '../../catenary/model/doc';
 import type { ViewFigures } from '../../catenary/model/notation-join';
 import { toSchema } from '../../catenary/model/view-schema';
-import { viewFiguresOf } from '../../catenary/rdf/notations';
 import { LAYOUT_VIEW, type LayoutViewAction, LAYOUT_SPACING, LayoutAlgorithm, layoutSpacing } from '../../common/protocol';
 import { ViewSession } from './view-session';
 
@@ -289,10 +288,11 @@ export class LayoutViewHandler implements ActionHandler {
     readonly actionKinds = [LAYOUT_VIEW];
 
     async execute(action: LayoutViewAction): Promise<Action[]> {
-        const graph = this.session.store.graph, part = this.session.part, view = part.views[this.session.viewId];
-        if (!graph || !view) return [];
+        // The figures of the last draw (an unsaved canvas edit is not in them until K10).
+        const { doc: part, figures } = this.session.state.drawn, view = part.views[this.session.viewId];
+        if (!view) return [];
         const { bounds } = await layoutView(part, this.session.viewId, action.algorithm,
-            layoutSpacing(action.spacing ?? LAYOUT_SPACING.default), this.session.state.cardScale, viewFiguresOf(graph, view.uri));
+            layoutSpacing(action.spacing ?? LAYOUT_SPACING.default), this.session.state.cardScale, figures);
         // The fit comes after the model update (ViewSession.edit): the viewport shows the new layout, not the area of the old one.
         if (bounds.length > 0) await this.session.edit({ kind: 'setLayout', view: this.session.viewId, bounds },
             () => [FitToScreenAction.create([], { padding: 40, maxZoom: 1, animate: true })]);
