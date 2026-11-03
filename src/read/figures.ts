@@ -147,14 +147,22 @@ function groupsOf(misses: Iterable<Miss>): Group[] {
     });
 }
 
-/** Marks what the answer of a group covers: the VALUES terms by kind and predicate, and every blank subject of the answer (its closure came with it). */
+/**
+ * Marks what the answer of a group covers: the VALUES terms by kind and predicate, and every blank subject of the answer (its closure came
+ * with it). A predicate read has no closure under `?s`: a blank `?s` that is not also an object of the answer (a closure node) came with
+ * one predicate only and stays uncovered.
+ */
 function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
     if (g.kind === 'predicate') covered.predicates.add(g.p!);
     else for (const k of g.terms.map(nkey)) {
         if (g.kind === 'out') g.p === undefined ? covered.outAll.add(k) : covered.outP.add(`${k} ${g.p}`);
         else g.p === undefined ? covered.inAll.add(k) : covered.inP.add(`${k} ${g.p}`);
     }
-    for (const q of answer) if (q.subject.value.startsWith(BLANK)) { const k = nkey(q.subject); covered.outAll.add(k); covered.inAll.add(k); }
+    const objects = g.kind === 'predicate' ? new Set(answer.map(q => nkey(q.object))) : undefined;
+    for (const q of answer) {
+        const k = nkey(q.subject);
+        if (q.subject.value.startsWith(BLANK) && (!objects || objects.has(k))) { covered.outAll.add(k); covered.inAll.add(k); }
+    }
 }
 
 /** A placed term or a term the caller asks about, as the IRIs to read around: an IRI, or the IRI ends of a statement. */
