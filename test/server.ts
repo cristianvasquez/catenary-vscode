@@ -8,7 +8,7 @@ import { createMessageConnection, StreamMessageReader, StreamMessageWriter } fro
 import type { ModelPort } from '../src/model/port';
 import { nodePort } from '../src/node/port';
 import type { QueryAnswer } from '../src/node/sparql-endpoint';
-import type { QueryParams } from '../src/node/turtle-api';
+import type { GraphParams, GraphResult, QueryParams } from '../src/node/turtle-api';
 
 /** The binary under test: TURTLE_LSP, else the release build of ~/os/rdf/turtle-lsp. */
 const serverPath = process.env.TURTLE_LSP ?? join(homedir(), 'os/rdf/turtle-lsp/target/release/turtle-lsp');
@@ -17,6 +17,8 @@ interface TestServer {
     port(): ModelPort;
     /** The raw turtle/query answer. */
     query(params: QueryParams): Promise<QueryAnswer>;
+    /** The raw turtle/graph answer (the input of the old pipeline, graphOf). */
+    graph(params: GraphParams): Promise<GraphResult>;
     open(uri: string, text: string, languageId?: string): void;
     change(uri: string, text: string): void;
     stop(): Promise<void>;
@@ -69,6 +71,7 @@ export async function startServer(folder: string, triples: number, timeoutMs = 1
     return {
         port: () => port,
         query: params => conn.sendRequest<QueryAnswer>('turtle/query', params),
+        graph: params => conn.sendRequest<GraphResult>('turtle/graph', params),
         open(uri, text, languageId = 'turtle') {
             versions.set(uri, 1);
             void conn.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId, version: 1, text } });

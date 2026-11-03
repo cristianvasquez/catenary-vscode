@@ -41,6 +41,9 @@ importers:
       markdown-it:
         specifier: ^14.3.3
         version: 14.3.3
+      n3:
+        specifier: ^2.13.12
+        version: 2.13.12
       oxigraph:
         specifier: ^0.5.0
         version: 0.5.13
@@ -63,6 +66,9 @@ importers:
       '@types/markdown-it':
         specifier: ^14.2.0
         version: 14.2.0
+      '@types/n3':
+        specifier: ^1.26.6
+        version: 1.26.6
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.5
@@ -1110,6 +1116,9 @@ packages:
 
   '@types/mdurl@2.0.0':
     resolution: {integrity: sha512-RGdgjQUZba5p6QEFAVx2OGb8rQDL/cPRG7GiedRzMcJ1tYnUANBncjbSB1NRGwbvjcPeikRABz2nshyPk1bhWg==}
+
+  '@types/n3@1.26.6':
+    resolution: {integrity: sha512-BLXT2zu5wcbIotEVJsCI/eUjV5QWbwNBPNwnDrEf3qFv844UiCGe8Pg/PKSBR572V2BtBFlu46pDLtvhsOeWqg==}
 
   '@types/node@22.20.5':
     resolution: {integrity: sha512-U2+DNr+wSjpsTS/wZGYHq7GcwfuSmKiKvoPvK22zwTlRhU91yOniN4qRR5KhIjvif7ysw/dz/hKmfDH0Ris4aA==}
@@ -3089,6 +3098,11 @@ snapshots:
       '@types/mdurl': 2.0.0
 
   '@types/mdurl@2.0.0': {}
+
+  '@types/n3@1.26.6':
+    dependencies:
+      '@rdfjs/types': 2.0.1
+      '@types/node': 22.20.5
 
   '@types/node@22.20.5':
     dependencies:

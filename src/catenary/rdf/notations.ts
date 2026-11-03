@@ -2,12 +2,12 @@
 import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'node:url';
 import path from 'path';
+import { Parser } from 'n3';
 import type { Quad, Term } from '@rdfjs/types';
 import { Derivation, ListHeads, Notations, deriveFigures, notations } from '../model/notation';
 import { LazyTripleIndex, NQuad, NTerm, TripleIndex, nkey } from '../model/notation-graph';
 import { TermJSON, termToJSON } from '../model/terms';
 import { ViewFigures, placementsOf, viewFigures } from '../model/notation-join';
-import { parseRdfSync } from '../rdf-files/oxigraph-store';
 import { ModelGraph } from './graph';
 import { REPORT_GRAPH } from './graph-names';
 import { skolemize } from '../rdf-core/skolem';
@@ -43,12 +43,19 @@ function nquads(quads: Iterable<Quad>): NQuad[] {
 let builtIn: Notations | undefined;
 
 
-/** The notations: all `*.ttl` files of `dir`, blank nodes replaced by IRIs. The built-in folder is read once. */
-function readNotations(dir = NOTATIONS_DIR): Notations {
-    if (dir === NOTATIONS_DIR && builtIn) return builtIn;
+/** The statements of all `*.ttl` files of `dir`, in file order then document order, with their blank nodes. */
+export function parseNotationFiles(dir = NOTATIONS_DIR): Quad[] {
     const quads: Quad[] = [];
     for (const f of readdirSync(dir).filter(f => f.endsWith('.ttl')).sort())
-        quads.push(...parseRdfSync(readFileSync(path.join(dir, f), 'utf8'), 'text/turtle'));
+        quads.push(...new Parser({ format: 'text/turtle' }).parse(readFileSync(path.join(dir, f), 'utf8')));
+    return quads;
+}
+
+
+/** The notations: all `*.ttl` files of `dir`, blank nodes replaced by IRIs. The built-in folder is read once. */
+export function readNotations(dir = NOTATIONS_DIR): Notations {
+    if (dir === NOTATIONS_DIR && builtIn) return builtIn;
+    const quads = parseNotationFiles(dir);
     const n = notations(nquads(skolemize(quads.map(q => rdf.quad(q.subject, q.predicate, q.object))).quads));
     if (dir === NOTATIONS_DIR) builtIn = n;
     return n;
