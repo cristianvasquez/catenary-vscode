@@ -73,7 +73,7 @@ Four rounds (katas ansc, mzg2, 9k26, mh0y, y4mq) changed how quads get into the 
 
 Merged on main: K1 `1rhb`, K2 `q74p`, K3 `1sx9`, K4 `af1j`, K5 `w1pm`, K6 `8twe`, K7 `dxwx`, K8 `sef3`, K9 `mydh`, K10 `v3y7`, K11 `qhck`, K12 `h3bm`. The store is gone: `grep -rn "oxigraph\|ModelGraph\|QuadStore\|graphOf\b" src test scripts package.json` finds nothing. 230 tests against the fork binary. The extension builds. The canvas reads through `turtle/query` and edits the view file with the tree-sitter patcher, undo is VS Code's.
 
-Running at the end of the session: K13 `thfz` (browser page, worktree `wt-thfz` in the session scratchpad, branch `kata/thfz-web`). When it closes: merge, `pnpm install`, verify, remove the worktree, then K14 `401x`. The user's VS Code settings got `turtle.server.path` = the fork binary (backup `settings.json.bak-before-turtle-fork`).
+K13 `thfz` merged too (234 tests, `pnpm web:build` with the fork engine from `~/os/rdf/turtle-lsp/web/app`, `pnpm web:ui` 20 checks). The wasm engine was built with a temporary sysroot in the session scratchpad; for a permanent setup install `rust-wasm` (Arch) and rebuild with `node web/build.mjs` in the fork. Open: `.github/workflows/pages.yml` needs the fork engine; a canvas Delete once removed the earlier selection (not confirmed). Next: K14 `401x` (docs), after the F0 decision. The user's VS Code settings got `turtle.server.path` = the fork binary (backup `settings.json.bak-before-turtle-fork`).
 
 ## The round is functionally done and unusably slow: diagnosis
 
