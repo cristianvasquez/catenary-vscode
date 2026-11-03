@@ -115,6 +115,9 @@ function neighbours(terms: string[], blanks: Anchor[]): string {
     return `CONSTRUCT { ?s ?p ?o } WHERE { ${branches.join(' UNION ')} }`;
 }
 
+/** Every statement with a blank node as subject or object, over every document: a query cannot name a blank node. */
+const BLANK_STATEMENTS = 'CONSTRUCT { ?s ?p ?o } WHERE { { ?s ?p ?o FILTER (isBlank(?s)) } UNION { ?s ?p ?o FILTER (isBlank(?o)) } }';
+
 /** (d) Every rdfs:subClassOf statement of the model files. */
 const SUBCLASSES = `CONSTRUCT { ?c <${SUBCLASS}> ?d } WHERE { ?c <${SUBCLASS}> ?d }`;
 
@@ -161,18 +164,25 @@ export async function viewFiguresOf(port: ModelPort, viewIri: string, shapes: Sh
     let frontier = [...new Set([viewIri, ...scope.flatMap(iris)])];
     for (let round = 0; round < depth && frontier.length; round++) {
         for (const t of frontier) { expanded.add(t); covered.outAll.add(`<${t}>`); covered.inAll.add(`<${t}>`); }
-        const named = frontier.filter(t => !t.startsWith(BLANK)), blanks = frontier.filter(t => t.startsWith(BLANK)).map(t => anchors.get(t)!);
-        const found = nquads(await port.construct(neighbours(named, blanks)));
+        const named = frontier.filter(t => !t.startsWith(BLANK)), blanks = frontier.filter(t => t.startsWith(BLANK));
+        const anchored = blanks.flatMap(t => anchors.get(t) ?? []), loose = new Set(blanks.filter(t => !anchors.has(t)));
+        const [near, far] = await Promise.all([
+            named.length || anchored.length ? port.construct(neighbours(named, anchored)) : [],
+            // A blank node without an anchor (placed, or asked about through `also`): every statement of a blank node, kept by its label.
+            loose.size ? port.construct(BLANK_STATEMENTS) : []
+        ]);
+        const found = [...nquads(near), ...nquads(far).filter(q => loose.has(q.subject.value) || q.object.termType === 'NamedNode' && loose.has(q.object.value))];
         around.push(...found);
-        // A new blank node gets the anchor of the frontier term at the other end of its statement, one step longer.
+        // A new blank node gets the anchor of the frontier term at the other end of its statement, one step longer. Next to a blank node
+        // without an anchor, it has none either.
         const inFrontier = new Set(frontier), next = new Set<string>();
-        const anchorOf = (t: string): Anchor => anchors.get(t) ?? { from: t, steps: [] };
         for (const q of found) for (const [t, other, inverse] of [[q.subject, q.object, true], [q.object, q.subject, false]] as const) {
             for (const v of iris(t)) {
                 if (expanded.has(v)) continue;
                 if (v.startsWith(BLANK)) {
                     if (other.termType !== 'NamedNode' || !inFrontier.has(other.value)) continue;
-                    if (!anchors.has(v)) { const a = anchorOf(other.value); anchors.set(v, { from: a.from, steps: [...a.steps, { p: q.predicate, inverse }] }); }
+                    const a = other.value.startsWith(BLANK) ? anchors.get(other.value) : { from: other.value, steps: [] };
+                    if (a && !anchors.has(v)) anchors.set(v, { from: a.from, steps: [...a.steps, { p: q.predicate, inverse }] });
                 }
                 next.add(v);
             }

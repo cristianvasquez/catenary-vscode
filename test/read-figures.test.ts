@@ -117,3 +117,49 @@ ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
         expect(got.misses).toBe(0);
     });
 });
+
+/**
+ * The old pipeline parses a view file itself and names its blank nodes with random skolem IRIs; the port names them by the server label.
+ * Each skolem name becomes `b<n>` by first occurrence, in IRIs and in the figure ids made from them.
+ */
+function blankless(x: unknown): unknown {
+    const text = JSON.stringify(x), names = new Map<string, string>();
+    for (const [, id] of text.matchAll(/urn:skolem:(?:blank:)?([0-9a-f-]+)/g)) if (!names.has(id)) names.set(id, `b${names.size}`);
+    let out = text.replaceAll('urn:skolem:blank:', 'urn:skolem:');
+    for (const [id, name] of names) out = out.replaceAll(id, name);
+    return JSON.parse(out);
+}
+
+describe('viewFiguresOf with a placed blank node (temp folder)', () => {
+    const EX = 'http://example.org/', VIEW = 'urn:name:Placed';
+    const head = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix ex: <${EX}> .
+@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+`;
+    const files = {
+        'shapes.ttl': `${head}ex:PersonShape a sh:NodeShape ; sh:targetClass ex:Person ; sh:property ex:PersonShape-knows .
+ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
+`,
+        'placed.trig': `${head}<${VIEW}> { <${VIEW}> a view:View . <${VIEW}/p/1> a view:Placement ; view:element _:dana ; view:view <${VIEW}> .
+_:dana a ex:Person ; rdfs:label "Dana" ; ex:knows [ rdfs:label "Eve" ] . }
+`
+    };
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>, inputs: Awaited<ReturnType<typeof inputsOf>>;
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-placed-'));
+        for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text);
+        server = await startServer(dir, 13);
+        inputs = await inputsOf(server, dir);
+    }, 20000);
+    afterAll(async () => {
+        await server?.stop();
+        if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('a placed blank-node element: no throw, its card reads its label and its blank neighbour; equal to the old viewFiguresOf; no miss', async () => {
+        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles), old = oldViewFiguresOf(inputs.graph, VIEW);
+        const dana = got.join.boxes.find(b => b.figure.title === 'Dana');
+        expect(dana?.rows.map(r => r.text)).toContain('knows: Eve');
+        expect(blankless(plain(got))).toEqual(blankless(plain(old)));
+        expect(got.misses).toBe(0);
+    });
+});
