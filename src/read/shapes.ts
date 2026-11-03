@@ -46,8 +46,9 @@ export async function vocabularyOf(port: ModelPort, modelFiles: string[]): Promi
     return (await port.select(VOCABULARY, modelFiles)).map(quadOf);
 }
 
-/** `shapeSubjects`: the subjects of the shapes statements (termKey). */
+/** `shapeSubjects`: the subjects of the shapes statements (termKey). `files`: the model files read, without the manifest document. */
 export interface ShapesModelRecords {
+    files: string[];
     index: ShapesIndex;
     vocabulary: Pick<Classes, 'schemes' | 'concepts'>;
     meta: Classes;
@@ -69,5 +70,5 @@ export async function shapesModelOf(port: ModelPort, modelFiles: string[], manif
     const vocabulary = buildVocabulary(rdf.dataset([...closure, ...skos].map(triple)), manifest.language);
     const shacl = shaclAuthoring(closure.map(q => ({ s: q.subject, p: q.predicate, o: q.object })));
     const meta = mergeContributions([{ id: 'shacl', ...shacl }, { id: 'rdfs', ...rdfs }], vocabulary);
-    return { index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))) };
+    return { files, index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))) };
 }
