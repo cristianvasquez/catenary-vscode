@@ -8,7 +8,7 @@ import { diagramOf, drawFromText, completeDrawing, keepGeometry, type ModelConte
 import { memberListHeight, type ElementSchema } from '../src/catenary/model/diagram-schema';
 import { NS } from '../src/catenary/model/terms';
 import { iriId } from '../src/catenary/model/ids';
-import { hiddenNeighborCounts } from '../src/read/neighbors';
+import { hiddenNeighborCounts, viewBadges } from '../src/read/neighbors';
 import { viewLabelsOf } from '../src/read/view';
 import { recorded } from './expected';
 import { FIXTURE, startServer } from './server';
@@ -110,7 +110,7 @@ describe('two-phase drawing', () => {
         }
     });
 
-    test('viewDocOf sends no query: a cold draw sends the view read, the figure prefetch and the neighbour and target reads; a kept answer, no round', async () => {
+    test.each([modelIri, instancesIri])('%s: a cold draw sends the view read, the figure prefetch and at most 2 badge queries; a redraw with the kept answer, the badge queries only', async iri => {
         const sent: string[] = [];
         const count = <T>(call: () => Promise<T>) => { sent.push(new Error().stack ?? ''); return call(); };
         const port: ModelContext['port'] = {
@@ -119,15 +119,26 @@ describe('two-phase drawing', () => {
             ask: (...args) => count(() => ctx.port.ask(...args))
         };
         const by = (name: string) => sent.filter(s => s.includes(name)).length;
-        const cold = await diagramOf({ ...ctx, port }, modelIri);
-        expect(JSON.stringify(cold.schema)).toBe(R(modelIri));
-        // 1 view read (diagramOf), 4 prefetchFigures (view, subclasses, 2 rounds), 12 neighbour and target reads (hiddenNeighborCounts).
-        expect([sent.length, by('prefetchFigures'), by('viewDocOf')]).toEqual([17, 4, 0]);
+        const counted = { ...ctx, port };
+        const cold = await diagramOf(counted, iri);
+        expect(JSON.stringify(cold.schema)).toBe(R(iri));
+        const prefetch = by('prefetchFigures'), badges = by('targetBadges');
+        console.log(`r49d ${iri}: cold ${sent.length} (prefetch ${prefetch}, badges ${badges})`);
+        // 1 view read (diagramOf), the figure prefetch (view, subclasses, rounds), the target badges; no neighbour read, no viewDocOf read.
+        expect(badges).toBeLessThanOrEqual(2);
+        expect([sent.length, by('viewDocOf'), by('hiddenNeighborCounts')]).toEqual([1 + prefetch + badges, 0, 0]);
         sent.length = 0;
-        const warm = await diagramOf({ ...ctx, port }, modelIri, { kept: cold.kept });
-        expect(JSON.stringify(warm.schema)).toBe(R(modelIri));
-        // The kept answer has every read: the prefetch reads the view statements only.
-        expect([sent.length, by('prefetchFigures'), by('viewDocOf')]).toEqual([14, 1, 0]);
+        const warm = await diagramOf(counted, iri, { kept: cold.kept });
+        expect(JSON.stringify(warm.schema)).toBe(R(iri));
+        // The kept answer has every read: the view read of diagramOf and the badges, no prefetch.
+        expect([sent.length, by('prefetchFigures'), by('targetBadges')]).toEqual([1 + badges, 0, badges]);
+        sent.length = 0;
+        // A redraw from the view text (an open view document): the badges only.
+        const first = drawFromText(counted, iri, readFileSync(ctx.views.get(iri)!, 'utf8'), warm.kept);
+        const redrawn = await completeDrawing(counted, iri, first.drawn, first.misses);
+        expect(JSON.stringify(redrawn.schema)).toBe(R(iri));
+        console.log(`r49d ${iri}: redraw ${sent.length}`);
+        expect(sent.length).toBe(badges);
     });
 
     test('completion copies layout by id, not by element order', () => {
@@ -235,13 +246,17 @@ describe('read builders', () => {
 
     test('hidden-neighbour read includes a data change (the open buffer of data.ttl)', async () => {
         const uri = pathToFileURL(join(FIXTURE, 'data.ttl')).href, text = readFileSync(join(FIXTURE, 'data.ttl'), 'utf8');
-        const view = (await diagramOf(ctx, iriId(instancesIri))).doc.views[iriId(instancesIri)];
-        const before = await hiddenNeighborCounts(ctx.port, ctx.modelFiles, ctx.shapes, view);
+        // A model change drops the kept answer: each draw below is cold, its answer has the open buffer.
+        const counts = async () => {
+            const d = await diagramOf(ctx, iriId(instancesIri)), view = d.doc.views[iriId(instancesIri)];
+            return hiddenNeighborCounts(ctx, view, d.kept!, await viewBadges(ctx, view));
+        };
+        const before = await counts();
         expect(before.get(id('Animal%20Farm'))).toMatchObject({ in: 0 });
         server.open(uri, text);
         server.change(uri, `${text}\n<urn:test:hidden> a <urn:example:bookshop:Book> ; <http://www.example.org/author> <urn:name:Animal%20Farm> .\n`);
         try {
-            expect((await hiddenNeighborCounts(ctx.port, ctx.modelFiles, ctx.shapes, view)).get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
+            expect((await counts()).get(id('Animal%20Farm'))).toMatchObject({ in: 1, out: 0 });
         } finally {
             server.change(uri, text);
         }

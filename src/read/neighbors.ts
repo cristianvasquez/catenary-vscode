@@ -1,14 +1,20 @@
-// Hidden-neighbour counts of the cards of a view from turtle/query answers, with no kept state.
-import type { NamedNode, Term } from '@rdfjs/types';
+// Hidden-neighbour counts of the cards of a view from the kept answer of the view; the target badges from one count query each.
+import type { Term } from '@rdfjs/types';
 import { type View, boxes } from '../catenary/model/doc';
 import { NS } from '../catenary/model/terms';
 import { UNION_GRAPH, dataGraphIri } from '../catenary/rdf/files';
-import { elementTerm, relationId } from '../catenary/rdf/ids';
+import { relationIdOf } from '../catenary/model/ids';
+import type { NQuad, NTerm } from '../catenary/model/notation-graph';
+import { nkey } from '../catenary/model/notation-graph';
+import { termToJSON } from '../catenary/model/terms';
+import { elementTerm } from '../catenary/rdf/ids';
 import { termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
 import type { ModelPort, Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
-import { bindings, shapeTargetMatches } from './targets';
+import { bindings, targetBadges, type TargetBadges } from './targets';
+import type { ModelContext } from './diagram';
+import { answerCovers, type KeptPrefetch } from './figures';
 import { byDocumentKind, documentSets, type DocumentRow, type DocumentSets } from './documents';
 
 /** The hidden neighbours of a card: statements in and out, and the instances that its shape targets. */
@@ -20,6 +26,8 @@ const SKOS_TYPES = new Set(['ConceptScheme', 'Concept', 'Collection'].map(t => N
 const SKOS_MEMBERSHIP = new Set(['inScheme', 'topConceptOf'].map(p => NS.skos + p));
 /** The home of a subject in the model graph (homeOf of rdf/vocabulary.ts). */
 const MODEL = '';
+/** The IRI prefix of a blank node in a port answer. */
+const BLANK = 'urn:skolem:blank:';
 
 const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
@@ -65,82 +73,92 @@ export function inShapesOf(shapes: ShapesModelRecords): InShapes {
         { documentOf: (r: Row) => docs.get(termKey(r.s)), sets: (files: string[]) => documentSets(shapes, files) });
 }
 
-/**
- * The statements by document kind whose subject or object is one of `iris`, without rdf:type and rdfs:label.
- * `known` tests the other end in the same answer; `direction` identifies that end.
- */
-export async function statementsAround(port: ModelPort, files: string[], iris: string[], inShapes: InShapes): Promise<DocumentRow[]> {
-    const ask = async (end: 's' | 'o') => (await Promise.all(bindings(end, iris.map(named)).map(({ clause }) => byDocumentKind(port, inShapes.sets(files), `${PREFIXES} SELECT ?s ?p ?o ?known ?direction WHERE {
-        ?s ?p ?o FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause}
-        BIND (EXISTS { ?${end === 's' ? 'o' : 's'} rdf:type|rdfs:label ?any } AS ?known)
-        BIND ("${end === 's' ? 'out' : 'in'}" AS ?direction) }`)))).flat();
-    return (await Promise.all([ask('s'), ask('o')])).flat();
+/** The placed node shapes (their IRIs) and the IRIs of the cards of `view`. */
+function placedOf(shapes: ShapesModelRecords, view: View): { placedShapes: string[]; placedIris: string[] } {
+    const placed = new Set(boxes(view, 'card').map(b => b.element));
+    const placedIris = boxes(view, 'card').flatMap(b => { const t = elementTerm(b.element); return t?.termType === 'NamedNode' ? [t.value] : []; });
+    return { placedShapes: Object.values(shapes.index.model.nodeShapes).filter(s => placed.has(s.id)).map(s => s.uri), placedIris: [...new Set(placedIris)] };
+}
+
+/** The target badges of `view` (targetBadges of targets.ts): at most two queries. */
+export function viewBadges(ctx: Pick<ModelContext, 'port' | 'modelFiles' | 'shapes'>, view: View): Promise<TargetBadges> {
+    const { placedShapes, placedIris } = placedOf(ctx.shapes, view);
+    return targetBadges(ctx.port, ctx.modelFiles, ctx.shapes, placedShapes, placedIris);
+}
+
+const VIEW_NAMESPACES = [NS.view, 'osg://vocab/view#'];
+const isView = (value: string) => VIEW_NAMESPACES.some(ns => value.startsWith(ns));
+/** A statement key for the shapes test: a blank object as `_` (the port names blank nodes per request; the closure has its own names). */
+const shapeKey = (s: string, p: string, o: NTerm) => `${s} ${p} ${o.termType === 'NamedNode' && o.value.startsWith(BLANK) ? '_' : nkey(o)}`;
+const closureKeys = new WeakMap<ShapesModelRecords, Set<string>>();
+function closureOf(shapes: ShapesModelRecords): Set<string> {
+    let keys = closureKeys.get(shapes);
+    if (!keys) closureKeys.set(shapes, keys = new Set(shapes.closure.flatMap(q => {
+        const o = termToJSON(q.object);
+        return q.subject.termType === 'NamedNode' && o ? [shapeKey(q.subject.value, q.predicate.value, o)] : [];
+    })));
+    return keys;
+}
+
+/** The card IRIs of `view` whose statements `answer` has not read in both directions (with the types and labels of the other ends). */
+export function neighborMisses(shapes: ShapesModelRecords, view: View, answer: KeptPrefetch): string[] {
+    return placedOf(shapes, view).placedIris.filter(iri => !iri.startsWith(BLANK) && !answerCovers(answer, iri));
 }
 
 /**
  * For each instance card of `view`: the number of instances related to it ('in': subjects of its relations, 'out': objects) that the
- * view does not show, or whose relation is hidden; for each placed node shape and each card, the targets or shapes the view does not
- * show. As hiddenNeighborCounts of rdf/scoped-doc.ts. `modelFiles`: the model documents without the manifest.
+ * view does not show, or whose relation is hidden; from `answer`, the kept answer of the view (it sends no query). The instance test and
+ * the home of a subject come from the answer: rdf:type or rdfs:label outside the shapes closure (model), else SKOS statements of a shape
+ * subject in the closure (shapes); a statement of a shape subject in the closure belongs to the shapes. `badges` (viewBadges): the targets
+ * of each placed node shape and the shapes of each card that the view does not show.
  */
-export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[], shapes: ShapesModelRecords, view: View): Promise<Map<string, NeighborCount>> {
-    const model = shapes.index.model;
-    const inShapes = inShapesOf(shapes);
-    const cardTerms = boxes(view, 'card').flatMap(b => { const t = elementTerm(b.element); return t?.termType === 'NamedNode' ? [{ b, t }] : []; });
-    const placed = new Set(boxes(view, 'card').map(b => b.element));
-    const placedIris = new Set(cardTerms.map(c => c.t.value));
-    const placedShapes = Object.values(model.nodeShapes).filter(s => placed.has(s.id));
-    const candidates = [...placedIris];
-    // Independent reads at once: the targets of the placed shapes, the shapes of every card IRI, the statements around every card IRI.
-    const [shapeTargets, cardMatches, around] = await Promise.all([
-        placedShapes.length ? shapeTargetMatches(port, modelFiles, shapes, { shapes: placedShapes.map(s => s.uri) }) : [],
-        candidates.length ? shapeTargetMatches(port, modelFiles, shapes, { nodes: candidates.map(named) }) : [],
-        candidates.length && modelFiles.length ? statementsAround(port, modelFiles, candidates, inShapes) : [],
-    ]);
-    const targets = shapeTargets.filter(m => m.node.termType === 'NamedNode' && !placedIris.has(m.node.value));
-    const others = around.flatMap(r => [r.s.value, r.o.value]).filter(value => !value.startsWith('urn:skolem:blank:'));
-    const facts = await factsOf(port, modelFiles, inShapes, [...candidates, ...targets.map(m => m.node.value), ...others]);
+export function hiddenNeighborCounts(ctx: Pick<ModelContext, 'shapes' | 'views'>, view: View, answer: KeptPrefetch, badges?: TargetBadges): Map<string, NeighborCount> {
+    const { shapes, views } = ctx, model = shapes.index.model, closure = closureOf(shapes);
+    const out = new Map<string, NeighborCount>();
+    const shapesPart = (q: NQuad) => !q.subject.value.startsWith(BLANK) && shapes.shapeSubjects.has(`<${q.subject.value}>`) && closure.has(shapeKey(q.subject.value, q.predicate, q.object));
+    // The statements of the answer by subject, without the subjects of a view file (a view, a placement, a mark).
+    const bySubject = new Map<string, NQuad[]>();
+    for (const q of answer.quads) (bySubject.get(q.subject.value) ?? bySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);
+    for (const [s, qs] of bySubject) if (views.has(s) || qs.some(q => q.predicate === TYPE && isView(q.object.value))) bySubject.delete(s);
+    const inModel = (s: string) => (bySubject.get(s) ?? []).some(q => (q.predicate === TYPE || q.predicate === LABEL) && !shapesPart(q));
+    const vocabulary = (s: string) => (bySubject.get(s) ?? []).some(q => shapesPart(q) && ((q.predicate === TYPE && SKOS_TYPES.has(q.object.value)) || SKOS_MEMBERSHIP.has(q.predicate)));
+    const known = (s: string) => (bySubject.get(s) ?? []).some(q => q.predicate === TYPE || q.predicate === LABEL);
+    const instance = (s: string) => s.startsWith(BLANK) ? known(s) : inModel(s) || vocabulary(s);
 
     const cards = new Map<string, string>();
-    for (const { b, t } of cardTerms) if (facts.instance.has(t.value)) cards.set(t.value, b.element);
-    const out = new Map<string, NeighborCount>();
-    const hiddenOf = new Map<string, number>();
-    for (const m of targets) if (facts.instance.has(m.node.value)) hiddenOf.set(m.shape, (hiddenOf.get(m.shape) ?? 0) + 1);
-    for (const shape of placedShapes) {
-        const n = hiddenOf.get(shape.uri) ?? 0;
-        if (n) out.set(shape.id, { in: 0, out: 0, targets: n });
+    for (const b of boxes(view, 'card')) {
+        const t = elementTerm(b.element);
+        if (t?.termType === 'NamedNode' && !t.value.startsWith(BLANK) && instance(t.value)) cards.set(t.value, b.element);
     }
-    if (!cards.size) return out;
-    const shownIris = new Set<string>(placedIris);
+    const shownIris = new Set(placedOf(shapes, view).placedIris);
     for (const b of boxes(view, 'card')) for (const m of model.valueSets[b.element]?.members ?? []) shownIris.add(m.uri);
     const placedEdges = new Set(view.edges.filter(e => !e.hidden).map(e => e.relation));
     const neighbors = new Map<string, { in: Set<string>; out: Set<string> }>();
-    const consider = (kind: DocumentRow['kind'], doc: string | undefined, subject: Term, p: Term, object: Term, dir: 'in' | 'out', known: boolean) => {
-        const [self, other] = dir === 'out' ? [subject, object] : [object, subject];
-        if (!cards.has(self.value) || other.termType !== 'NamedNode') return;
+    const consider = (q: NQuad, dir: 'in' | 'out') => {
+        const [self, other] = dir === 'out' ? [q.subject, q.object] : [q.object, q.subject];
+        if (!cards.has(self.value) || other.termType !== 'NamedNode' || other.value === self.value) return;
         // A relation is a statement of the graph of its subject: the model graph, or the shapes graph of a SKOS subject.
-        const owner = facts.home.get(subject.value) ?? MODEL;
-        const shapesPart = !subject.value.startsWith('urn:skolem:blank:') && inShapes(kind, subject);
-        if (owner === MODEL ? shapesPart : !shapesPart || dataGraphIri(doc!) + '#shapes' !== owner) return;
-        if (shownIris.has(other.value) && placedEdges.has(relationId(subject as NamedNode, p as NamedNode, object as NamedNode))) return;
-        const instance = other.value.startsWith('urn:skolem:blank:') ? known : facts.instance.has(other.value);
-        if (other.value === self.value || !instance) return;
+        const s = q.subject.value, shapesHome = !s.startsWith(BLANK) && !inModel(s) && vocabulary(s);
+        if (shapesHome !== shapesPart(q)) return;
+        if (shownIris.has(other.value) && placedEdges.has(relationIdOf(s, q.predicate, q.object.value))) return;
+        if (!instance(other.value)) return;
         const o = neighbors.get(self.value) ?? neighbors.set(self.value, { in: new Set(), out: new Set() }).get(self.value)!;
-        o[dir].add(other.value.startsWith('urn:skolem:blank:') ? JSON.stringify([doc, other.value]) : other.value);
+        o[dir].add(other.value);
     };
-    for (const r of around) {
-        const doc = inShapes.documentOf(r);
-        consider(r.kind, doc, r.s, r.p, r.o, r.direction.value as 'in' | 'out', r.known.value === 'true');
+    for (const [, qs] of bySubject) for (const q of qs) {
+        if (q.predicate === TYPE || q.predicate === LABEL || isView(q.predicate) || q.object.termType !== 'NamedNode' || views.has(q.object.value)) continue;
+        consider(q, 'out');
+        consider(q, 'in');
+    }
+    // The rows of the placed shapes first (model order), then the cards (a card that is also a placed shape keeps its place, not its badge).
+    for (const shape of Object.values(model.nodeShapes)) {
+        const n = badges?.shapes.get(shape.uri) ?? 0;
+        if (n) out.set(shape.id, { in: 0, out: 0, targets: n });
     }
     for (const [self, id] of cards) { const c = neighbors.get(self); if (c) out.set(id, { in: c.in.size, out: c.out.size }); }
-    const shownShapes = new Set(boxes(view, 'card').map(c => c.element));
-    const shapeIds = new Map(Object.values(model.nodeShapes).map(s => [s.uri, s.id]));
-    const unshown = new Map<string, number>();
-    for (const m of cardMatches) {
-        if (!cards.has(m.node.value)) continue;
-        if (shapeIds.has(m.shape) && !shownShapes.has(shapeIds.get(m.shape)!)) unshown.set(m.node.value, (unshown.get(m.node.value) ?? 0) + 1);
-    }
-    for (const [uri, id] of cards) {
-        const n = unshown.get(uri) ?? 0;
+    if (!badges) return out;
+    for (const [iri, id] of cards) {
+        const n = badges.nodes.get(iri) ?? 0;
         const row = out.get(id);
         if (n && row) row.targets = n;
         else if (n) out.set(id, { in: 0, out: 0, targets: n });

@@ -71,6 +71,8 @@ pnpm ui:markdown    # export a Markdown document with an embedded view
 
 The unit tests start the fork binary over stdio on `test/fixtures/shapes` (`test/server.ts`): `TURTLE_LSP` sets its path, default `~/os/rdf/turtle-lsp/target/release/turtle-lsp`. The values that the old in-memory pipeline gave are recorded under `test/fixtures/expected/` (one JSON line per value); the tests compare the results over `turtle/query` with them.
 
+A draw reads the data of a view as one answer, kept per view (the figure prefetch); the hidden-neighbour counts come from that answer, and the target badges from one COUNT query over the direct targets of the placed node shapes (`sh:targetClass` with `rdfs:subClassOf*`, `sh:targetSubjectsOf`, `sh:targetObjectsOf`, `sh:targetNode`) plus one for the node shapes of the cards: the badges do not follow `sh:node`, the targets picker does.
+
 ### Browser page
 
 `pnpm web:build` writes `dist-web/`, a static site that runs Catenary in the browser tab like the [turtle-lsp browser editor](https://abhishekkundu25.github.io/turtle-lsp/): a file list, Monaco text editors and Catenary canvases. Nothing is uploaded; files stay in the browser's localStorage, and Download writes them as a ZIP file. `pnpm web:serve` serves `dist-web/` at `http://127.0.0.1:8124/`; `pnpm web:ui` checks the page in headless Chromium (`CHROMIUM` sets the binary, default `/usr/bin/chromium`).

@@ -9,7 +9,7 @@ import { iriId } from '../src/catenary/model/ids';
 import { viewGesture } from '../src/catenary/model/view-ui';
 import { expandChoices } from '../src/read/choices';
 import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
-import { hiddenNeighborCounts } from '../src/read/neighbors';
+import { hiddenNeighborCounts, viewBadges } from '../src/read/neighbors';
 import { FIXTURE, startServer } from './server';
 import { type ViewDocuments, viewDocuments } from './views';
 
@@ -60,12 +60,12 @@ test.each(['in', 'out'] as const)('restore a deleted relation from its %s end wi
     const other = dir === 'out' ? relation.object : relation.subject;
     const choices = (await expandChoices(ctx, vid, docs.text(view), from, dir))!;
     const item = choices.items.find(i => i.ids.includes(relation.id))!;
-    const removed = await part(vid);
+    const drawn = await diagramOf(ctx, vid), removed = drawn.doc;
     expect(item.label).toBe(removed.instances[other].label);
     expect(item.description).toMatch(/ \(in the view\)$/);
     expect(choices.title).toContain(`(${choices.items.length} hidden)`);
     const v = removed.views[vid];
-    const counts = await hiddenNeighborCounts(ctx.port, ctx.modelFiles, ctx.shapes, v);
+    const counts = hiddenNeighborCounts(ctx, v, drawn.kept!, await viewBadges(ctx, v));
     expect(counts.get(from)?.[dir]).toBe(choices.items.length);
     expect(await execute({ kind: 'showRelations', view: vid, ids: item.ids, at: { x: -1000, y: -1000 } })).toMatchObject({ ok: true });
     const after = (await part(vid)).views[vid];

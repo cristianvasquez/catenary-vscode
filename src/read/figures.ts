@@ -119,21 +119,26 @@ function ntriples(t: TermJSON): string {
     return t.language ? `${text}@${t.language}` : t.datatype ? `${text}^^<${t.datatype}>` : text;
 }
 
+/** A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read). */
+interface Group { kind: Miss['kind']; p?: string; terms: TermJSON[] }
+
+const TYPE = RDF('type'), LABEL = NS.rdfs + 'label';
+const TYPE_LABEL = `VALUES ?p { <${TYPE}> <${LABEL}> }`;
+
 /**
- * A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read).
- * `objects`: the rdf:type and rdfs:label statements of the objects of `terms` (the known-object test of viewDocOf).
+ * One query per round (or VALUES chunk), with shared object closure and incoming-subject closure. A read of every statement of a term
+ * also reads the rdf:type and rdfs:label statements of the other ends: of the objects (out), of the subjects of the statements other than
+ * rdf:type and rdfs:label (in). They are the instance test of viewDocOf and of hiddenNeighborCounts.
  */
-interface Group { kind: Miss['kind'] | 'objects'; p?: string; terms: TermJSON[] }
-
-const TYPE_LABEL = `VALUES ?p { <${RDF('type')}> <${NS.rdfs}label> }`;
-
-/** One query per round (or VALUES chunk), with shared object closure and incoming-subject closure. */
 function readQuery(groups: Group[]): string {
-    const reads = groups.map(g => {
-        if (g.kind === 'objects') return `{ VALUES ?k { ${g.terms.map(ntriples).join(' ')} } ?k ?kp ?s . ${TYPE_LABEL} ?s ?p ?o }`;
+    const reads = groups.flatMap(g => {
         const values = g.kind === 'predicate' ? '' : `VALUES ?${g.kind === 'out' ? 's' : 'o'} { ${g.terms.map(ntriples).join(' ')} } `;
         const predicate = g.p === undefined ? '' : `VALUES ?p { <${g.p}> } `;
-        return `{ ${values}${predicate}?s ?p ?o ${g.kind === 'in' ? 'BIND(?s AS ?incoming)' : ''} }`;
+        const read = `{ ${values}${predicate}?s ?p ?o ${g.kind === 'in' ? 'BIND(?s AS ?incoming)' : ''} }`;
+        if (g.kind === 'predicate' || g.p !== undefined) return [read];
+        const k = `VALUES ?k { ${g.terms.map(ntriples).join(' ')} }`;
+        return [read, g.kind === 'out' ? `{ ${k} ?k ?kp ?s . ${TYPE_LABEL} ?s ?p ?o }`
+            : `{ ${k} ?s ?kp ?k FILTER (?kp NOT IN (<${TYPE}>, <${LABEL}>)) ${TYPE_LABEL} ?s ?p ?o }`];
     });
     // The empty branch keeps the matched statement even when its object has no blank-node closure.
     const branches = ['{ }'];
@@ -170,18 +175,27 @@ function groupsOf(misses: Iterable<Miss>): Group[] {
 }
 
 /**
- * Marks the VALUES terms by kind and predicate, blank subjects reached as objects, and incoming blank roots.
- * Other blank subjects came with one statement only and stay uncovered.
+ * Marks the VALUES terms by kind and predicate, blank subjects reached as objects, and incoming blank roots. A read of every statement
+ * of a term (readQuery) also marks the term as read (`covered.read`, out) and the rdf:type and rdfs:label of its IRI ends. Other blank
+ * subjects came with one statement only and stay uncovered.
  */
 function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
     if (g.kind === 'predicate') covered.predicates.add(g.p!);
-    else if (g.kind === 'objects') for (const t of g.terms) covered.read.add(t.value);
     else for (const k of g.terms.map(nkey)) {
         if (g.kind === 'out') g.p === undefined ? covered.outAll.add(k) : covered.outP.add(`${k} ${g.p}`);
         else g.p === undefined ? covered.inAll.add(k) : covered.inP.add(`${k} ${g.p}`);
     }
     const objects = new Set(answer.map(q => nkey(q.object)));
     const terms = new Set(g.terms.map(nkey));
+    if (g.kind !== 'predicate' && g.p === undefined) {
+        if (g.kind === 'out') for (const t of g.terms) covered.read.add(t.value);
+        const ends = g.kind === 'out' ? answer.filter(q => terms.has(nkey(q.subject))).map(q => q.object)
+            : answer.filter(q => terms.has(nkey(q.object)) && q.predicate !== TYPE && q.predicate !== LABEL).map(q => q.subject);
+        for (const t of ends) if (t.termType === 'NamedNode' && !t.value.startsWith(BLANK)) {
+            covered.outP.add(`${nkey(t)} ${TYPE}`);
+            covered.outP.add(`${nkey(t)} ${LABEL}`);
+        }
+    }
     const incoming = new Set(g.kind === 'in' ? answer.filter(q => terms.has(nkey(q.object)) && (g.p === undefined || q.predicate === g.p)).map(q => nkey(q.subject)) : []);
     for (const q of answer) {
         const k = nkey(q.subject);
@@ -230,8 +244,8 @@ const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.objec
  * The prefetch: (a) the view quads (every statement of `viewFile`); (b) the shapes closure of `shapes`; (c) the statements of the placed terms and `also`; (d) rdfs:subClassOf
  * over `modelFiles`; (e) rounds of bounded queries for the reads that the derivation misses, blank nodes with the IRI that reaches them.
  */
-export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = []): Promise<PrefetchedFigures & { kept: KeptPrefetch; view: Quad[] }> {
-    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept, reads);
+export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = [], given?: Quad[]): Promise<PrefetchedFigures & { kept: KeptPrefetch; view: Quad[] }> {
+    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept, reads, given);
     return { ...prefetch.figures(prefetch.view, also), kept: prefetch.kept, view: prefetch.view };
 }
 
@@ -243,6 +257,11 @@ export function figuresFromText(viewIri: string, now: Iterable<Quad>, kept: Kept
     const terms = [...[...placementsOf(new TripleIndex(current), viewIri).keys()].map(keyTerm), ...also].filter(figurable);
     const notes = readNotations();
     return { ...viewFigures(index, notes, viewIri, deriveFigures(index, notes, viewIri, terms, new Map())), misses: index.missed.size };
+}
+
+/** `answer` has read every statement of `iri` in both directions, with the rdf:type and rdfs:label of the other ends (readQuery). */
+export function answerCovers(answer: KeptPrefetch, iri: string): boolean {
+    return answer.covered.read.has(iri) && answer.covered.inAll.has(nkey({ termType: 'NamedNode', value: iri }));
 }
 
 /** Empty retained index for a view's first text draw. */
@@ -257,11 +276,12 @@ const MAX_ROUNDS = 16;
  * The prefetch of viewFiguresOf, read before a command: `reach` are terms that the command can place (their statements are read as those
  * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them). `reads`: IRIs whose
  * statements as subject and the rdf:type and rdfs:label of their objects the first round reads (the misses of viewDocOf; `covered.read`).
+ * `given`: the statements of `viewFile` that the caller read from the server in this draw (not read again).
  */
-export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = []): Promise<FiguresPrefetch> {
+export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = [], given?: Quad[]): Promise<FiguresPrefetch> {
     const notes = readNotations();
     const [view, subclasses] = await Promise.all([
-        port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [viewFile]),
+        given ?? port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [viewFile]),
         kept ? Promise.resolve([]) : port.construct(SUBCLASSES, modelFiles)
     ]);
     const viewQuads = nquads(view);
@@ -292,13 +312,13 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
     // the types and labels of its objects, in the same round.
     const docReads = [...new Set(reads)].filter(v => !v.startsWith(BLANK) && !covered.read.has(v)).map(v => ({ termType: 'NamedNode' as const, value: v }));
     const outs = new Set(docReads.map(t => t.value));
-    let seed: Group[] = [...groupsOf([
+    let seed: Group[] = groupsOf([
         ...ends.flatMap(term => [
             ...covered.outAll.has(nkey(term)) || outs.has(term.value) ? [] : [{ kind: 'out' as const, term }],
             ...covered.inAll.has(nkey(term)) ? [] : [{ kind: 'in' as const, term }]
         ]),
         ...docReads.map(term => ({ kind: 'out' as const, term }))
-    ]), ...docReads.length ? [{ kind: 'objects' as const, terms: docReads }] : []];
+    ]);
     for (const t of [...ends, ...docReads]) covered.outAll.add(nkey(t));
     for (const t of ends) covered.inAll.add(nkey(t));
 

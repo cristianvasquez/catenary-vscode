@@ -251,6 +251,37 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
         .map(m => ({ ...m, reasons: m.reasons.sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))) }));
 }
 
+/** The target badges of a view: per placed node shape, its targets that the view does not show; per card IRI, the node shapes that target it and that the view does not show. */
+export interface TargetBadges { shapes: Map<string, number>; nodes: Map<string, number> }
+
+/**
+ * The target badges (TargetBadges) from the direct target declarations of the closure (sh:targetClass with rdfs:subClassOf*, implicit
+ * class, sh:targetSubjectsOf, sh:targetObjectsOf, sh:targetNode), one COUNT query each: the instances (an IRI with rdf:type or
+ * rdfs:label) that each placed shape targets, `placedIris` excluded in the query; the node shapes of the model that are not placed and
+ * target each of `placedIris`. The sh:node walk (applicableMatches) is not run: it is for the targets picker only. Two queries at most.
+ */
+export async function targetBadges(port: ModelPort, modelFiles: string[], shapes: ShapesModelRecords, placedShapes: string[], placedIris: string[]): Promise<TargetBadges> {
+    const badges: TargetBadges = { shapes: new Map(), nodes: new Map() };
+    if (!modelFiles.length) return badges;
+    const declarations = declarationsOf(shapes.closure), placed = new Set(placedShapes);
+    const nodeShapes = new Set(Object.values(shapes.index.model.nodeShapes).map(s => s.uri));
+    const named = [...new Set(placedIris)].filter(v => !v.startsWith(BLANK)).flatMap(v => { try { return [iri(v)]; } catch { return []; } });
+    const prefixes = `PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}>`;
+    const count = async (into: Map<string, number>, group: 'shape' | 'node', chosen: Declaration[], where: string) => {
+        const groups = targetGroups(chosen, 'node', true);
+        if (!groups.length) return;
+        const counted = group === 'shape' ? 'node' : 'shape';
+        const rows = await port.select(`${prefixes} SELECT ?${group} (COUNT(DISTINCT ?${counted}) AS ?n) WHERE { ${where.replace('$', `{ ${groups.join(' UNION ')} }`)} } GROUP BY ?${group}`, modelFiles);
+        for (const r of rows) if (r[group] && r.n) into.set(r[group].value, Number(r.n.value));
+    };
+    await Promise.all([
+        placed.size ? count(badges.shapes, 'shape', declarations.filter(d => placed.has(d.shape)),
+            `$ FILTER (isIRI(?node)${named.length ? ` && ?node NOT IN (${named.join(', ')})` : ''}) FILTER EXISTS { ?node rdf:type|rdfs:label ?any }`) : undefined,
+        named.length ? count(badges.nodes, 'node', declarations.filter(d => nodeShapes.has(d.shape) && !placed.has(d.shape)), `VALUES ?node { ${named.join(' ')} } $`) : undefined,
+    ]);
+    return badges;
+}
+
 /** The order of the old shapeTargetMatches: the shape, then the node as JSON (Intl.Collator). */
 const collator = new Intl.Collator();
 

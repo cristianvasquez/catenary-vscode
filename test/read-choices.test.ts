@@ -7,7 +7,6 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { iriId } from '../src/catenary/model/ids';
 import { expandChoices, instanceLabels, instancesNamed, memberOptions } from '../src/read/choices';
 import { type ModelContext, modelContextOf, viewDocRead } from '../src/read/diagram';
-import { inShapesOf, statementsAround } from '../src/read/neighbors';
 import { shapeTargetMatches } from '../src/read/targets';
 import { relationTriple } from '../src/catenary/rdf/ids';
 import type { ModelPort } from '../src/model/port';
@@ -85,13 +84,13 @@ describe('pickers on test/fixtures/shapes', () => {
         counts.targets.forEach((n, i) => expect(n).toBeLessThanOrEqual(counts.walk[i] + 1));
     });
 
-    test.each(VIEWS)('%s: the neighbours of the one-request picker are among the statements around the card (statementsAround, by document kind)', async viewIri => {
+    test.each(VIEWS)('%s: the neighbours of the one-request picker are among the statements around the card (model documents)', async viewIri => {
         const vid = iriId(viewIri), text = textOf(viewIri);
         const view = (await viewDocRead(ctx, viewIri));
         let some = 0;
         for (const card of view.views[vid].boxes.flatMap(b => b.kind === 'card' && view.instances[b.element] ? [b] : [])) {
             const iri = view.instances[card.element].uri;
-            const around = await statementsAround(ctx.port, ctx.modelFiles, [iri], inShapesOf(ctx.shapes));
+            const around = await ctx.port.select(`SELECT ?s ?o ?direction WHERE { { <${iri}> ?p ?o BIND ("out" AS ?direction) } UNION { ?s ?p <${iri}> BIND ("in" AS ?direction) } }`, ctx.modelFiles);
             for (const dir of ['in', 'out'] as const) {
                 const ends = new Set(around.filter(r => r.direction.value === dir).map(r => (dir === 'out' ? r.o : r.s).value));
                 for (const item of (await expandChoices(ctx, vid, text, card.id, dir))?.items ?? []) for (const id of item.ids) {
