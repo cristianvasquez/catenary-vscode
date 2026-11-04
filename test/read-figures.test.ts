@@ -71,9 +71,10 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
-    test('urn:name:Bookshop%20model: every query text is under 8 KB; no blank-node dump', () => {
+    test('urn:name:Bookshop%20model: at most two fixed queries plus three rounds, under 64 KB; no blank-node dump', () => {
         const texts = sent.get(VIEWS[0])!, lengths = texts.map(t => Buffer.byteLength(t));
-        expect(Math.max(...lengths)).toBeLessThan(8192);
+        expect(texts.length).toBeLessThanOrEqual(2 + 3);
+        expect(Math.max(...lengths)).toBeLessThan(64 * 1024);
         // A lone FILTER (isBlank(?s)) reads every blank-node statement; a closure branch filters ?s with the nodes below it.
         expect(texts.filter(t => /isBlank\(\?s\)\s*\)/.test(t))).toEqual([]);
     });
@@ -112,6 +113,30 @@ ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
     afterAll(async () => {
         await server?.stop();
         if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('an incoming blank-node concept keeps its type and label in the scheme rows', async () => {
+        const folder = mkdtempSync(join(tmpdir(), 'catenary-scheme-'));
+        let schemeServer: Awaited<ReturnType<typeof startServer>> | undefined;
+        try {
+            writeFileSync(join(folder, 'data.ttl'), `${head}
+@prefix skos: <http://www.w3.org/2004/02/skos/core#> .
+ex:scheme a skos:ConceptScheme .
+[ a skos:Concept ; skos:prefLabel "Example" ; skos:inScheme ex:scheme ] .
+`);
+            writeFileSync(join(folder, 'scheme.trig'), `${head}
+<${VIEW}> { <${VIEW}> a view:View . <${VIEW}/p/1> a view:Placement ; view:element ex:scheme ; view:view <${VIEW}> . }
+`);
+            schemeServer = await startServer(folder, 8);
+            const input = await inputsOf(schemeServer, folder);
+            const got = await viewFiguresOf(input.port, VIEW, input.views.get(VIEW)!, input.shapes, input.modelFiles);
+            const scheme = got.join.boxes.find(b => b.figure.focus.value === `${EX}scheme`);
+            expect(scheme?.rows.map(r => r.text)).toContain('Example');
+            expect(got.misses).toBe(0);
+        } finally {
+            await schemeServer?.stop();
+            rmSync(folder, { recursive: true, force: true });
+        }
     });
 
     test('a gathered link to a labelled blank-node instance reads its label; equal to the recorded viewFiguresOf; no miss', async () => {

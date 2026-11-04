@@ -88,7 +88,7 @@ const REST = RDF('rest');
 const CLOSURE_DEPTH = 4;
 
 /** At most this many terms in the VALUES list of one query. */
-const VALUES_MAX = 200;
+const VALUES_MAX = 500;
 
 /**
  * The UNION branch of the blank-node closure under `?<root>` at `depth`: each level walks list cells (rdf:rest*), then one statement,
@@ -116,21 +116,33 @@ function ntriples(t: TermJSON): string {
 /** A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read). */
 interface Group { kind: Miss['kind']; p?: string; terms: TermJSON[] }
 
-/**
- * One CONSTRUCT for a group: the statements `?s <p> ?o` with the subjects (`out`) or objects (`in`) in VALUES, `?p` when the read has no
- * predicate, and the blank-node closure under the other end down to CLOSURE_DEPTH. Predicate IRIs in full, no PREFIX.
- * The statement itself is a template triple with an empty first branch: a group `{ BIND(?s AS ?a) }` is evaluated on its own (SPARQL
- * semantics, as the fork does), so `?s` is unbound in it and the BIND gives nothing.
- */
-function readQuery(g: Group): string {
-    const p = g.p === undefined ? '?p' : `<${g.p}>`, root = g.kind === 'in' ? 's' : 'o';
-    const values = g.kind === 'predicate' ? '' : `VALUES ?${g.kind === 'out' ? 's' : 'o'} { ${g.terms.map(ntriples).join(' ')} } `;
+/** One query per round (or VALUES chunk), with shared object closure and incoming-subject closure. */
+function readQuery(groups: Group[]): string {
+    const reads = groups.map(g => {
+        const values = g.kind === 'predicate' ? '' : `VALUES ?${g.kind === 'out' ? 's' : 'o'} { ${g.terms.map(ntriples).join(' ')} } `;
+        const predicate = g.p === undefined ? '' : `VALUES ?p { <${g.p}> } `;
+        return `{ ${values}${predicate}?s ?p ?o ${g.kind === 'in' ? 'BIND(?s AS ?incoming)' : ''} }`;
+    });
+    // The empty branch keeps the matched statement even when its object has no blank-node closure.
     const branches = ['{ }'];
-    for (let d = 1; d <= CLOSURE_DEPTH; d++) branches.push(closureBranch(root, d));
-    return `CONSTRUCT { ?s ${p} ?o . ?a ?q ?v } WHERE { ${values}?s ${p} ?o . ${branches.join(' UNION ')} }`;
+    for (let d = 1; d <= CLOSURE_DEPTH; d++) {
+        branches.push(closureBranch('o', d));
+        if (groups.some(g => g.kind === 'in')) branches.push(closureBranch('incoming', d));
+    }
+    return `CONSTRUCT { ?s ?p ?o . ?a ?q ?v } WHERE { { ${reads.join(' UNION ')} } ${branches.join(' UNION ')} }`;
 }
 
-/** The groups of the misses that name an IRI, a literal object or a predicate (not a blank node, not a triple term), at most VALUES_MAX terms each. */
+/** Split only oversized VALUES lists; groups with at most VALUES_MAX terms share one query. */
+function batchesOf(groups: Group[]): Group[][] {
+    const count = Math.max(1, ...groups.map(g => Math.ceil(g.terms.length / VALUES_MAX)));
+    return Array.from({ length: count }, (_, i) => groups.flatMap(g => {
+        if (g.kind === 'predicate') return i === 0 ? [g] : [];
+        const terms = g.terms.slice(i * VALUES_MAX, (i + 1) * VALUES_MAX);
+        return terms.length ? [{ ...g, terms }] : [];
+    }));
+}
+
+/** The groups of the misses that name an IRI, a literal object or a predicate (not a blank node, not a triple term). */
 function groupsOf(misses: Iterable<Miss>): Group[] {
     const byGroup = new Map<string, Group>();
     for (const m of misses) {
@@ -141,16 +153,13 @@ function groupsOf(misses: Iterable<Miss>): Group[] {
     }
     return [...byGroup.values()].flatMap(g => {
         if (g.kind === 'predicate') return [g];
-        const terms = [...new Map(g.terms.map(t => [nkey(t), t])).values()], out: Group[] = [];
-        for (let i = 0; i < terms.length; i += VALUES_MAX) out.push({ ...g, terms: terms.slice(i, i + VALUES_MAX) });
-        return out;
+        return [{ ...g, terms: [...new Map(g.terms.map(t => [nkey(t), t])).values()] }];
     });
 }
 
 /**
- * Marks what the answer of a group covers: the VALUES terms by kind and predicate, and every blank subject of the answer (its closure came
- * with it). A predicate read has no closure under `?s`: a blank `?s` that is not also an object of the answer (a closure node) came with
- * one predicate only and stays uncovered.
+ * Marks the VALUES terms by kind and predicate, blank subjects reached as objects, and incoming blank roots.
+ * Other blank subjects came with one statement only and stay uncovered.
  */
 function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
     if (g.kind === 'predicate') covered.predicates.add(g.p!);
@@ -158,10 +167,12 @@ function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
         if (g.kind === 'out') g.p === undefined ? covered.outAll.add(k) : covered.outP.add(`${k} ${g.p}`);
         else g.p === undefined ? covered.inAll.add(k) : covered.inP.add(`${k} ${g.p}`);
     }
-    const objects = g.kind === 'predicate' ? new Set(answer.map(q => nkey(q.object))) : undefined;
+    const objects = new Set(answer.map(q => nkey(q.object)));
+    const terms = new Set(g.terms.map(nkey));
+    const incoming = new Set(g.kind === 'in' ? answer.filter(q => terms.has(nkey(q.object)) && (g.p === undefined || q.predicate === g.p)).map(q => nkey(q.subject)) : []);
     for (const q of answer) {
         const k = nkey(q.subject);
-        if (q.subject.value.startsWith(BLANK) && (!objects || objects.has(k))) { covered.outAll.add(k); covered.inAll.add(k); }
+        if (q.subject.value.startsWith(BLANK) && (objects.has(k) || incoming.has(k))) { covered.outAll.add(k); covered.inAll.add(k); }
     }
 }
 
@@ -230,7 +241,7 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
     const prefetched = [...closure, ...nquads(subclasses)], have = new Set(prefetched.map(tripleOf));
 
     // (c) The statements of the scope terms (the IRI ends of a statement) as subject and object, read in the first round.
-    const ends = [...new Set(scope.flatMap(iris))].filter(v => !v.startsWith(BLANK)).map(v => ({ termType: 'NamedNode' as const, value: v }));
+    const ends = [...new Set([viewIri, ...scope.flatMap(iris)])].filter(v => !v.startsWith(BLANK)).map(v => ({ termType: 'NamedNode' as const, value: v }));
     let seed = groupsOf(ends.flatMap(term => [{ kind: 'out' as const, term }, { kind: 'in' as const, term }]));
     for (const t of ends) { covered.outAll.add(nkey(t)); covered.inAll.add(nkey(t)); }
 
@@ -241,10 +252,11 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
         seed = [];
         if (!groups.length) break;
         if (round === MAX_ROUNDS) { console.warn(`figures of ${viewIri}: ${index.missed.size} reads open after ${MAX_ROUNDS} rounds`); break; }
-        const answers = await Promise.all(groups.map(async g => nquads(await port.construct(readQuery(g)))));
+        const batches = batchesOf(groups);
+        const answers = await Promise.all(batches.map(async batch => nquads(await port.construct(readQuery(batch)))));
         let added = 0;
-        groups.forEach((g, i) => {
-            cover(covered, g, answers[i]);
+        batches.forEach((batch, i) => {
+            for (const g of batch) cover(covered, g, answers[i]);
             for (const q of answers[i]) if (!have.has(tripleOf(q))) { have.add(tripleOf(q)); prefetched.push(q); added++; }
         });
         if (!added) break;
