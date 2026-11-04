@@ -162,6 +162,39 @@ test('a canvas command is one edit of the open view document; the next draw read
     }
 }, 20000);
 
+test('a view-only command preserves completed instance records for the next text-first draw', async () => {
+    const server = await startServer(FIXTURE, 282);
+    const folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(folder, () => apiOf(server), () => undefined);
+    const fake = fakeHost(model, server);
+    const iri = 'urn:name:Bookshop', vid = iriId(iri), file = join(FIXTURE, 'instances.trig');
+    try {
+        await model.refresh();
+        // No open document: this awaits a complete draw and stores both figures and instance records.
+        const complete = await model.diagram(vid, {});
+        expect(Object.keys(complete.doc.instances).length).toBeGreaterThan(0);
+        const cards = complete.schema.children!.filter(e => e.type === 'node:card');
+        expect(cards.length).toBeGreaterThan(0);
+        fake.open.add(file);
+        expect(await model.execute(vid, { kind: 'createNote', view: vid, text: 'keep card content', at: { x: 10, y: 20 } })).toMatchObject({ ok: true });
+        const query = vi.spyOn(server, 'query');
+        const next = await model.diagram(vid, {});
+        expect(next.phase).toBe(1);
+        expect(query).not.toHaveBeenCalled();
+        expect(next.doc.instances).toEqual(complete.doc.instances);
+        expect(next.doc.relations).toEqual(complete.doc.relations);
+        // Hidden-neighbour counts are completed asynchronously; card labels, types and fields must already be present.
+        const content = (e: typeof cards[number]) => {
+            const { hiddenIn: _in, hiddenOut: _out, hiddenTargets: _targets, ...card } = e;
+            return card;
+        };
+        expect(next.schema.children!.filter(e => e.type === 'node:card').map(content)).toEqual(cards.map(content));
+    } finally {
+        model.dispose();
+        await server.stop();
+    }
+}, 20000);
+
 test('the session submits the text model before delayed requests answer, then a content update', async () => {
     const server = await startServer(FIXTURE, 282);
     const folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;

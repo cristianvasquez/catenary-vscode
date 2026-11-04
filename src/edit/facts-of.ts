@@ -1,8 +1,8 @@
-// The model facts of one view command from turtle/query: one model query (VALUES over the IRIs of the command and of its views) and one
-// view query, in parallel. Nothing is kept between commands.
+// Model-reading commands query their bounded subjects. View-only commands use the identities and reified relations in the view
+// and command, with shape facts and view labels from the context; they do not read model statements.
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import type { ViewCommand } from '../catenary/model/commands';
-import { LABEL_PREDICATES, pickLabel } from '../catenary/model/labels';
+import { pickLabel } from '../catenary/model/labels';
 import type { Range } from '../catenary/model/shapes-doc';
 import { NS } from '../catenary/model/terms';
 import { UNION_GRAPH, fileOfGraph } from '../catenary/rdf/files';
@@ -10,6 +10,8 @@ import { labelFromIri, labelLiterals, SKOS_MEMBERSHIP, SKOS_TYPES } from '../cat
 import { byFile, type ModelPort, type Row } from '../model/port';
 import type { ManifestRecords } from '../read/manifest';
 import type { ShapesModelRecords } from '../read/shapes';
+import type { ViewGraph } from '../read/view';
+import type { KeptPrefetch } from '../read/figures';
 import { commandIds, resolveIds, type Views } from './commands';
 import { nodeShapeTerm, type Facts } from './facts';
 import { elementTerm, P, rdf, relationTriple, termKey, tripleKey, V } from './terms';
@@ -22,13 +24,16 @@ export interface FactsContext {
     manifest: ManifestRecords;
     /** View IRI → file path of its view file (ModelContext.views). */
     views: Map<string, string>;
+    viewLabels?: Map<string, ViewGraph>;
 }
 
 /** The IRI prefix of a blank node in a port answer (port.ts); it is not an address. */
 const BLANK = 'urn:skolem:blank:';
 
-/** The commands that read the Doc of a view (docOfViewQuads): they also need the SKOS vocabulary of the model. */
-const DOC_KINDS = new Set<ViewCommand['kind']>(['collect', 'pasteIntoView', 'moveBetweenViews']);
+/** Model-reading clipboard commands also need the SKOS vocabulary when reconstructing a Doc. */
+const DOC_KINDS = new Set<ViewCommand['kind']>(['pasteIntoView', 'moveBetweenViews']);
+
+const MODEL_KINDS = new Set<ViewCommand['kind']>(['addToView', 'pasteIntoView', 'moveBetweenViews', 'showAsEdge', 'showRelations']);
 
 const RDF_TYPE = NS.rdf + 'type', RDFS_LABEL = NS.rdfs + 'label';
 
@@ -47,10 +52,11 @@ function rangeIris(shapes: ShapesModelRecords, range: Range): string[] {
 }
 
 /**
- * The IRIs that a command asks about: the IRIs of its ids (an element, the ends of a relation, the element of a placement), the IRIs of
+ * The model IRIs that a command asks about (none for a view-only command): the IRIs of its ids (an element, the ends of a relation, the element of a placement), the IRIs of
  * its clip, the ends that Show as Line can place, and every element, member and connector end that its views place.
  */
 export function commandIris(shapes: ShapesModelRecords, command: ViewCommand, views: Views): string[] {
+    if (!MODEL_KINDS.has(command.kind)) return [];
     const c = resolveIds({ shapes: shapes.index }, command), out = new Set<string>(Object.keys(views));
     const add = (t: Term | undefined) => { if (t?.termType === 'NamedNode') out.add(t.value); };
     for (const id of commandIds(c)) {
@@ -93,29 +99,32 @@ function namedQuery(named: string[], vocabulary: boolean): string {
 
 const TYPING = `FILTER (?p IN (<${RDF_TYPE}>, <${RDFS_LABEL}>))`;
 
-/** The label statements of each view of `iris` (the view IRI as subject), from its view file. */
-function viewQuery(iris: string[]): string {
-    const labels = LABEL_PREDICATES.map(p => `<${p}>`).join(', ');
-    return `SELECT ?v ?p ?l WHERE { VALUES ?v { ${values(iris)} } ?v ?p ?l FILTER (?p IN (${labels})) }`;
-}
-
 const quadOf = ({ s, p, o }: Row): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object']);
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
- * The facts of `command` on `views` (the views it edits, as they are before it): the model query over `ctx.modelFiles` without the manifest
- * and the view label query over the view files, in parallel. `isView`: the IRI is a view of `ctx.views`. A fact about an IRI that the prefetch did not ask about answers as for an IRI
- * without statements.
+ * The facts of `command` on `views` before the edit. Model-reading commands query `ctx.modelFiles` without the manifest, unless
+ * the figure prefetch already supplies an instance-only add. View-only commands retain named identities and cached connector relations.
+ * `isView` and `viewLabel` use the context metadata; no view label query is sent.
  */
-export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Views): Promise<Facts> {
+export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Views, figureRelations: Quad[] = [], prefetched?: KeptPrefetch): Promise<Facts> {
     const named = commandIris(ctx.shapes, command, views);
     const files = ctx.modelFiles.filter(f => f !== ctx.manifest.file), vocabulary = DOC_KINDS.has(command.kind);
-    const viewIris = named.filter(i => ctx.views.has(i));
-    const [modelRows, viewRows] = await Promise.all([
-        named.length || vocabulary ? byFile(ctx.port, files, namedQuery(named, vocabulary)) : [],
-        viewIris.length ? ctx.port.select(viewQuery(viewIris), viewIris.map(v => ctx.views.get(v)!)) : []
-    ]);
+    const shapeSubjects = new Set(ctx.shapes.closure.map(q => q.subject.value));
+    // For an instance-only add the figures already read every named subject. Reuse those complete statements; commands that
+    // need vocabulary or per-file shape/model disambiguation retain the per-file facts query.
+    const reuse = command.kind === 'addToView' && prefetched && named.every(iri => !shapeSubjects.has(iri)
+        && prefetched.covered.outAll.has(termKey(rdf.namedNode(iri))));
+    const modelRows = reuse ? prefetched.quads.flatMap(q => {
+        if (shapeSubjects.has(q.subject.value)) return [];
+        const o = q.object;
+        if (o.termType !== 'NamedNode' && o.termType !== 'Literal') return [];
+        const object = o.termType === 'NamedNode' ? rdf.namedNode(o.value) : rdf.literal(o.value, o.language || (o.datatype ? rdf.namedNode(o.datatype) : undefined));
+        const b = named.includes(q.subject.value) ? 'a' : 't';
+        const row: Row = { s: rdf.namedNode(q.subject.value), p: rdf.namedNode(q.predicate), o: object, b: rdf.literal(b) };
+        return [Object.assign(row, { file: '' }) as Row & { file: string }];
+    }) : named.length || vocabulary ? await byFile(ctx.port, files, namedQuery(named, vocabulary)) : [];
 
     // The shapes part: the statements of the shapes closure (K2), by subject; a statement of a document outside it is a model statement.
     const shapeKeys = new Set(ctx.shapes.closure.map(q => `${fileOfGraph(q.graph.value)} ${termKey(q.subject)}`));
@@ -133,12 +142,40 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         if (b === 'a' || b === 'v') full.add(s);
         if (b === 'v' && q.predicate.value === RDF_TYPE && SKOS_TYPES.some(x => x.value === q.object.value)) skos.add(s);
     }
+    if (!MODEL_KINDS.has(command.kind)) {
+        // A view-only edit needs card identities, not their model properties. A label statement lets docOfViewQuads retain
+        // those identities; shape subjects, view references and local marks keep their existing classification.
+        const local = Object.values(views);
+        const identity = (t: Term) => {
+            if (t.termType !== 'NamedNode' || full.has(t.value) || ctx.views.has(t.value) || t.value === UNION_GRAPH || shapesBySubject.has(t.value)
+                || local.some(v => v.match(t, P.type).length)) return;
+            const q = rdf.quad(t, rdf.namedNode(RDFS_LABEL), rdf.literal(labelFromIri(t.value)));
+            model.set(t.value, new Map([[tripleKey(q), q]]));
+            full.add(t.value);
+        };
+        const relation = (q: Quad) => {
+            identity(q.subject); identity(q.object);
+            const rows = model.get(q.subject.value);
+            if (rows) rows.set(tripleKey(q), q);
+        };
+        for (const v of local) {
+            for (const q of [...v.match(null, V.element), ...v.match(null, V.member)]) identity(q.object);
+            for (const q of v.match(null, P.reifies)) if (q.object.termType === 'Quad') relation(q.object);
+        }
+        for (const q of figureRelations) {
+            // Only relations between the instance identities already named by this view are relevant.
+            const rows = model.get(q.subject.value);
+            if (rows && model.has(q.object.value)) rows.set(tripleKey(q), q);
+        }
+        for (const id of commandIds(resolveIds({ shapes: ctx.shapes.index }, command))) {
+            const r = relationTriple(id), t = elementTerm(id);
+            if (r) relation(rdf.quad(r.s, r.p, r.o));
+            else if (t) identity(t);
+        }
+    }
     const rowsOf = (s: string) => full.has(s) ? [...model.get(s)?.values() ?? []] : [];
     const typedOrLabelled = (t: Term) => t.termType === 'NamedNode' && [...model.get(t.value)?.values() ?? []].some(q => q.predicate.value === RDF_TYPE || q.predicate.value === RDFS_LABEL);
     const inModel = (iri: string) => typedOrLabelled(rdf.namedNode(iri));
-
-    const viewLabels = new Map<string, Row[]>();
-    for (const r of viewRows) (viewLabels.get(r.v.value) ?? viewLabels.set(r.v.value, []).get(r.v.value)!).push(r);
 
     const shapesMatch = (s: string | null, p: string | null, o?: string | null): Quad[] => {
         const rows = s !== null ? shapesBySubject.get(s) ?? [] : ctx.shapes.closure;
@@ -155,7 +192,7 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         isInstance: iri => iri !== UNION_GRAPH && (inModel(iri) || vocabularyGraph(iri) !== undefined),
         label: iri => pickLabel(labelLiterals(p => rowsOf(iri).filter(q => q.predicate.value === p).map(q => q.object)), ctx.manifest.language) ?? labelFromIri(iri),
         isView: iri => ctx.views.has(iri),
-        viewLabel: iri => pickLabel(labelLiterals(p => (viewLabels.get(iri) ?? []).filter(r => r.p?.value === p).map(r => r.l)), ctx.manifest.language) ?? labelFromIri(iri),
+        viewLabel: iri => pickLabel(labelLiterals(p => p === RDFS_LABEL ? ctx.viewLabels?.get(iri)?.subjects.get(termKey(rdf.namedNode(iri)))?.labels ?? [] : []), ctx.manifest.language) ?? labelFromIri(iri),
         has: (s, p, o) => {
             const graph = !inModel(s) && vocabularyGraph(s);
             const key = tripleKey({ subject: rdf.namedNode(s), predicate: rdf.namedNode(p), object: rdf.namedNode(o) });
