@@ -123,8 +123,55 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
     if (selection.nodes?.length === 0 || selection.shapes?.length === 0) return [];
     const refs = c.refs;
     const prefixes = `PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}>`;
-    const variables = (chain: NodeReference[]) => chain.map((_, i) => `?n${i + 1}`).join(' ');
-    const pattern = (shape: string, variable: string) => targetGroups(c.declarations.filter(d => d.shape === shape), variable, true).join(' UNION ');
+    // A level is one UNION answer, so blank intermediates never become query inputs.
+    // Only query text size splits a level; submit all of its chunks together.
+    const selectLevel = async (steps: { chain: NodeReference[]; body: string }[]): Promise<Row[]> => {
+        const encoder = new TextEncoder(), limit = 64 * 1024;
+        const queries: string[] = [];
+        // Compact IRI tokens, not quoted literals, before applying the byte limit.
+        const namespaces = new Map<string, string>();
+        const compact = (body: string) => body.replace(/"(?:[^"\\]|\\.)*"|<([^<>"{}|^`\\\x00-\x20]*)>|\s+/g, (token, value: string | undefined) => {
+            if (value === undefined) return token.startsWith('"') ? token : ' ';
+            const split = Math.max(value.lastIndexOf('/'), value.lastIndexOf('#')) + 1;
+            const namespace = value.slice(0, split), local = value.slice(split);
+            if (!split || !/^[A-Za-z_][A-Za-z0-9_%-]*$/.test(local)) return token;
+            const prefix = namespaces.get(namespace) ?? `t${namespaces.size}`;
+            namespaces.set(namespace, prefix);
+            return `${prefix}:${local}`;
+        });
+        const bodies = steps.map(step => compact(step.body));
+        const declarations = [...namespaces].map(([namespace, prefix]) => `PREFIX ${prefix}: <${namespace}>`).join(' ');
+        let branches: string[] = [], bytes = 0, depth = 0;
+        const header = (n: number) => `${prefixes} ${declarations} SELECT DISTINCT ?chain ?origin ?direct ${Array.from({ length: n }, (_, i) => `?n${i + 1}`).join(' ')} WHERE { `;
+        const flush = () => {
+            if (branches.length) queries.push(`${header(depth)}${branches.join(' UNION ')} }`);
+            branches = []; bytes = 0; depth = 0;
+        };
+        for (const [index, step] of steps.entries()) {
+            const branch = `{ BIND (${index} AS ?chain) ${bodies[index]} }`;
+            const size = encoder.encode(branch).length;
+            const nextDepth = Math.max(depth, step.chain.length);
+            if (branches.length && encoder.encode(header(nextDepth)).length + bytes + 7 + size + 2 > limit) flush();
+            depth = Math.max(depth, step.chain.length);
+            if (encoder.encode(header(depth)).length + size + 2 > limit) throw new Error('Target reference chain exceeds 64 KB query limit');
+            bytes += (branches.length ? 7 : 0) + size;
+            branches.push(branch);
+        }
+        flush();
+        return (await Promise.all(queries.map(query => c.port.select(query, c.files)))).flat();
+    };
+    // Reference walks need only target membership, not declaration metadata.
+    const pattern = (shape: string, variable: string) => [...new Set(c.declarations.filter(d => d.shape === shape).flatMap(d => {
+        const target = targetTerm(d.target);
+        if (!target) return [];
+        const node = `?${variable}`;
+        switch (d.kind) {
+            case 'targetClass': case 'implicitClass': return [`{ ${node} rdf:type/rdfs:subClassOf* ${target} . }`];
+            case 'targetSubjectsOf': return [`{ ${node} ${target} ?object . }`];
+            case 'targetObjectsOf': return [`{ ?subject ${target} ${node} . }`];
+            case 'targetNode': return [`{ VALUES ${node} { ${target} } }`];
+        }
+    }))].join(' UNION ');
     const reason = (ref: NodeReference, sourceNode: FocusNode): TargetReason => ({
         kind: 'node', target: { termType: 'NamedNode', value: ref.target }, sourceShape: ref.source, sourceNode,
         ...(ref.property ? { property: ref.property } : {})
@@ -149,20 +196,21 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
             const steps = new Map<string, { state: State; ref: NodeReference; chain: NodeReference[] }>();
             for (const state of level) for (const ref of refs.filter(r => r.target === state.shape)) {
                 const chain = [...state.chain, ref];
-                steps.set(JSON.stringify([state.origin, state.target, chain]), { state, ref, chain });
+                steps.set(JSON.stringify([state.origin, chain]), { state, ref, chain });
             }
             const next: State[] = [];
-            for (const { state, ref, chain } of steps.values()) {
-                const endpoint = `n${chain.length}`, target = pattern(ref.source, endpoint);
-                const rows = await c.port.select(`${prefixes} SELECT DISTINCT ?origin ${variables(chain)} ?direct WHERE {
-                    VALUES ?origin { ${term(state.origin)} } ${chainPattern(chain, true)}
-                    BIND (${target ? `EXISTS { ${target} }` : 'false'} AS ?direct) }`, c.files);
-                for (const row of rows) {
-                    const parent = focus(row[endpoint] as QueryTerm), first = reason(chain[0], focus(row.n1 as QueryTerm));
-                    const key = JSON.stringify([ref.source, parent]);
-                    direct.set(key, direct.get(key) === true || row.direct.value === 'true');
-                    next.push({ origin: state.origin, target: state.target, shape: ref.source, node: parent, first, chain });
-                }
+            const chains = [...steps.values()];
+            const rows = await selectLevel(chains.map(({ state, ref, chain }) => {
+                const target = pattern(ref.source, `n${chain.length}`);
+                return { chain, body: `${chainPattern(chain, true).replaceAll('?origin', term(state.origin))}
+                    ${target ? `BIND (EXISTS { ${target} } AS ?direct)` : ''}` };
+            }));
+            for (const row of rows) {
+                const { state, ref, chain } = chains[Number(row.chain.value)];
+                const parent = focus(row[`n${chain.length}`] as QueryTerm), first = reason(chain[0], focus(row.n1 as QueryTerm));
+                const key = JSON.stringify([ref.source, parent]);
+                direct.set(key, direct.get(key) === true || row.direct?.value === 'true');
+                next.push({ origin: state.origin, target: state.target, shape: ref.source, node: parent, first, chain });
             }
             level = next;
         }
@@ -184,12 +232,14 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
                 steps.set(JSON.stringify([state.originShape, chain]), { originShape: state.originShape, chain, ref });
             }
             const next: State[] = [];
-            for (const { originShape, chain, ref } of steps.values()) {
-                const target = pattern(originShape, 'origin');
-                if (!target) continue;
-                const rows = await c.port.select(`${prefixes} SELECT DISTINCT ?shape ?origin ${variables(chain)} WHERE {
-                    { ${target} } ${chainPattern(chain, false)} }`, c.files);
-                for (const row of rows) next.push({ shape: ref.target, node: focus(row[`n${chain.length}`] as QueryTerm),
+            const chains = [...steps.values()].flatMap(step => {
+                const target = pattern(step.originShape, 'origin');
+                return target ? [{ ...step, body: `{ ${target} } ${chainPattern(step.chain, false)}` }] : [];
+            });
+            const rows = await selectLevel(chains);
+            for (const row of rows) {
+                const { originShape, chain, ref } = chains[Number(row.chain.value)];
+                next.push({ shape: ref.target, node: focus(row[`n${chain.length}`] as QueryTerm),
                     reasons: [reason(ref, focus(row[chain.length === 1 ? 'origin' : `n${chain.length - 1}`] as QueryTerm))], originShape, chain });
             }
             level = next;
