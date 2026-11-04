@@ -131,7 +131,7 @@ interface Answer { kept: KeptPrefetch; bySubject: Map<string, Quad[]> }
  * subject and the rdf:type and rdfs:label of their IRI objects. For the other IRIs it sends one query over `ctx.modelFiles` without the
  * manifest. A shape subject is never taken from an answer (the answer has no document): its model statements are those of the documents
  * where it is not a shape, read by one query per set of such documents (by document kind); the types and labels of their IRI objects come
- * from the answers or from one more query over every model document. Elsewhere a statement of the closure
+ * from the answers or from typing queries, also by document kind for shape-subject objects. Elsewhere a statement of the closure
  * (`ctx.shapes.closure`) is not a model statement. The SKOS vocabulary
  * of the clipboard commands comes from `ctx.shapes.skos`. A view-only command sends no query: it uses the identities and reified relations
  * of the views, and the relations between IRIs of the answers. `isView` and `viewLabel` use `ctx.views` and `ctx.viewLabels`.
@@ -159,7 +159,7 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         && (a.bySubject.get(iri) ?? []).every(q => q.predicate.value === RDF_TYPE || q.object.termType !== 'NamedNode' || q.object.value.startsWith(BLANK) || readIn(a, q.object.value)));
 
     // The rows of the model statements, by branch: from the answers that cover a named IRI, then from the queries for the others.
-    // `exact`: an `a` row of a query by document kind, a model statement whatever the closure has.
+    // `exact`: a row of a query by document kind, a model statement whatever the closure has.
     const modelRows: { q: Quad; b: string; exact?: boolean }[] = [];
     const uncovered: string[] = [];
     /** The shape subjects by the documents where they are not shapes (the key: those documents). */
@@ -191,17 +191,27 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
             if (request.kind && b === 'a') shapeRows.push(q);
         }
     });
-    // The rdf:type and rdfs:label of the IRI objects of those statements, over every model document (the closure classifies each object's
-    // rows by its own documents): from a kept answer that has read the object, else one query.
-    const untyped = new Set<string>();
+    // The rdf:type and rdfs:label of the IRI objects of those statements: a shape-subject object's rows are read by document kind;
+    // the others come from a kept answer that has read the object, else one query over every model document.
+    const untyped = new Set<string>(), shapeObjects = new Set<string>();
     for (const q of shapeRows) {
         const o = q.object;
-        if (o.termType !== 'NamedNode' || o.value.startsWith(BLANK) || untyped.has(o.value)) continue;
-        const a = kept.find(x => !isShape(o.value) && readIn(x, o.value));
+        if (o.termType !== 'NamedNode' || o.value.startsWith(BLANK) || untyped.has(o.value) || shapeObjects.has(o.value)) continue;
+        if (isShape(o.value)) { shapeObjects.add(o.value); continue; }
+        const a = kept.find(x => readIn(x, o.value));
         if (!a) { untyped.add(o.value); continue; }
         for (const t of a.bySubject.get(o.value) ?? []) if (t.predicate.value === RDF_TYPE || t.predicate.value === RDFS_LABEL) modelRows.push({ q: t, b: 't' });
     }
-    if (untyped.size) for (const r of await select(namedQuery([], false, [...untyped]), files)) modelRows.push({ q: quadOf(r), b: 't' });
+    const typingByKind = new Map<string, { files: string[]; iris: string[] }>();
+    for (const iri of shapeObjects) {
+        const own = files.filter(f => !ctx.shapes.shapeSubjectsByFile.get(f)?.has(`<${iri}>`)), k = own.join('\n');
+        if (own.length) (typingByKind.get(k) ?? typingByKind.set(k, { files: own, iris: [] }).get(k)!).iris.push(iri);
+    }
+    const typingRequests = [...untyped.size ? [{ files, iris: [...untyped], exact: false }] : [], ...[...typingByKind.values()].map(g => ({ ...g, exact: true }))];
+    const typed = await Promise.all(typingRequests.map(r => select(namedQuery([], false, r.iris), r.files)));
+    typingRequests.forEach((request, i) => {
+        for (const r of typed[i]) modelRows.push({ q: quadOf(r), b: 't', exact: request.exact });
+    });
 
     const shapesBySubject = new Map<string, Quad[]>();
     for (const q of ctx.shapes.closure) (shapesBySubject.get(q.subject.value) ?? shapesBySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);

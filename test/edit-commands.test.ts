@@ -337,6 +337,26 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         }
     });
 
+    test('a shape-subject object keeps its model type when the same type occurs in its shapes document (roborev 2348)', async () => {
+        const DATA = join(FIXTURE, 'data.ttl'), dataText = readFileSync(DATA, 'utf8'), iri = 'urn:name:Author%20shape', object = 'urn:name:TypedShape';
+        const related = 'http://www.example.org/related', type = `<${object}> a <urn:example:bookshop:Thing> .`;
+        server.open(pathToFileURL(DATA).href, dataText);
+        server.change(pathToFileURL(DATA).href, `${dataText}\n<${iri}> a <urn:example:bookshop:Author> ; <${related}> <${object}> .\n${type}\n`);
+        try {
+            await addToShapes(`${type}\n<${object}> a <http://www.w3.org/ns/shacl#NodeShape> .`);
+            const views: Views = { [view]: await docs.quads(view) };
+            const command: ViewCommand = { kind: 'addToView', view: vid, ids: [iriId(iri)], at };
+            const answer = (await prefetchFigures(ctx.port, view, join(FIXTURE, 'instances.trig'), ctx.shapes, ctx.modelFiles, [], undefined, [iri])).kept;
+            for (const answers of [new Map(), new Map([[view, answer]])]) {
+                const f = await factsOf(ctx, command, views, answers);
+                expect(f.isInstance(object)).toBe(true);
+                expect(f.statementsOf([iri]).filter(q => q.predicate.value === related)).toEqual([]);
+            }
+        } finally {
+            server.change(pathToFileURL(DATA).href, dataText);
+        }
+    });
+
     test('the 19 command kinds are covered', async () => {
         expect(new Set((await commands()).map(c => c.kind)).size).toBe(19);
     });
