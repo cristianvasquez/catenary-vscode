@@ -129,7 +129,7 @@ export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[]
         const instance = other.value.startsWith('urn:skolem:blank:') ? known : facts.instance.has(other.value);
         if (other.value === self.value || !instance) return;
         const o = neighbors.get(self.value) ?? neighbors.set(self.value, { in: new Set(), out: new Set() }).get(self.value)!;
-        o[dir].add(other.value);
+        o[dir].add(other.value.startsWith('urn:skolem:blank:') ? JSON.stringify([doc, other.value]) : other.value);
     };
     for (const r of around) {
         const doc = inShapes.documentOf(r);

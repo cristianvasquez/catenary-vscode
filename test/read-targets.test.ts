@@ -140,6 +140,23 @@ ex:leaf rdfs:label "leaf" .
         expect(json(result)).toEqual(recordedBlank(name));
     });
 
+    test('hiddenNeighborCounts keeps blank neighbours in different files distinct', async () => {
+        const folder = mkdtempSync(join(tmpdir(), 'catenary-neighbours-'));
+        let otherServer: Awaited<ReturnType<typeof startServer>> | undefined;
+        try {
+            const modelFiles = ['a.ttl', 'b.ttl'].map(f => join(folder, f));
+            for (const file of modelFiles) writeFileSync(file, `${prefixes}ex:root a ex:R ; ex:p [ a ex:Thing ] .`);
+            otherServer = await startServer(folder, 6);
+            const otherShapes = await shapesModelOf(otherServer.port(), modelFiles, {});
+            const view = (await viewDocOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
+            const result = await hiddenNeighborCounts(otherServer.port(), modelFiles, otherShapes, view);
+            expect(result.get(iriId(`${EX}root`))?.out).toBe(2);
+        } finally {
+            await otherServer?.stop();
+            rmSync(folder, { recursive: true, force: true });
+        }
+    });
+
     test('hiddenNeighborCounts counts the blank neighbour as the old one did', async () => {
         const view = (await viewDocOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
         const result = await hiddenNeighborCounts(server.port(), files, now, view);
