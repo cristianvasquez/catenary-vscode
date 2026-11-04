@@ -39,6 +39,22 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 | mcrr | `targets.ts`: a walk through blank nodes is one query from an IRI; `bindings()` without the isBlank clause; `neighbors.ts`: a blank neighbour's type and label in the same query | bq0e | merged (67a4aa3, roborev 2321 pass) |
 | fyh4 | `view.ts`: no `BLANK_STATEMENTS`, a placed blank node of a model file is a warning; `facts-of.ts`: no `BLANK_QUERY`; a command that places a blank node is refused | bq0e | merged (fcc328b, roborev 2319 fail: `showAsEdge` can still place a blank node implicitly, noted in the kata) |
 
+## Round 4 and 5 (merged)
+
+| Kata | Scope | State |
+|---|---|---|
+| t5b2 | port sends maxRows 0; the server ceiling is the setting `turtle.query.maxRows` (default 1000; 0 = no limit), see readme | merged |
+| dyx2 | one figure query per round: 519 to 77 queries over 17 views | merged |
+| 4xc6 | targets: one query per level for all chains: 17,538 to 2,735 requests | merged |
+| a62t | per-file reads become two queries by document kind: 1,715 to 347 | merged |
+| 54k2 | kept prefetch per view: figures on a redraw 1 request | merged |
+| d01g | view labels from the context, marks from the view's own file: a draw 21 to 41 requests | merged |
+| g18q | two-phase draw: phase 1 from the view text and the kept index, 0 requests; phase 2 fills box data, never positions | merged |
+
+Measured on EP-catenary-dprod (17 views, 37 files): setup plus 17 draws 17,538 requests and 34 s before round 4; 1,069 requests and 8 s after round 4; a draw 21 to 41 requests after d01g; a redraw after undo 0 requests after g18q.
+
+Open after round 5: the vocabulary read at setup loads whole SKOS schemes (9,783 statements for file-type); read a value set's members only when a card needs them. The expand picker reads the view document before its two neighbour queries.
+
 ## Agent contract (short)
 
 One worktree per kata, branch `kata/<id>-<slug>`. Read AGENTS.md, `kata show <id>`, do the task as written, `pnpm verify`, commit with the kata id, wait for the roborev review, apply findings inside the kata text, comment the others, close with `--commit`. No push, no pull request.
