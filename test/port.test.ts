@@ -4,11 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
-import { answerPort, type Row } from '../src/model/port';
+import { answerPort, MAX_ROWS, type Row } from '../src/model/port';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { nodePort } from '../src/node/port';
 import type { QueryAnswer } from '../src/node/sparql-endpoint';
 import { QUERY_MISSING } from '../src/node/turtle-api';
+import { webPort } from '../src/web/port';
+import type { LspClient } from '../src/web/turtle-lsp/editor-lsp.js';
+import { fileUriOf } from '../src/web/files';
 import { startServer } from './server';
 
 const folder = join(__dirname, 'fixtures/shapes');
@@ -120,6 +123,31 @@ describe('answerPort and nodePort without a server', () => {
     const XSD = 'http://www.w3.org/2001/XMLSchema#';
     const answer = (a: QueryAnswer) => answerPort(async () => a);
 
+    test('both ports send the row limit for every query kind, with and without a file scope', async () => {
+        expect(MAX_ROWS).toBe(1000000);
+        const calls: { method: string; params: unknown }[] = [];
+        const send = async <R>(method: string, params: unknown): Promise<R> => {
+            calls.push({ method, params });
+            const { query } = params as { query: string };
+            return (query === 'SELECT' ? { kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 0, elapsedMs: 0 }
+                : query === 'CONSTRUCT' ? { kind: 'construct', triples: [], omitted: 0, elapsedMs: 0 }
+                    : { kind: 'ask', boolean: true, elapsedMs: 0 }) as R;
+        };
+        const ports = [
+            { port: nodePort({ idle: async () => {}, client: () => ({ isRunning: () => true, sendRequest: send }) }), uri: pathToFileURL },
+            { port: webPort({ request: send } as unknown as LspClient), uri: (path: string) => ({ href: fileUriOf(path) }) },
+        ];
+        for (const { port, uri } of ports) {
+            for (const files of [undefined, [], [file('data.ttl')]]) {
+                for (const [kind, query] of [['select', 'SELECT'], ['construct', 'CONSTRUCT'], ['ask', 'ASK']] as const) {
+                    await port[kind](query, files);
+                    expect(calls.at(-1)).toEqual({ method: 'turtle/query', params: { query, maxRows: MAX_ROWS, ...(files ? { files: files.map(f => uri(f).href) } : {}) } });
+                }
+            }
+        }
+        expect(calls).toHaveLength(18);
+    });
+
     test('terms: language, typed and plain literals, triple terms', async () => {
         const [row] = await answer({
             kind: 'select', head: { vars: [] }, omitted: 0, elapsedMs: 0, results: {
@@ -139,7 +167,7 @@ describe('answerPort and nodePort without a server', () => {
     });
 
     test('omitted > 0 and an answer of another kind throw', async () => {
-        await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 2, elapsedMs: 0 }).select('')).rejects.toThrow(/maxRows/);
+        await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 2, elapsedMs: 0 }).select('')).rejects.toThrow(`maxRows (${MAX_ROWS})`);
         await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 0, elapsedMs: 0 }).construct('')).rejects.toThrow(/select to a construct/);
         await expect(answer({ kind: 'construct', triples: [], omitted: 0, elapsedMs: 0 }).select('')).rejects.toThrow(/construct to a select/);
     });

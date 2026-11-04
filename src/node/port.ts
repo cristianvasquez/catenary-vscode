@@ -1,6 +1,6 @@
 // The ModelPort of the extension host: turtle/query over the running turtle extension's language client.
 import { pathToFileURL } from 'node:url';
-import { answerPort, type ModelPort } from '../model/port';
+import { answerPort, MAX_ROWS, type ModelPort } from '../model/port';
 import { QUERY_MISSING, requestQuery, type TurtleApi } from './turtle-api';
 
 const METHOD_NOT_FOUND = -32601;
@@ -9,7 +9,7 @@ const METHOD_NOT_FOUND = -32601;
 export function nodePort(api: TurtleApi): ModelPort {
     return answerPort(async (query, files) => {
         try {
-            return await requestQuery(api, files ? { query, files: files.map(f => pathToFileURL(f).href) } : { query });
+            return await requestQuery(api, { query, maxRows: MAX_ROWS, ...(files ? { files: files.map(f => pathToFileURL(f).href) } : {}) });
         } catch (err) {
             if ((err as { code?: unknown } | undefined)?.code === METHOD_NOT_FOUND) throw new Error(QUERY_MISSING);
             throw err;

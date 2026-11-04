@@ -25,6 +25,9 @@ export async function byFile(port: ModelPort, files: string[], query: string): P
 /** Runs one query text over the given file paths and gives the turtle/query answer. */
 export type RunQuery = (query: string, files?: string[]) => Promise<QueryAnswer>;
 
+/** Maximum rows requested from turtle/query by both host ports. */
+export const MAX_ROWS = 1000000;
+
 const BLANK = 'urn:skolem:blank:';
 const pad = (n: string, w: number) => n.padStart(w, '0');
 
@@ -56,7 +59,7 @@ const quadOf = (t: JsonTriple): Quad => rdf.quad(termOf(t.subject) as Quad['subj
 
 function expect<K extends QueryAnswer['kind']>(answer: QueryAnswer, kind: K): Extract<QueryAnswer, { kind: K }> {
     if (answer.kind !== kind) throw new Error(`turtle/query answered ${answer.kind} to a ${kind} query`);
-    if ('omitted' in answer && answer.omitted > 0) throw new Error(`turtle/query omitted ${answer.omitted} results: the query hit maxRows`);
+    if ('omitted' in answer && answer.omitted > 0) throw new Error(`turtle/query omitted ${answer.omitted} results: the query hit maxRows (${MAX_ROWS})`);
     return answer as Extract<QueryAnswer, { kind: K }>;
 }
 
