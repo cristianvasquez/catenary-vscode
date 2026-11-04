@@ -32,7 +32,7 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document, the isBlank query over the folder: boundRows). */
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document: boundRows; a blank node among `iris` is left out). */
 async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string, files = ctx.modelFiles): Promise<(Row & { file?: string })[]> {
     if (!iris.length || !files.length) return [];
     return boundRows(ctx.port, files, variable, iris.map(named), query);

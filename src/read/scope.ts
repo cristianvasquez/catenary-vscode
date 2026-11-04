@@ -42,7 +42,7 @@ const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 /** A view entry with its label only. */
 const labelOnly = (id: string, label: string): View => ({ id, label, uri: elementTerm(id)?.value ?? '', boxes: [], edges: [], arrows: [] });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document, the isBlank query over the folder: boundRows). */
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document: boundRows; a blank node among `iris` is left out). */
 async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
     if (!iris.length || !ctx.modelFiles.length) return [];
     return boundRows(ctx.port, ctx.modelFiles, variable, iris.map(named), query);
