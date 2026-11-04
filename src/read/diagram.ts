@@ -1,5 +1,6 @@
 // The diagram of a view from turtle/query answers: the Doc (viewDocOf), the hidden neighbours, the notation figures, then toSchema (pure).
 import { Parser, Writer } from 'n3';
+import { pathToFileURL } from 'node:url';
 import { viewDocFromText } from './view-text';
 import type { Doc } from '../catenary/model/doc';
 import { emptyDoc } from '../catenary/model/doc';
@@ -95,7 +96,7 @@ export function drawFromText(ctx: ModelContext, viewId: string, viewText: string
     const retained = kept ?? emptyPrefetch(ctx.shapes);
     const iri = viewId.includes(':') ? viewId : idIri(viewId);
     if (!iri || !ctx.views.has(iri)) return { drawn: emptyDrawn(), misses: 0, kept };
-    const quads = new Parser({ format: 'application/trig' }).parse(viewText);
+    const quads = new Parser({ format: 'application/trig', baseIRI: pathToFileURL(ctx.views.get(iri)!).href }).parse(viewText);
     const doc = viewDocFromText(ctx, iri, quads, retained);
     const figures = figuresFromText(iri, quads, retained);
     applyPrefixes(ctx.manifest);

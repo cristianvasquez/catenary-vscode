@@ -5,7 +5,8 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { diagramOf, drawFromText, completeDrawing, keepGeometry, type ModelContext, modelContextOf } from '../src/read/diagram';
-import type { ElementSchema } from '../src/catenary/model/diagram-schema';
+import { memberListHeight, type ElementSchema } from '../src/catenary/model/diagram-schema';
+import { NS } from '../src/catenary/model/terms';
 import { iriId } from '../src/catenary/model/ids';
 import { hiddenNeighborCounts } from '../src/read/neighbors';
 import { scopedDoc } from '../src/read/scope';
@@ -67,6 +68,47 @@ describe('two-phase drawing', () => {
         const final = await completeDrawing({ ...ctx, port }, iri, first.drawn, first.misses);
         expect(JSON.stringify(final.schema)).toBe(R(iri));
         expect(keepGeometry(final.schema, first.drawn.schema)).toEqual(final.schema);
+    });
+
+    test('a cold relative-IRI view includes unplaced collection members before delayed completion', async () => {
+        const file = ctx.views.get(modelIri)!, uri = pathToFileURL(file).href, iri = `${uri}#view`;
+        const original = readFileSync(file, 'utf8');
+        const instances = Object.values((await diagramOf(ctx, instancesIri)).doc.instances);
+        expect(instances.length).toBeGreaterThan(1);
+        const text = `@prefix view: <${NS.view}> . @prefix rdfs: <${NS.rdfs}> .
+            <#view> { <#view> a view:View ; rdfs:label "Relative view" .
+            <#group> a view:EntityGroup ; view:member ${instances.map(i => `<${i.uri}>`).join(', ')} .
+            <#placement> a view:Placement ; view:view <#view> ; view:element <#group> ; view:x 42 ; view:y 24 ; view:width 640 ; view:height 1 . }`;
+        let release!: () => void;
+        const gate = new Promise<void>(resolve => { release = resolve; });
+        let requests = 0, settled = false;
+        const port: ModelContext['port'] = {
+            select: async (...args) => { requests++; await gate; return ctx.port.select(...args); },
+            construct: async (...args) => { requests++; await gate; return ctx.port.construct(...args); },
+            ask: async (...args) => { requests++; await gate; return ctx.port.ask(...args); }
+        };
+        const local = { ...ctx, port, views: new Map([...ctx.views].filter(([, f]) => f !== file).concat([[iri, file]])) };
+        server.open(uri, text, 'trig');
+        try {
+            const first = drawFromText(local, iri, text);
+            expect(requests).toBe(0);
+            const group = first.drawn.schema.children!.find(e => e.type === 'node:collection')!;
+            expect(group).toMatchObject({ id: iriId(`${uri}#placement`), position: { x: 42, y: 24 }, size: { width: 640, height: memberListHeight(instances.length) } });
+            expect(group.members).toHaveLength(instances.length);
+            const pending = completeDrawing(local, iri, first.drawn, first.misses).then(drawn => { settled = true; return drawn; });
+            await Promise.resolve();
+            expect(requests).toBeGreaterThan(0);
+            expect(settled).toBe(false);
+            release();
+            const final = await pending;
+            const completed = keepGeometry(final.schema, first.drawn.schema).children!.find(e => e.id === group.id)!;
+            expect(completed.members).toHaveLength(instances.length);
+            expect(completed.size).toEqual(group.size);
+            expect(completed.size).toEqual(final.schema.children!.find(e => e.id === group.id)!.size);
+        } finally {
+            release();
+            server.change(uri, original);
+        }
     });
 
     test('completion copies layout by id, not by element order', () => {

@@ -29,7 +29,10 @@ export function viewDocFromText(ctx: ModelContext, iri: string, quads: Quad[], k
     const parts: Parameters<typeof projectView>[2] = { cards: [], edges: [], arrows: [], groups: [], notes: [], references: [], fileReferences: [], collections: [] };
     const viewIds = new Map([...ctx.views.keys()].map(v => [v, elementId(rdf.namedNode(v))]));
     // New terms still get a box before the server knows their type or label.
-    for (const s of subjects.values()) for (const e of s.props.get(NS.view + 'element') ?? []) {
+    for (const s of subjects.values()) for (const e of [
+        ...(s.props.get(NS.view + 'element') ?? []),
+        ...(s.props.get(NS.rdf + 'type')?.some(t => t.value === NS.view + 'EntityGroup') ? s.props.get(NS.view + 'member') ?? [] : [])
+    ]) {
         if (e.termType !== 'NamedNode' || viewIds.has(e.value) || ctx.shapes.shapeSubjects.has(`<${e.value}>`) || e.value.startsWith('urn:trellis:list:')) continue;
         if (objects(e.value, NS.rdf + 'type').some(t => ['Frame', 'Note', 'FileRef', 'EntityGroup'].some(k => t.value === NS.view + k))) continue;
         const id = elementId(e);
