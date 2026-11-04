@@ -93,12 +93,17 @@ export function viewSubjects(ctx: Pick<FactsContext, 'views'>, views: Views, iri
 }
 
 /**
- * The query for the named IRIs that no kept answer covers: one request over the model documents. Each row is a statement and the branch `?b`
- * that found it: `a` the statements of a named IRI, `t` rdf:type and rdfs:label of their objects.
+ * The query for the named IRIs that no kept answer covers. Each row is a statement and the branch `?b` that found it: `a` the statements of
+ * an IRI of `named`, `t` rdf:type and rdfs:label of their objects (with `objects` false: no `t` branch), and the rdf:type and rdfs:label of
+ * each IRI of `typed`.
  */
-function namedQuery(named: string[]): string {
-    return `SELECT DISTINCT ?s ?p ?o ?b WHERE { { VALUES ?s { ${values(named)} } ?s ?p ?o BIND ("a" AS ?b) }
-        UNION { VALUES ?i { ${values(named)} } ?i ?q ?s . ?s ?p ?o ${TYPING} BIND ("t" AS ?b) } }`;
+function namedQuery(named: string[], objects = true, typed: string[] = []): string {
+    const branches = [
+        ...named.length ? [`{ VALUES ?s { ${values(named)} } ?s ?p ?o BIND ("a" AS ?b) }`] : [],
+        ...named.length && objects ? [`{ VALUES ?i { ${values(named)} } ?i ?q ?s . ?s ?p ?o ${TYPING} BIND ("t" AS ?b) }`] : [],
+        ...typed.length ? [`{ VALUES ?s { ${values(typed)} } ?s ?p ?o ${TYPING} BIND ("t" AS ?b) }`] : []
+    ];
+    return `SELECT DISTINCT ?s ?p ?o ?b WHERE { ${branches.join(' UNION ')} }`;
 }
 
 const TYPING = `FILTER (?p IN (<${RDF_TYPE}>, <${RDFS_LABEL}>))`;
@@ -125,7 +130,8 @@ interface Answer { kept: KeptPrefetch; bySubject: Map<string, Quad[]> }
  * (commandIris) from the kept answers of the views (`answers`, KeptPrefetch by view IRI) when an answer covers the IRI: its statements as
  * subject and the rdf:type and rdfs:label of their IRI objects. For the other IRIs it sends one query over `ctx.modelFiles` without the
  * manifest. A shape subject is never taken from an answer (the answer has no document): its model statements are those of the documents
- * where it is not a shape, read by one query per set of such documents (by document kind). Elsewhere a statement of the closure
+ * where it is not a shape, read by one query per set of such documents (by document kind); the types and labels of their IRI objects come
+ * from the answers or from one more query over every model document. Elsewhere a statement of the closure
  * (`ctx.shapes.closure`) is not a model statement. The SKOS vocabulary
  * of the clipboard commands comes from `ctx.shapes.skos`. A view-only command sends no query: it uses the identities and reified relations
  * of the views, and the relations between IRIs of the answers. `isView` and `viewLabel` use `ctx.views` and `ctx.viewLabels`.
@@ -173,11 +179,29 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
                 if (t.predicate.value === RDF_TYPE || t.predicate.value === RDFS_LABEL) modelRows.push({ q: t, b: 't' });
         }
     }
+    // A shape subject: its statements by document kind (no `t` branch: its objects can be typed in a document where it is a shape).
+    const select = (query: string, scope: string[]) => ctx.port.select(query, scope);
     const requests = [...uncovered.length ? [{ files, iris: uncovered, kind: false }] : [], ...[...byKind.values()].map(g => ({ ...g, kind: true }))];
-    const answered = await Promise.all(requests.map(r => ctx.port.select(namedQuery(r.iris), r.files)));
+    const answered = await Promise.all(requests.map(r => select(namedQuery(r.iris, !r.kind), r.files)));
+    const shapeRows: Quad[] = [];
     requests.forEach((request, i) => {
-        for (const r of answered[i]) modelRows.push({ q: quadOf(r), b: r.b?.value ?? '', exact: request.kind && r.b?.value === 'a' });
+        for (const r of answered[i]) {
+            const q = quadOf(r), b = r.b?.value ?? '';
+            modelRows.push({ q, b, exact: request.kind && b === 'a' });
+            if (request.kind && b === 'a') shapeRows.push(q);
+        }
     });
+    // The rdf:type and rdfs:label of the IRI objects of those statements, over every model document (the closure classifies each object's
+    // rows by its own documents): from a kept answer that has read the object, else one query.
+    const untyped = new Set<string>();
+    for (const q of shapeRows) {
+        const o = q.object;
+        if (o.termType !== 'NamedNode' || o.value.startsWith(BLANK) || untyped.has(o.value)) continue;
+        const a = kept.find(x => !isShape(o.value) && readIn(x, o.value));
+        if (!a) { untyped.add(o.value); continue; }
+        for (const t of a.bySubject.get(o.value) ?? []) if (t.predicate.value === RDF_TYPE || t.predicate.value === RDFS_LABEL) modelRows.push({ q: t, b: 't' });
+    }
+    if (untyped.size) for (const r of await select(namedQuery([], false, [...untyped]), files)) modelRows.push({ q: quadOf(r), b: 't' });
 
     const shapesBySubject = new Map<string, Quad[]>();
     for (const q of ctx.shapes.closure) (shapesBySubject.get(q.subject.value) ?? shapesBySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);

@@ -315,6 +315,28 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         }
     });
 
+    test('the object of a model statement of a shape subject is typed from every document, also a shapes document (roborev 2346)', async () => {
+        const DATA = join(FIXTURE, 'data.ttl'), dataText = readFileSync(DATA, 'utf8'), iri = 'urn:name:Author%20shape', object = 'urn:name:TypedInShapes';
+        const related = 'http://www.example.org/related';
+        server.open(pathToFileURL(DATA).href, dataText);
+        server.change(pathToFileURL(DATA).href, `${dataText}\n<${iri}> a <urn:example:bookshop:Author> ; <${related}> <${object}> .\n`);
+        try {
+            await addToShapes(`<${object}> a <urn:example:bookshop:Thing> .`);
+            const views: Views = { [view]: await docs.quads(view) };
+            const command: ViewCommand = { kind: 'addToView', view: vid, ids: [iriId(iri)], at };
+            const answer = (await prefetchFigures(ctx.port, view, join(FIXTURE, 'instances.trig'), ctx.shapes, ctx.modelFiles, [], undefined, [iri])).kept;
+            for (const answers of [new Map(), new Map([[view, answer]])]) {
+                const f = await factsOf(ctx, command, views, answers);
+                expect(f.isInstance(iri)).toBe(true);
+                expect(f.isInstance(object)).toBe(true);
+                // A typed object outside the view is not a field of the card: the relation is left out.
+                expect(f.statementsOf([iri]).filter(q => q.predicate.value === related)).toEqual([]);
+            }
+        } finally {
+            server.change(pathToFileURL(DATA).href, dataText);
+        }
+    });
+
     test('the 19 command kinds are covered', async () => {
         expect(new Set((await commands()).map(c => c.kind)).size).toBe(19);
     });
