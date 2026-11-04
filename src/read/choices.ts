@@ -12,19 +12,19 @@ import { rdf } from '../catenary/rdf/terms';
 import { labelFromIri, labelLiterals } from '../catenary/rdf/vocabulary';
 import { reasonText } from '../catenary/shacl/common';
 import type { FocusNode } from '../catenary/shacl/common/index';
-import { byFile, type Row } from '../model/port';
+import { byDocumentKind, documentSets, type DocumentRow } from './documents';
 import type { ModelContext } from './diagram';
 import { applyPrefixes } from './manifest';
 import { factsOf, inShapesOf } from './neighbors';
 import { scopedDoc } from './scope';
-import { boundRows, shapeTargetMatches } from './targets';
+import { bindings, boundRows, shapeTargetMatches } from './targets';
 import { legacyRows, viewDocOf } from './view';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos: <${NS.skos}> PREFIX sh: <${NS.sh}>`;
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label', PATH = NS.sh + 'path';
 const SKOS_TYPES = new Set(['ConceptScheme', 'Concept', 'Collection'].map(t => NS.skos + t));
 const SKOS_MEMBERSHIP = new Set(['inScheme', 'topConceptOf'].map(p => NS.skos + p));
-/** The statements that make an IRI subject an instance, and its label statements, in one model document (byFile). */
+/** The statements that make an IRI subject an instance, and its label statements, by model document kind. */
 const INSTANCE_ROWS = `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
     VALUES ?p { rdf:type rdfs:label skos:prefLabel sh:name skos:inScheme skos:topConceptOf } FILTER (isIRI(?s)) }`;
 
@@ -32,10 +32,10 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document: boundRows; a blank node among `iris` is left out). */
-async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string, files = ctx.modelFiles): Promise<(Row & { file?: string })[]> {
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES by document kind; a blank node among `iris` is left out). */
+async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string, files = ctx.modelFiles): Promise<DocumentRow[]> {
     if (!iris.length || !files.length) return [];
-    return boundRows(ctx.port, files, variable, iris.map(named), query);
+    return (await Promise.all(bindings(variable, iris.map(named)).map(({ clause }) => byDocumentKind(ctx.port, documentSets(ctx.shapes, files), query(clause))))).flat();
 }
 
 /**
@@ -45,16 +45,15 @@ async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query
  */
 export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: boolean } = {}): Promise<Map<string, string>> {
     const inShapes = inShapesOf(ctx.shapes);
-    const rows = legacyRows(await byFile(ctx.port, ctx.modelFiles, INSTANCE_ROWS));
-    const modelRows = rows.filter(r => !inShapes(r.file, r.s));
+    const rows = legacyRows(await byDocumentKind(ctx.port, documentSets(ctx.shapes, ctx.modelFiles), INSTANCE_ROWS));
+    const modelRows = rows.filter(r => !inShapes(r.kind, r.s));
     const instances = new Set(modelRows.filter(r => r.p.value === TYPE || r.p.value === LABEL).map(r => r.s.value));
     const inUnion = new Set(modelRows.map(r => r.s.value));
-    const vocabulary = new Set(rows.filter(r => inShapes(r.file, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
+    const vocabulary = new Set(rows.filter(r => inShapes(r.kind, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
     // A SKOS subject of the shapes counts when it has a statement outside the shapes (the old pipeline reads the subjects of the model graph).
     const open = [...vocabulary].filter(s => !instances.has(s) && !inUnion.has(s));
     for (const r of await rowsOf(ctx, 's', open, clause => `SELECT DISTINCT ?s WHERE { ?s ?p ?o ${clause} }`)) {
-        const doc = inShapes.documentOf(r);
-        if (doc === undefined || !inShapes(doc, r.s)) inUnion.add(r.s.value);
+        if (!inShapes(r.kind, r.s)) inUnion.add(r.s.value);
     }
     for (const s of vocabulary) if (inUnion.has(s)) instances.add(s);
     const shapesOnly = options.vocabulary ? new Set([...vocabulary].filter(s => !instances.has(s))) : new Set<string>();
@@ -70,7 +69,7 @@ export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: 
 
 /** Label of each of `iris` from its statements in the model documents (labels of rdf/quad-read.ts): a label predicate, else the sh:path, else the IRI. */
 async function labelsOf(ctx: ModelContext, iris: string[]): Promise<Map<string, string>> {
-    const rows = legacyRows((await rowsOf(ctx, 's', iris, clause => `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
+    const rows = legacyRows((await boundRows(ctx.port, ctx.modelFiles, 's', iris.map(named), clause => `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
         VALUES ?p { rdfs:label skos:prefLabel sh:name sh:path } ${clause} }`)));
     return new Map(iris.map(s => {
         const own = rows.filter(r => r.s.value === s);

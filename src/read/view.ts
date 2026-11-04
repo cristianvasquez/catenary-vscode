@@ -10,6 +10,8 @@ import { type Plain, type Resource, type Statements, cardIdsOf, first, instanceR
 import { rdf, termKey } from '../catenary/rdf/terms';
 import { P, SKOS_MEMBERSHIP, SKOS_TYPES, labelFromIri, labelLiterals } from '../catenary/rdf/vocabulary';
 import { byFile, type ModelPort, type Row } from '../model/port';
+import { byDocumentKind, documentSets, type DocumentRow, type DocumentSets } from './documents';
+import { inShapesOf } from './neighbors';
 import type { ManifestRecords } from './manifest';
 import type { ShapesModelRecords } from './shapes';
 
@@ -50,11 +52,11 @@ const MARKS_ALL = `${PREFIXES} SELECT ?s ?mt ?label ?text ?ref ?member WHERE { ?
 /** The variable of MARKS_ALL for the content property of a mark. */
 const MARK_VAR: Record<string, string> = { file: 'ref' };
 
-/** The statements of `?s` in a model document (byFile); `?known`: the object has an rdf:type or an rdfs:label in that document. */
+/** The statements of `?s` by model document kind; `?known`: the object has an rdf:type or an rdfs:label in that document set. */
 const statementsQuery = (values: string) => `${PREFIXES} SELECT ?s ?p ?o ?known WHERE { VALUES ?s { ${values} } ?s ?p ?o FILTER (isIRI(?s))
     BIND (EXISTS { ?o rdf:type|rdfs:label ?any } AS ?known) }`;
 
-/** The statements of each IRI subject with a SKOS type, skos:inScheme or skos:topConceptOf in a model document (byFile). */
+/** The statements of each IRI subject with a SKOS type, skos:inScheme or skos:topConceptOf by model document kind. */
 const SKOS = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE {
     { ?s a ?t VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } } UNION { ?s skos:inScheme|skos:topConceptOf ?x }
     ?s ?p ?o FILTER (isIRI(?s)) }`;
@@ -67,12 +69,12 @@ const ARROWS_ALL = `${PREFIXES} SELECT DISTINCT ?s ?o WHERE { ?s view:arrow|ovie
 
 type FileRow = Row & { file: string };
 
-/** One byFile query over `files` per CHUNK IRIs (named nodes only: VALUES of `<iri>`), the rows concatenated. */
-async function chunked(port: ModelPort, iris: Iterable<string>, query: (values: string) => string, files: string[]): Promise<FileRow[]> {
+/** Two document-kind queries per CHUNK IRIs (named nodes only: VALUES of `<iri>`), the rows concatenated. */
+async function chunked(port: ModelPort, iris: Iterable<string>, query: (values: string) => string, sets: DocumentSets): Promise<DocumentRow[]> {
     const all = [...new Set(iris)];
     const parts: string[][] = [];
     for (let i = 0; i < all.length; i += CHUNK) parts.push(all.slice(i, i + CHUNK));
-    return (await Promise.all(parts.map(p => byFile(port, files, query(p.map(s => `<${s}>`).join(' ')))))).flat();
+    return (await Promise.all(parts.map(p => byDocumentKind(port, sets, query(p.map(s => `<${s}>`).join(' ')))))).flat();
 }
 
 /** The rows with their terms in the published namespaces (readLegacy over the quads of `?s ?p ?o`); the other variables unchanged. */
@@ -142,8 +144,9 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     if (!viewFile) return emptyDoc();
     /** A shape subject of any document (the shows test, the object test of the statements filter). */
     const isShape = (t: Term) => shapes.shapeSubjects.has(termKey(t));
-    /** The subject of the row is a shape in the row's document (shapePart classifies per file). */
-    const shapeRow = (r: FileRow) => shapes.shapeSubjectsByFile.get(r.file)?.has(termKey(r.s)) ?? false;
+    const sets = documentSets(shapes, modelFiles), inShapes = inShapesOf(shapes);
+    /** A statement from shapes documents belongs to shapes only when its subject is a shape subject. */
+    const shapeRow = (r: DocumentRow) => inShapes(r.kind, r.s);
     /** The view IRI of a view file. */
     const viewOf = new Map([...views].map(([iri, file]) => [file, iri]));
     const viewFiles = [...views.values()];
@@ -237,8 +240,8 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     // The model statements of the placed IRIs (and of every element of the view: the shows test), without the shapes subjects.
     const elementObjects = elements ? [] : [...vq.values()].flatMap(e => (e.props.get(ELEMENT) ?? []).filter(o => o.termType === 'NamedNode').map(o => o.value));
     const wanted = new Set([...placed, ...elementObjects]);
-    const namedRows = await chunked(port, [...wanted].filter(s => !s.startsWith(BLANK)), statementsQuery, modelFiles);
-    // File-scoped statements still use the model-wide known-object test. Only query real IRIs here.
+    const namedRows = await chunked(port, [...wanted].filter(s => !s.startsWith(BLANK)), statementsQuery, sets);
+    // Document-kind statements still use the model-wide known-object test. Only query real IRIs here.
     const unknown = [...new Set(namedRows.filter(r => r.known?.value !== 'true' && r.o.termType === 'NamedNode' && !r.o.value.startsWith(BLANK)).map(r => r.o.value))];
     const knownQueries: Promise<Row[]>[] = [];
     for (let i = 0; i < unknown.length; i += CHUNK) knownQueries.push(port.select(`${PREFIXES} SELECT DISTINCT ?o WHERE {
@@ -264,18 +267,19 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
         e.rows.push({ s, p: plain(r.p), o: plain(r.o) });
     };
     for (const r of modelRows) if (placed.has(r.s.value) && keep(r)) push(r);
-    const skosRows = shows ? legacyRows(await byFile(port, modelFiles, SKOS)) : [];
+    const skosRows = shows ? legacyRows(await byDocumentKind(port, sets, SKOS)) : [];
     const skosTypes = new Set(SKOS_TYPES.map(t => t.value)), membership = new Set(SKOS_MEMBERSHIP.map(p => p.value));
     const skosUnion = new Set(skosRows.filter(r => !shapeRow(r) && r.p.value === TYPE && skosTypes.has(r.o.value)).map(r => r.s.value));
     for (const r of skosRows) if (skosUnion.has(r.s.value) && !shapeRow(r)) push(r);
     const subjects = [...statements.values()].filter(e => e.s.termType === 'NamedNode' && e.s.value !== UNION_GRAPH && e.rows.some(r => r.p.value === TYPE || r.p.value === LABEL));
 
     /** The statements of SKOS subjects of the shapes, by document (sorted by file) and subject. */
-    const vocabularyHomes = (rows: (Row & { file?: string })[]) => {
+    const vocabularyHomes = (rows: DocumentRow[]) => {
         const byFile = new Map<string, Map<string, Row[]>>();
         for (const r of rows) {
-            if (r.file === undefined) continue;
-            const bySubject = byFile.get(r.file) ?? byFile.set(r.file, new Map()).get(r.file)!;
+            const file = inShapes.documentOf(r);
+            if (file === undefined) continue;
+            const bySubject = byFile.get(file) ?? byFile.set(file, new Map()).get(file)!;
             (bySubject.get(r.s.value) ?? bySubject.set(r.s.value, []).get(r.s.value)!).push(r);
         }
         const isVocabulary = (rs: Row[]) => rs.some(r => (r.p.value === TYPE && skosTypes.has(r.o.value)) || membership.has(r.p.value));
