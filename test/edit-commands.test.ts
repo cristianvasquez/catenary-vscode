@@ -295,6 +295,26 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         ];
     };
 
+    test('a statement of a shape subject in a shapes document and in a model document is a model statement (roborev 2344)', async () => {
+        const DATA = join(FIXTURE, 'data.ttl'), dataText = readFileSync(DATA, 'utf8'), iri = 'urn:name:Author%20shape';
+        const label = `<${iri}> <http://www.w3.org/2000/01/rdf-schema#label> "Duplicated" .`;
+        server.open(pathToFileURL(DATA).href, dataText);
+        server.change(pathToFileURL(DATA).href, `${dataText}\n<${iri}> a <urn:example:bookshop:Author> .\n${label}\n`);
+        try {
+            await addToShapes(label);
+            const views: Views = { [view]: await docs.quads(view) };
+            const command: ViewCommand = { kind: 'addToView', view: vid, ids: [iriId(iri)], at };
+            const answer = (await prefetchFigures(ctx.port, view, join(FIXTURE, 'instances.trig'), ctx.shapes, ctx.modelFiles, [], undefined, [iri])).kept;
+            for (const answers of [new Map(), new Map([[view, answer]])]) {
+                const f = await factsOf(ctx, command, views, answers);
+                expect(f.isInstance(iri)).toBe(true);
+                expect(f.label(iri)).toBe('Duplicated');
+            }
+        } finally {
+            server.change(pathToFileURL(DATA).href, dataText);
+        }
+    });
+
     test('the 19 command kinds are covered', async () => {
         expect(new Set((await commands()).map(c => c.kind)).size).toBe(19);
     });
@@ -319,8 +339,8 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         // The IRIs come in the order of the view statements: the server and the old store give them in another order.
         expect([...iris].sort()).toEqual([...want.iris].sort());
         expect(JSON.parse(JSON.stringify(facts(got, want.iris, doc))), c.kind).toEqual(want.facts);
-        // Without kept answers: one query for every named IRI.
-        expect(select).toHaveBeenCalledTimes(1);
+        // Without kept answers: one query for the named IRIs, one for the shape subjects in the documents where they are not shapes.
+        expect(select.mock.calls.length).toBe(iris.some(x => ctx.shapes.shapeSubjects.has(`<${x}>`)) ? 2 : 1);
     });
 
     test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: the facts from the kept answers of the views match the recording without a query', async i => {
@@ -332,7 +352,8 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
             [v, (await prefetchFigures(ctx.port, v, files[v], ctx.shapes, ctx.modelFiles, [], undefined, n ? [] : iris.filter(x => !noModel.has(x)))).kept] as const)));
         const select = vi.fn(ctx.port.select.bind(ctx.port));
         const got = await factsOf({ ...ctx, port: { ...ctx.port, select } }, c, views, answers);
-        expect(select).not.toHaveBeenCalled();
+        // A shape subject is read by document kind: one query (the fixture has one shapes document).
+        expect(select.mock.calls.length).toBe(iris.some(x => ctx.shapes.shapeSubjects.has(`<${x}>`)) ? 1 : 0);
         if (!iris.length) return;
         const want = R(`facts ${i}`) as { iris: string[]; facts: unknown };
         expect(JSON.parse(JSON.stringify(facts(got, want.iris, ['pasteIntoView', 'moveBetweenViews'].includes(c.kind)))), c.kind).toEqual(want.facts);

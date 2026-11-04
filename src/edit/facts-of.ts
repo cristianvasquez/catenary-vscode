@@ -124,7 +124,9 @@ interface Answer { kept: KeptPrefetch; bySubject: Map<string, Quad[]> }
  * The facts of `command` on `views` before the edit. A model-reading command takes the statements of each IRI that it names
  * (commandIris) from the kept answers of the views (`answers`, KeptPrefetch by view IRI) when an answer covers the IRI: its statements as
  * subject and the rdf:type and rdfs:label of their IRI objects. For the other IRIs it sends one query over `ctx.modelFiles` without the
- * manifest. The shapes part is the closure (`ctx.shapes.closure`): a statement of the closure is not a model statement. The SKOS vocabulary
+ * manifest. A shape subject is never taken from an answer (the answer has no document): its model statements are those of the documents
+ * where it is not a shape, read by one query per set of such documents (by document kind). Elsewhere a statement of the closure
+ * (`ctx.shapes.closure`) is not a model statement. The SKOS vocabulary
  * of the clipboard commands comes from `ctx.shapes.skos`. A view-only command sends no query: it uses the identities and reified relations
  * of the views, and the relations between IRIs of the answers. `isView` and `viewLabel` use `ctx.views` and `ctx.viewLabels`.
  */
@@ -143,17 +145,26 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         }
         return { kept: a, bySubject };
     });
+    const isShape = (iri: string) => ctx.shapes.shapeSubjects.has(`<${iri}>`);
     /** The answer has every statement of `iri` as subject: read for a view doc, or covered and not a shape subject (its outAll can come from the closure). */
-    const readIn = (a: Answer, iri: string) => a.kept.covered.read.has(iri) || (!ctx.shapes.shapeSubjects.has(`<${iri}>`) && a.kept.covered.outAll.has(iriKey(iri)));
+    const readIn = (a: Answer, iri: string) => a.kept.covered.read.has(iri) || (!isShape(iri) && a.kept.covered.outAll.has(iriKey(iri)));
     /** The answer has the statements of `iri` and the rdf:type and rdfs:label of each IRI object of them (the branches a and t). */
-    const covers = (a: Answer, iri: string) => a.kept.covered.read.has(iri) || readIn(a, iri)
-        && (a.bySubject.get(iri) ?? []).every(q => q.predicate.value === RDF_TYPE || q.object.termType !== 'NamedNode' || q.object.value.startsWith(BLANK) || readIn(a, q.object.value));
+    const covers = (a: Answer, iri: string) => !isShape(iri) && (a.kept.covered.read.has(iri) || readIn(a, iri)
+        && (a.bySubject.get(iri) ?? []).every(q => q.predicate.value === RDF_TYPE || q.object.termType !== 'NamedNode' || q.object.value.startsWith(BLANK) || readIn(a, q.object.value)));
 
-    // The rows of the model statements, by branch: from the answers that cover a named IRI, then from one query for the others.
-    const modelRows: { q: Quad; b: string }[] = [];
+    // The rows of the model statements, by branch: from the answers that cover a named IRI, then from the queries for the others.
+    // `exact`: an `a` row of a query by document kind, a model statement whatever the closure has.
+    const modelRows: { q: Quad; b: string; exact?: boolean }[] = [];
     const uncovered: string[] = [];
+    /** The shape subjects by the documents where they are not shapes (the key: those documents). */
+    const byKind = new Map<string, { files: string[]; iris: string[] }>();
     for (const iri of named) {
         if (noModel.has(iri)) continue;
+        if (isShape(iri)) {
+            const own = files.filter(f => !ctx.shapes.shapeSubjectsByFile.get(f)?.has(`<${iri}>`)), k = own.join('\n');
+            if (own.length) (byKind.get(k) ?? byKind.set(k, { files: own, iris: [] }).get(k)!).iris.push(iri);
+            continue;
+        }
         const a = kept.find(x => covers(x, iri));
         if (!a) { uncovered.push(iri); continue; }
         for (const q of a.bySubject.get(iri) ?? []) {
@@ -162,7 +173,11 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
                 if (t.predicate.value === RDF_TYPE || t.predicate.value === RDFS_LABEL) modelRows.push({ q: t, b: 't' });
         }
     }
-    if (uncovered.length) for (const r of await ctx.port.select(namedQuery(uncovered), files)) modelRows.push({ q: quadOf(r), b: r.b?.value ?? '' });
+    const requests = [...uncovered.length ? [{ files, iris: uncovered, kind: false }] : [], ...[...byKind.values()].map(g => ({ ...g, kind: true }))];
+    const answered = await Promise.all(requests.map(r => ctx.port.select(namedQuery(r.iris), r.files)));
+    requests.forEach((request, i) => {
+        for (const r of answered[i]) modelRows.push({ q: quadOf(r), b: r.b?.value ?? '', exact: request.kind && r.b?.value === 'a' });
+    });
 
     const shapesBySubject = new Map<string, Quad[]>();
     for (const q of ctx.shapes.closure) (shapesBySubject.get(q.subject.value) ?? shapesBySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);
@@ -170,8 +185,8 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
     // The model statements (not the shapes part), once each, by subject; `full`: the subjects whose every statement is here.
     const model = new Map<string, Map<string, Quad>>(), full = new Set<string>(), skos = new Set<string>();
     const put = (q: Quad) => { const t = rdf.quad(q.subject, q.predicate, q.object); (model.get(q.subject.value) ?? model.set(q.subject.value, new Map()).get(q.subject.value)!).set(tripleKey(t), t); };
-    for (const { q, b } of modelRows) {
-        if (shapeRow(q)) continue;
+    for (const { q, b, exact } of modelRows) {
+        if (!exact && shapeRow(q)) continue;
         put(q);
         if (b === 'a') full.add(q.subject.value);
     }
