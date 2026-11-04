@@ -21,6 +21,8 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 - The file is the scope. No query uses `GRAPH`, `?g` or a graph IRI. A query that needs one document runs with `files: [file]`; a query that needs the document of a statement runs once per file, for IRI subjects only.
 - Blank-node statements are read over the whole folder (no `files`), so their labels agree with every other whole-folder query. No label crosses two file sets.
 - A placement of a blank node is not supported (round 1).
+- Rule of the reads (the user's words): the only thing asked to the server is the data of the boxes and the relations between them; everything else is the view turtle. Catenary holds no copy of the model. The data of a view is the answer of the view's query, kept per view (`KeptPrefetch`); a reader is a function of the view text and that answer; a miss is fetched by the one loop of `prefetchFigures`.
+- Target badges count the direct targets of a placed shape only (`sh:targetClass` with `rdfs:subClassOf*`, `sh:targetSubjectsOf`, `sh:targetObjectsOf`, `sh:targetNode`); the `sh:node` chain walk runs for the targets picker only (r49d).
 
 ## Open
 
@@ -54,6 +56,25 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 Measured on EP-catenary-dprod (17 views, 37 files): setup plus 17 draws 17,538 requests and 34 s before round 4; 1,069 requests and 8 s after round 4; a draw 21 to 41 requests after d01g; a redraw after undo 0 requests after g18q.
 
 Open after round 5: the vocabulary read at setup loads whole SKOS schemes (9,783 statements for file-type); read a value set's members only when a card needs them. The expand picker reads the view document before its two neighbour queries.
+
+## Round 6 (merged)
+
+| Kata | Scope | State |
+|---|---|---|
+| fwr7 | view-only commands send no request: view quads from the text, kept figures | merged (334a954): after a draw `collect` 0, `setBounds` 0, `createNote` 0, `addToView` 2 requests |
+| 1nkh | expand pickers 'in'/'out': one neighbour query, no view read; `scope.ts` deleted | merged (a992e07): 'in'/'out' 1 request |
+| a1rw | `viewDocOf` from the view text and the kept answer, no model query | merged: workspace 559 to 444 requests |
+| r49d | neighbour counts from the kept answer; target badges as one COUNT query | merged (d4d0c82, 27ce9f0): cold draw 4 to 8 requests (before 16 to 34) |
+| 5p5s | command facts from the kept answers plus one query for the uncovered named IRIs | merged (a259b5e) |
+
+Measured on EP-catenary-dprod after round 6 (main a259b5e, maxRows 100000): setup plus 17 cold draws 192 requests (setup 100) and 4.1 s, before round 6 559 requests and 8.9 s; a cold draw 4 to 8 requests (before 22 to 42); a redraw with the kept answer 2 to 3 through `diagramOf` (view read plus badges), 1 to 2 from the view text (badges); redraw schema equal to the cold schema for all 17 views. `pnpm verify`: 27 files, 274 tests.
+
+Open after round 6:
+
+- No document provenance in the answer: a relation, or a type or label triple, present in both a shapes document and a data document is classed as shapes only, so the model side loses it (roborev 2341 on 1nkh, 2342 on a1rw, 2345 on r49d, 2348 on 5p5s). The fork's turtle/query has no named graphs. Exact fix: per-kind reads (one more request per round, shapes files and data files) or a fork feature that reports the file of a row. Decision for the user.
+- The vocabulary read at setup still loads whole SKOS schemes; on a large workspace the server setting `turtle.query.maxRows` must be raised (0 = no limit) or the answer is truncated.
+- The largest request is the target badge COUNT query: 96,840 characters for urn:name:unnamed%20view%201-5 (VALUES of shape, kind, target and the `NOT IN` list of placed IRIs).
+- test/workspace-model.test.ts: a flaky unhandled `write EPIPE` / `ERR_STREAM_DESTROYED` (a JSON-RPC write after the test server stops); all its tests pass; seen in about 1 of 9 `pnpm verify` runs.
 
 ## Agent contract (short)
 
