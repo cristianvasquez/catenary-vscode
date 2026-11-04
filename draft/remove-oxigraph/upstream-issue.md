@@ -1,3 +1,5 @@
+Published: https://github.com/abhishekkundu25/turtle-lsp/issues/73 (closed by PR #74, merged 2026-11-04, release v0.14.0).
+
 Title: A request for programs: `turtle/query` (SPARQL text in, results JSON out, one named graph per file)
 
 I build Catenary, a VS Code extension that draws diagrams of RDF, SHACL and SKOS models (https://github.com/cristianvasquez/catenary-vscode). It runs next to your extension and reads the workspace through the language server. The query engine is exactly what it needs, but a program cannot reach it today:

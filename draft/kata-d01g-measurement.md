@@ -4,11 +4,11 @@
 
 Cache view labels and descriptions in `ModelContext.viewLabels` at refresh. Pass that cache through diagram reads, choices, scoped reads, canvas labels and Markdown export. Re-read the drawn view's metadata from its file. Restrict marks, members and arrows to that file; reuse the members query within a read. Keep standalone callers without a context supported.
 
-The regression test checks zero requests for cached labels, fresh metadata for the drawn view, stale-until-refresh labels for another view, no query of that other view file, and a warning with no box for a mark defined there. The recorded read-view and diagram fixtures have no changes. `pnpm verify` passes: 26 files, 239 tests, with the default fork binary and no `TURTLE_LSP` override.
+The regression test checks zero requests for cached labels, fresh metadata for the drawn view, stale-until-refresh labels for another view, no query of that other view file, and a warning with no box for a mark defined there. The recorded read-view and diagram fixtures have no changes. `pnpm verify` passes: 26 files, 239 tests, with the default binary (then the fork build; upstream turtle-lsp 0.14.0 has the same `turtle/query` code) and no `TURTLE_LSP` override.
 
 ## Method
 
-Run the supplied scratchpad `measure.ts` before and after the code change, with imports redirected to this worktree, output under this worktree and the notation asset symlink pointing to this worktree's assets. Keep the workspace folder `/home/cvasquez/doing/EP-catenary-dprod`. Use `MEASURE_MAX_ROWS=100000` and the default release fork binary. Include 37 RDF documents and 20,516 union triples. Draw 17 views once each through `diagramOf`, after one model setup. These are cold draws without retained figure prefetch; counts exclude setup. Both runs completed without failed or omitted requests. The script's workspace RDF SHA-256 comparison reports unchanged in both runs.
+Run the supplied scratchpad `measure.ts` before and after the code change, with imports redirected to this worktree, output under this worktree and the notation asset symlink pointing to this worktree's assets. Keep the workspace folder `/home/cvasquez/doing/EP-catenary-dprod`. Use `MEASURE_MAX_ROWS=100000` and the default release binary (then the fork build). Include 37 RDF documents and 20,516 union triples. Draw 17 views once each through `diagramOf`, after one model setup. These are cold draws without retained figure prefetch; counts exclude setup. Both runs completed without failed or omitted requests. The script's workspace RDF SHA-256 comparison reports unchanged in both runs.
 
 ## Requests per draw
 

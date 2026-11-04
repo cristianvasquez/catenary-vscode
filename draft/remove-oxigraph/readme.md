@@ -18,18 +18,18 @@ Four rounds (katas ansc, mzg2, 9k26, mh0y, y4mq) changed how quads get into the 
 
 | Part | Where | State |
 |---|---|---|
-| Store | `src/catenary/rdf-files/oxigraph-store.ts`, `store.ts`; `src/catenary/rdf-core/graph.ts` `ModelGraph` (367 lines: transactions, undo patches, cache keys, `scopedQuery`) | to delete |
-| Load | `src/model/graph-input.ts` `graphOf` (turtle/graph → N-Quads → Oxigraph, view files parsed from disk), `src/model/nquads.ts`, `src/node/quads.ts` | to delete |
-| Read side | 21 files, about 140 graph reads: `src/catenary/rdf/{view-read,shapes-read,scoped-doc,notations,shacl-targets,authoring,shapes,vocabulary,views,quad-read,records,link-choices}.ts`, `src/catenary/shacl/backend/*`, `src/catenary/rdfs/domain-range.ts`, `src/model/choices.ts`, `src/node/diagnostics.ts` | rewrite over the port |
-| Pure records | `src/catenary/model/{doc,view-schema,diagram-schema,shapes-doc,metamodel,notation,notation-graph,notation-join,notation-schema,labels}.ts`, `src/catenary/rdf/records.ts` (`instanceRecords`, `projectView`) | keep |
-| Write side | `src/model/store.ts` `ViewStore`; `src/catenary/rdf/{commands,ops,figure-edits,clipboard}.ts` (19 command kinds; post-steps `placeConnectors`, `syncFigures`, `pruneArrows`) | rewrite over view quads + facts |
-| Editor | `src/vscode/canvas-editor.ts` `CustomEditorProvider`: document = the store, undo = store patch, file written on save; backups; `keepOpenViews` | becomes `CustomTextEditorProvider` |
-| Hosts | `src/model/workspace-core.ts`, `src/node/workspace-model.ts`, `src/web/workspace.ts`; `src/node/turtle-api.ts` already has `requestQuery` | rewrite |
-| GLSP | `src/node/glsp/{view-session,handlers,diagram-module,layout}.ts`; `createModel` is synchronous | schema computed before submit |
-| Parsers | `parseRdfSync` (Oxigraph) in `paste-rdf.ts`, `notations.ts` (built-in `notations/*.ttl`), `markdown-view.ts`, `graph-input.ts` (`isViewFile`, `viewIriOf`) | server query, or the `n3` parser for text that is not a document |
-| Browser page | `src/web/main.ts` (Oxigraph wasm), engine pinned to upstream 0.13.1 (`scripts/fetch-turtle-lsp.mjs`), no `turtle/query` | engine built from the fork |
-| Tests | 129 in 16 files; 7 files build graphs with `graphOf` over the recorded `test/fixtures/shapes/graph.json` | run against the fork binary over stdio |
-| Fork | `~/os/rdf/turtle-lsp` branch `turtle-query` (cd98bae local, 8cb7bdc pushed); `turtle/query`: SELECT, ASK, CONSTRUCT, DESCRIBE; `files` restricts the documents; open buffers included; default graph = union of every triple; every document a named graph; a TriG graph block a named graph of its own; blank nodes labelled `<document>:<n>`; binary at `target/release/turtle-lsp`; the wasm engine (`web/engine`, `web/build.mjs`) answers `turtle/query` inline (not built yet) | ready |
+| Store | `src/catenary/rdf-files/oxigraph-store.ts`, `store.ts`; `src/catenary/rdf-core/graph.ts` `ModelGraph` (367 lines: transactions, undo patches, cache keys, `scopedQuery`) | done: deleted (K11) |
+| Load | `src/model/graph-input.ts` `graphOf` (turtle/graph → N-Quads → Oxigraph, view files parsed from disk), `src/model/nquads.ts`, `src/node/quads.ts` | done: deleted (K11) |
+| Read side | 21 files, about 140 graph reads: `src/catenary/rdf/{view-read,shapes-read,scoped-doc,notations,shacl-targets,authoring,shapes,vocabulary,views,quad-read,records,link-choices}.ts`, `src/catenary/shacl/backend/*`, `src/catenary/rdfs/domain-range.ts`, `src/model/choices.ts`, `src/node/diagnostics.ts` | done: over the port (K3-K7) |
+| Pure records | `src/catenary/model/{doc,view-schema,diagram-schema,shapes-doc,metamodel,notation,notation-graph,notation-join,notation-schema,labels}.ts`, `src/catenary/rdf/records.ts` (`instanceRecords`, `projectView`) | kept |
+| Write side | `src/model/store.ts` `ViewStore`; `src/catenary/rdf/{commands,ops,figure-edits,clipboard}.ts` (19 command kinds; post-steps `placeConnectors`, `syncFigures`, `pruneArrows`) | done (K8, K9) |
+| Editor | `src/vscode/canvas-editor.ts` `CustomEditorProvider`: document = the store, undo = store patch, file written on save; backups; `keepOpenViews` | done: `CustomTextEditorProvider` (K10) |
+| Hosts | `src/model/workspace-core.ts`, `src/node/workspace-model.ts`, `src/web/workspace.ts`; `src/node/turtle-api.ts` already has `requestQuery` | done (K6) |
+| GLSP | `src/node/glsp/{view-session,handlers,diagram-module,layout}.ts`; `createModel` is synchronous | done (K6) |
+| Parsers | `parseRdfSync` (Oxigraph) in `paste-rdf.ts`, `notations.ts` (built-in `notations/*.ttl`), `markdown-view.ts`, `graph-input.ts` (`isViewFile`, `viewIriOf`) | done: server query or `n3` (K11) |
+| Browser page | `src/web/main.ts` (Oxigraph wasm), engine pinned to upstream 0.13.1 (`scripts/fetch-turtle-lsp.mjs`), no `turtle/query` | done: engine built from turtle-lsp source (K13 `thfz`); Pages workflow builds the tag `v0.14.0` (3ypq, 7f926e3) |
+| Tests | 129 in 16 files; 7 files build graphs with `graphOf` over the recorded `test/fixtures/shapes/graph.json` | done: 275 tests against turtle-lsp 0.14.0 over stdio |
+| Fork (2026-11-03) | `~/os/rdf/turtle-lsp` branch `turtle-query` (cd98bae local, 8cb7bdc pushed); `turtle/query`: SELECT, ASK, CONSTRUCT, DESCRIBE; `files` restricts the documents; open buffers included; default graph = union of every triple; every document a named graph; a TriG graph block a named graph of its own; blank nodes labelled `<document>:<n>`; binary at `target/release/turtle-lsp`; the wasm engine (`web/engine`, `web/build.mjs`) answers `turtle/query` inline (not built yet) | published upstream: PR #74 merged 2026-11-04, release v0.14.0 |
 
 ## Facts that shape the design
 
@@ -94,26 +94,30 @@ The history that applies, from the sessions of 2026-10-09 to 11 on Catenary v1 (
 - F3: one draw per canvas per change: coalesce the two fires, no draw while one is in flight for that session (one more after, if due), hidden webviews (`webviewPanel.visible`) mark due and draw when shown.
 - F4: on a model change recompute the shapes model only when a shapes file changed; a view redraws from the kept model with new facts for its shown elements only. `requestGraph` (turtle/graph, 9 MB) still runs on every refresh for the diagnostic ranges: replace.
 
+## State on 2026-11-04
+
+The upstream issue and PR are published: issue https://github.com/abhishekkundu25/turtle-lsp/issues/73, PR https://github.com/abhishekkundu25/turtle-lsp/pull/74, merged 2026-11-04, released in v0.14.0 with `turtle/query`. Its code is the same as the fork head f3e7805, except for version numbers. Catenary requires turtle-lsp 0.14.0 or later (13ff9e9); the fork is not needed. `turtle/query` has no named graphs: the default graph is the union of every file and `GRAPH` matches nothing (named graphs per file are left for a separate upstream issue). The fork facts in the table above are of 2026-11-03.
+
 ## Katas
 
 Order and dependencies. One kata = one agent session. K1 blocks everything.
 
-| Id | Kata | Blocked by | Worker |
-|---|---|---|---|
-| K1 (`1rhb`) | `ModelPort` over `turtle/query`, node implementation, stdio test harness with the fork binary, view files of a folder by query, facts test (TriG document graphs, blank-node labels, open buffer, `files`) | – | Claude |
-| K2 (`q74p`) | Shapes model: `shapesModelOf(port)` → `ShapesIndex` + vocabulary + `Classes` (SHACL and RDFS providers over rows); oracle = `shapesIndexOf` and `authoringMetamodel` on the fixtures | K1 | Claude |
-| K3 (`1sx9`) | View doc: `viewDocOf(port, viewIri, shapes)` → `Doc` (readView rewritten); `viewLabels`; oracle = `readView` | K2 | Claude |
-| K4 (`af1j`) | Notation figures: `viewFiguresOf(port, viewIri, shapes)` over a `TripleIndex` filled by one prefetch (view quads, shapes closure, neighbourhood of the placed terms to the depth of the notation paths); oracle = `viewFiguresOf` | K2 | Claude |
-| K5 (`w1pm`) | Shape targets and hidden neighbours: `shapeTargetMatches(port, selection)` (the existing SPARQL moved to the server, no state), `hiddenNeighborCounts(port, …)`; oracle = the old functions | K2 | Claude |
-| K6 (`8twe`) | Diagram cutover: `diagramOf(port, viewIri, opts)` async; GLSP session computes the schema before submit; `WorkspaceCore`/`WorkspaceModel` hold a port and a refresh generation, no graph; `diagnosticsOf` over the port; oracle test: every fixture view byte-identical to main | K3, K4, K5 | Claude |
-| K7 (`dxwx`) | Pickers and choices over the port: `expandChoices`, `memberOptions`, `instancesNamed`, `shapeTargetChoices` (`scopedDoc` rewritten); `insertElement` and `pasteTurtle` facts; oracle = old choices | K6 | Claude or pi |
-| K8 (`sef3`) | Ops over view quads and facts, part 1: `ops.ts` (placements, bounds, marks, collections, arrows, edge layouts) take `ViewQuads` + `Facts`; pure, synchronous, no graph; tests from fixture views with canned facts; oracle = `ViewStore` | K2 | Claude |
-| K9 (`mydh`) | Ops part 2: `figure-edits.ts`, `clipboard.ts`, `commands.ts` dispatch, post-steps on the current view; the `Facts` prefetch query per command kind; oracle = `ViewStore` for the 19 kinds | K8, K4 | Claude |
-| K10 (`v3y7`) | The text editor: `CustomTextEditorProvider`, async command executor (prefetch facts → ops → `viewText` → `WorkspaceEdit`), GLSP handlers on it, `new-view`, drop and paste; delete `ViewStore`, backups, `replaceView`, `keepOpenViews` | K6, K9 | Claude |
-| K11 (`qhck`) | Delete the store: `rdf-core/graph.ts`, `rdf-files/*`, `graph-input.ts`, `nquads.ts`, `quads.ts`, old read and write modules, `fixture-graph.ts`, `graph.json`; `n3` for paste and notations; `oxigraph` out of `package.json` and the build scripts; `grep -rn oxigraph src test scripts package.json` finds nothing | K7, K10 | Claude or pi |
-| K12 (`h3bm`) | Tree-sitter text patch: copy `text-patch.ts` + grammar, `web-tree-sitter` dependency; a command patches the text instead of rewriting the file; whole-file write is the fallback when the patcher gives no text | K10 | Claude |
-| K13 (`thfz`) | Browser page: build the engine from the fork, `fetch-turtle-lsp.mjs` replaced by a local build step, `web/workspace.ts` port over `LspClient`, file edits of the `FileStore` sent as `didChange`, Oxigraph wasm gone from `build-web.mjs` | K11 | Claude |
-| K14 (`401x`) | Documentation: `readme.md`, `CHANGELOG.md`, `AGENTS.md` rule "no model copy in Catenary"; push the fork branch and post the upstream issue (user) | K13 | pi |
+| Id | Kata | Blocked by | Worker | State |
+|---|---|---|---|---|
+| K1 (`1rhb`) | `ModelPort` over `turtle/query`, node implementation, stdio test harness with the fork binary, view files of a folder by query, facts test (TriG document graphs, blank-node labels, open buffer, `files`) | – | Claude | merged, 772b84c |
+| K2 (`q74p`) | Shapes model: `shapesModelOf(port)` → `ShapesIndex` + vocabulary + `Classes` (SHACL and RDFS providers over rows); oracle = `shapesIndexOf` and `authoringMetamodel` on the fixtures | K1 | Claude | merged, 9a40fd8 |
+| K3 (`1sx9`) | View doc: `viewDocOf(port, viewIri, shapes)` → `Doc` (readView rewritten); `viewLabels`; oracle = `readView` | K2 | Claude | merged, 13da4d9 |
+| K4 (`af1j`) | Notation figures: `viewFiguresOf(port, viewIri, shapes)` over a `TripleIndex` filled by one prefetch (view quads, shapes closure, neighbourhood of the placed terms to the depth of the notation paths); oracle = `viewFiguresOf` | K2 | Claude | merged, e1003d1 |
+| K5 (`w1pm`) | Shape targets and hidden neighbours: `shapeTargetMatches(port, selection)` (the existing SPARQL moved to the server, no state), `hiddenNeighborCounts(port, …)`; oracle = the old functions | K2 | Claude | merged, dfdd040 |
+| K6 (`8twe`) | Diagram cutover: `diagramOf(port, viewIri, opts)` async; GLSP session computes the schema before submit; `WorkspaceCore`/`WorkspaceModel` hold a port and a refresh generation, no graph; `diagnosticsOf` over the port; oracle test: every fixture view byte-identical to main | K3, K4, K5 | Claude | merged, ab80c5f |
+| K7 (`dxwx`) | Pickers and choices over the port: `expandChoices`, `memberOptions`, `instancesNamed`, `shapeTargetChoices` (`scopedDoc` rewritten); `insertElement` and `pasteTurtle` facts; oracle = old choices | K6 | Claude or pi | merged, cac6998 |
+| K8 (`sef3`) | Ops over view quads and facts, part 1: `ops.ts` (placements, bounds, marks, collections, arrows, edge layouts) take `ViewQuads` + `Facts`; pure, synchronous, no graph; tests from fixture views with canned facts; oracle = `ViewStore` | K2 | Claude | merged, 3de7f43 |
+| K9 (`mydh`) | Ops part 2: `figure-edits.ts`, `clipboard.ts`, `commands.ts` dispatch, post-steps on the current view; the `Facts` prefetch query per command kind; oracle = `ViewStore` for the 19 kinds | K8, K4 | Claude | merged, 00af9a0 |
+| K10 (`v3y7`) | The text editor: `CustomTextEditorProvider`, async command executor (prefetch facts → ops → `viewText` → `WorkspaceEdit`), GLSP handlers on it, `new-view`, drop and paste; delete `ViewStore`, backups, `replaceView`, `keepOpenViews` | K6, K9 | Claude | merged, 59adadf |
+| K11 (`qhck`) | Delete the store: `rdf-core/graph.ts`, `rdf-files/*`, `graph-input.ts`, `nquads.ts`, `quads.ts`, old read and write modules, `fixture-graph.ts`, `graph.json`; `n3` for paste and notations; `oxigraph` out of `package.json` and the build scripts; `grep -rn oxigraph src test scripts package.json` finds nothing | K7, K10 | Claude or pi | merged, 6dc9762 |
+| K12 (`h3bm`) | Tree-sitter text patch: copy `text-patch.ts` + grammar, `web-tree-sitter` dependency; a command patches the text instead of rewriting the file; whole-file write is the fallback when the patcher gives no text | K10 | Claude | merged, cf3176c |
+| K13 (`thfz`) | Browser page: build the engine from the fork, `fetch-turtle-lsp.mjs` replaced by a local build step, `web/workspace.ts` port over `LspClient`, file edits of the `FileStore` sent as `didChange`, Oxigraph wasm gone from `build-web.mjs` | K11 | Claude | merged, 92474e1 |
+| K14 (`401x`) | Documentation: `readme.md`, `CHANGELOG.md`, `AGENTS.md` rule "no model copy in Catenary"; push the fork branch and post the upstream issue (user) | K13 | pi | superseded by w8bm |
 
 Rounds: 1 = K1. 2 = K2, K8 in parallel. 3 = K3, K4, K5, K9 in parallel. 4 = K6, then K7 and K10 in parallel. 5 = K11, K12. 6 = K13, K14.
 

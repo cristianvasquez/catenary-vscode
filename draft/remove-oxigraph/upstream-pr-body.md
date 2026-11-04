@@ -1,3 +1,5 @@
+Published: https://github.com/abhishekkundu25/turtle-lsp/pull/74 (merged 2026-11-04, release v0.14.0).
+
 ## `turtle/query`: a SPARQL request for programs, with each file a named graph
 
 ### What

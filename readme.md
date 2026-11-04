@@ -27,8 +27,8 @@ For a large vocabulary, raise `turtle.query.maxRows` from 1000 to 100000 in the 
 Run Catenary: New View… from the explorer context menu to create a view file, or open an existing view file.
 
 - Open a view file (`.trig`) to display its canvas.
-- Click TriG at the right end of the canvas toolbar to open the view file as text; save first if prompted.
-- Click Catenary: Open in Canvas in the TriG editor title to return to the canvas; save first if prompted.
+- Click TriG at the right end of the canvas toolbar to open the view file as text. Unsaved canvas edits stay in the document; no save is needed.
+- Click Catenary: Open in Canvas in the TriG editor title to return to the canvas. With unsaved text, VS Code shows its save prompt (known bug).
 - Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show.
 - Choose Insert… → Link to a file… or Link to a view… to place a file or view reference without dragging.
 - Drag a box to move it; drag its resize handle to resize it.
@@ -56,7 +56,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 
 VS Code Settings exposes card, group and note font sizes, edge style and vocabulary color. These preferences apply across views; they are not model data.
 
-Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` (0 turns it off; Catenary: Start SPARQL Endpoint uses a free port then). It runs SELECT and ASK queries with results in JSON, CSV or TSV, and CONSTRUCT queries with results in N-Triples. Each workspace file is a named graph named by its file URI; the default graph is the union of all files. Browser pages may query it only from the origins listed in `catenary.sparql.allowOrigins` (default empty); curl, scripts and notebooks are not affected. The endpoint needs turtle-lsp 0.14.0 or later (the `turtle/query` request).
+Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` (0 turns it off; Catenary: Start SPARQL Endpoint uses a free port then). It runs SELECT and ASK queries with results in JSON, CSV or TSV, and CONSTRUCT queries with results in N-Triples. The default graph is the union of all workspace files; there are no named graphs, so `GRAPH` matches nothing. Named graphs per file are an open item of turtle-lsp. Browser pages may query it only from the origins listed in `catenary.sparql.allowOrigins` (default empty); curl, scripts and notebooks are not affected. The endpoint needs turtle-lsp 0.14.0 or later (the `turtle/query` request).
 
 ## Development
 
@@ -77,9 +77,9 @@ A draw reads the data of a view as one answer, kept per view (the figure prefetc
 
 `pnpm web:build` writes `dist-web/`, a static site that runs Catenary in the browser tab like the [turtle-lsp browser editor](https://abhishekkundu25.github.io/turtle-lsp/): a file list, Monaco text editors and Catenary canvases. Nothing is uploaded; files stay in the browser's localStorage, and Download writes them as a ZIP file. `pnpm web:serve` serves `dist-web/` at `http://127.0.0.1:8124/`; `pnpm web:ui` checks the page in headless Chromium (`CHROMIUM` sets the binary, default `/usr/bin/chromium`).
 
-The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages on each push to `main`; set the repository's Pages source to "GitHub Actions" once.
+The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages on each push to `main`; set the repository's Pages source to "GitHub Actions" once. The workflow builds the engine from the tag `v0.14.0` of turtle-lsp (the steps below) and gives it to `pnpm web:build` with `TURTLE_LSP_WEB`. The workflow has not run on GitHub yet.
 
-- turtle-lsp runs as WebAssembly in a worker. The engine comes from the [turtle-lsp](https://github.com/abhishekkundu25/turtle-lsp) source, 0.14.0 or later (`turtle/query`); the releases have no web engine. Build it there first: `rustup target add wasm32-unknown-unknown`, install its node dependencies, then `node web/build.mjs`. `pnpm web:build` copies `engine.wasm`, `engine.js`, `lsp-host.js`, `lsp-worker.js`, `editor-lsp.js` and the vendor notices from `TURTLE_LSP_WEB` (default `~/os/rdf/turtle-lsp/web/app`) and fails with the build command when a file is missing. The GitHub Pages workflow has no engine: it fails until the workflow builds it.
+- turtle-lsp runs as WebAssembly in a worker. The engine comes from the [turtle-lsp](https://github.com/abhishekkundu25/turtle-lsp) source, 0.14.0 or later (`turtle/query`); the releases have no web engine. Build it there first: `rustup target add wasm32-unknown-unknown`, install its node dependencies, then `node web/build.mjs`. `pnpm web:build` copies `engine.wasm`, `engine.js`, `lsp-host.js`, `lsp-worker.js`, `editor-lsp.js` and the vendor notices from `TURTLE_LSP_WEB` (default `~/os/rdf/turtle-lsp/web/app`) and fails with the build command when a file is missing.
 - The GLSP server runs in the page (`src/web/server.ts`), one server instance per canvas over a `MessagePort`. Each canvas is an iframe (`src/web/canvas.ts`), as a VS Code webview is.
 - The shared code is not changed for the browser: the web build maps `node:fs`, `node:url`, `node:path` and `node:crypto` to shims (`src/web/shims/`) over an in-memory file system. The SHA-256 shim gives the same placement IRIs as Node.
 - `src/model/workspace-core.ts` holds the workspace logic of both hosts; `src/node/workspace-model.ts` (VS Code) and `src/web/workspace.ts` (page) supply the `turtle/query` port, the documents and the diagnostics.

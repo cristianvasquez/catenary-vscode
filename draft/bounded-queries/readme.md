@@ -17,7 +17,7 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 - Read strategy of the figures: rounds driven by the reads the engine misses. The engine is synchronous and stays so. It runs over an index; the reads it missed (`(term, predicate, direction)` or a whole predicate) are fetched with bounded queries; the index grows; repeat until nothing is missed.
 - Blank nodes: fetched as the closure under the object of a read, to depth 4, lists walked with `rdf:rest*`. Never named across queries.
 - A placement of a blank node (`view:element _:x`) is not supported: no figure, the join reports it. Catenary writes property shapes as IRIs; a figure of an anonymous property shape in a foreign file is drawn but cannot be placed by name.
-- The turtle-lsp fork is not changed by this work. Its branch `turtle-query-request` (HEAD f46241c, the one going upstream) has no named graphs: `GRAPH` matches nothing, `files` is the only scope, blank nodes are labelled `g<n>` per request. Catenary-vscode follows.
+- turtle-lsp is not changed by this work. At the time it was the fork branch `turtle-query-request` (HEAD f46241c); upstream turtle-lsp 0.14.0 (PR #74, merged 2026-11-04) has the same code. It has no named graphs: `GRAPH` matches nothing, `files` is the only scope, blank nodes are labelled `g<n>` per request. Catenary-vscode follows.
 - The file is the scope. No query uses `GRAPH`, `?g` or a graph IRI. A query that needs one document runs with `files: [file]`; a query that needs the document of a statement runs once per file, for IRI subjects only.
 - Blank-node statements are read over the whole folder (no `files`), so their labels agree with every other whole-folder query. No label crosses two file sets.
 - A placement of a blank node is not supported (round 1).
@@ -71,7 +71,7 @@ Measured on EP-catenary-dprod after round 6 (main a259b5e, maxRows 100000): setu
 
 Open after round 6:
 
-- No document provenance in the answer: a relation, or a type or label triple, present in both a shapes document and a data document is classed as shapes only, so the model side loses it (roborev 2341 on 1nkh, 2342 on a1rw, 2345 on r49d; 2348 on 5p5s is fixed by q9jg in round 7). The fork's turtle/query has no named graphs. Exact fix: per-kind reads (one more request per round, shapes files and data files) or a fork feature that reports the file of a row. Decision for the user.
+- No document provenance in the answer: a relation, or a type or label triple, present in both a shapes document and a data document is classed as shapes only, so the model side loses it (roborev 2341 on 1nkh, 2342 on a1rw, 2345 on r49d; 2348 on 5p5s is fixed by q9jg in round 7). The `turtle/query` of turtle-lsp 0.14.0 has no named graphs. Exact fix: per-kind reads (one more request per round, shapes files and data files) or a turtle-lsp feature that reports the file of a row. Decision for the user.
 - The vocabulary read at setup still loads whole SKOS schemes; on a large workspace the server setting `turtle.query.maxRows` must be raised (0 = no limit) or the answer is truncated.
 - The largest request is the target badge COUNT query: 96,840 characters for urn:name:unnamed%20view%201-5 (VALUES of shape, kind, target and the `NOT IN` list of placed IRIs).
 
