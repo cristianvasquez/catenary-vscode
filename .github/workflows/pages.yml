@@ -25,7 +25,19 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - uses: actions/checkout@v4
+        with:
+          repository: abhishekkundu25/turtle-lsp
+          ref: v0.14.0
+          path: turtle-lsp
+      - run: rustup target add wasm32-unknown-unknown
+      - run: npm ci
+        working-directory: turtle-lsp
+      - run: node web/build.mjs
+        working-directory: turtle-lsp
       - run: pnpm web:build
+        env:
+          TURTLE_LSP_WEB: ${{ github.workspace }}/turtle-lsp/web/app
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
