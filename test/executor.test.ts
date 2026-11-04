@@ -1,5 +1,4 @@
-// Kata v3y7: runCommand over the fork binary. A command on a model blank node (the isBlank branches of the factsOf prefetch, K9), and a
-// paste of a cut that edits two view documents.
+// runCommand over the fork binary: refusal of model blank-node placements and a cut that edits two view documents.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { Parser } from 'n3';
 import { tmpdir } from 'node:os';
@@ -43,18 +42,13 @@ describe('a model blank node', () => {
         rmSync(dir, { recursive: true });
     });
 
-    test('addToView of a blank node: the prefetch finds it by its label; the edit places it and the relation to the placed card', async () => {
+    test('addToView of a blank node is refused without edits', async () => {
         const [row] = await server.port().select('SELECT ?s WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#label> "anonymous" }');
         const blank = row.s.value;
         expect(blank).toMatch(/^urn:skolem:blank:/);
         const uri = pathToFileURL(join(dir, 'view.trig')).href;
         const r = await runCommand(ctx, [{ iri: view, uri }], { kind: 'addToView', view: iriId(view), ids: [iriId(blank)], at });
-        expect(r).toMatchObject({ ok: true, value: iriId(blank) });
-        expect(r.edits.map(e => e.uri)).toEqual([uri]);
-        const quads = keys(r.edits[0].text, view);
-        expect(quads.some(k => k.endsWith(`<${VIEW}element> <${blank}>`))).toBe(true);
-        // The statement between the blank node and the placed card is drawn (placeConnectors): the facts have the blank node's statements.
-        expect(quads.some(k => k.includes(`<<( <${blank}> <http://example.org/knows> <http://example.org/b> )>>`))).toBe(true);
+        expect(r).toEqual({ ok: false, error: `${blank} is a blank node: a view places IRIs only`, edits: [] });
     });
 
     test('a view file with statements outside its view graph is refused: the whole-file text would delete them', async () => {

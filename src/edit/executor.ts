@@ -13,7 +13,7 @@ import { prefetchFigures } from '../read/figures';
 import { applyPrefixes } from '../read/manifest';
 import { executeCommand, type Views } from './commands';
 import { commandIris, factsOf } from './facts-of';
-import { rdf, tripleKey } from './terms';
+import { elementTerm, rdf, tripleKey } from './terms';
 import { PREFIXES } from '../catenary/model/shapes-doc';
 import { patchTurtle } from './text-patch';
 import { ViewQuads, viewText } from './view-quads';
@@ -57,6 +57,14 @@ export async function viewFileProblem(file: string, iri: string, text?: string):
  * file with statements outside its view graph is refused (viewFileProblem). `log` gets the reason when the text patch of a view fails.
  */
 export async function runCommand(ctx: ModelContext, views: ViewInput[], command: ViewCommand, log: (line: string) => void = line => console.warn(line)): Promise<CommandRun> {
+    const placed = command.kind === 'addToView' ? command.ids
+        : command.kind === 'addViewReference' ? [command.target]
+        : command.kind === 'pasteIntoView' || command.kind === 'moveBetweenViews'
+            ? [...command.clip.boxes.flatMap(b => b.kind === 'card' ? [b.id, b.element] : b.kind === 'reference' && b.target ? [b.target] : []),
+                ...command.clip.edges.flatMap(e => [e.subject, e.object])]
+            : [];
+    const blank = placed.map(id => elementTerm(id)?.value ?? id).find(iri => iri.startsWith('urn:skolem:blank:'));
+    if (blank) return { ...fail(`${blank} is a blank node: a view places IRIs only`), edits: [] };
     for (const v of views) {
         const problem = await viewFileProblem(fileURLToPath(v.uri), v.iri, v.text);
         if (problem) return { ...fail(problem), edits: [] };

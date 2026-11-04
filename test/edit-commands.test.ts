@@ -178,13 +178,15 @@ describe('executeCommand through runCommand equals the recorded ViewStore.execut
     test('setViewElements edits note text', async () => {
         await compare({ kind: 'setViewElements', view: vid, ids: [await note()], patch: { text: 'edited note' }, expectedText: 'note' });
     });
-    test('a placed blank-node shape keeps its skolem IRI in the view graph', async () => {
+    test('a placed blank-node shape is refused', async () => {
         await addToShapes('[] a <http://www.w3.org/ns/shacl#NodeShape> ; <http://www.w3.org/2000/01/rdf-schema#label> "anonymous shape" .');
         const [row] = await server.port().select('SELECT ?s WHERE { ?s <http://www.w3.org/2000/01/rdf-schema#label> "anonymous shape" }', [SHAPES]);
         const iri = row.s.value;
         expect(iri).toMatch(/^urn:skolem:blank:/);
-        expect(await docs.run({ kind: 'addToView', view: mid, ids: [iri], at }, [model])).toMatchObject({ ok: true });
-        expect((await docs.keys(model)).filter(k => k.endsWith(` <${V.element.value}> <${iri}>`))).toHaveLength(1);
+        expect(await docs.run({ kind: 'addToView', view: mid, ids: [iri], at }, [model])).toMatchObject({
+            ok: false, error: expect.stringContaining(iri), edits: []
+        });
+        expect((await docs.keys(model)).filter(k => k.endsWith(` <${V.element.value}> <${iri}>`))).toHaveLength(0);
     });
     test('a failure after an earlier change gives the same error', async () => {
         await compare({ kind: 'setViewElements', view: vid, ids: [await note(), 'missing'], patch: { text: 'changed' } });
