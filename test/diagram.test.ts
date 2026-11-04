@@ -9,7 +9,6 @@ import { memberListHeight, type ElementSchema } from '../src/catenary/model/diag
 import { NS } from '../src/catenary/model/terms';
 import { iriId } from '../src/catenary/model/ids';
 import { hiddenNeighborCounts } from '../src/read/neighbors';
-import { scopedDoc } from '../src/read/scope';
 import { viewLabelsOf } from '../src/read/view';
 import { recorded } from './expected';
 import { FIXTURE, startServer } from './server';
@@ -231,7 +230,7 @@ describe('Bookshop instances', () => {
 describe('read builders', () => {
     test('reads both view labels and the label of an instance of a view', async () => {
         expect(await viewLabelsOf(ctx.port, ctx.views, ctx.manifest.language, ctx.viewLabels)).toEqual({ [iriId(modelIri)]: 'Bookshop model', [iriId(instancesIri)]: 'Bookshop' });
-        expect((await scopedDoc(ctx, { views: [iriId(instancesIri)] })).instances[id('Animal%20Farm')].label).toBe('Animal Farm');
+        expect((await diagramOf(ctx, iriId(instancesIri))).doc.instances[id('Animal%20Farm')].label).toBe('Animal Farm');
     });
 
     test('hidden-neighbour read includes a data change (the open buffer of data.ttl)', async () => {

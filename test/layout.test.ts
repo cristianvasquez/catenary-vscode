@@ -38,12 +38,12 @@ describe('the instances view on the fork binary over stdio', () => {
     test('"+ member": the options leave out the members; a label gives one instance (kata dxwx)', async () => {
         const ids = await instancesNamed(ctx, 'Animal Farm');
         expect(ids).toHaveLength(1);
-        const options = await memberOptions(ctx, vid, 'none');
+        const options = await memberOptions(ctx, vid, docs.text(view), 'none');
         expect(options).toContain('Animal Farm');
         const r = await docs.run({ kind: 'collect', view: vid, ids });
         expect(r).toMatchObject({ ok: true });
         const id = (r as { value: string }).value;
-        expect(await memberOptions(ctx, vid, id)).not.toContain('Animal Farm');
-        expect(await memberOptions(ctx, vid, id)).toContain('George Orwell');
+        expect(await memberOptions(ctx, vid, docs.text(view), id)).not.toContain('Animal Farm');
+        expect(await memberOptions(ctx, vid, docs.text(view), id)).toContain('George Orwell');
     });
 });

@@ -10,7 +10,7 @@ import { runCommand, type ViewEdit, type ViewInput, viewFileProblem } from '../e
 import { fail, type Result } from '../edit/ops';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
-import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, drawFromText, completeDrawing, emptyDrawn, modelContextOf, type DrawingUpdate } from '../read/diagram';
+import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, drawFromText, completeDrawing, emptyDrawn, modelContextOf, viewTextOf, type DrawingUpdate } from '../read/diagram';
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
 import type { KeptPrefetch } from '../read/figures';
@@ -136,7 +136,16 @@ export abstract class WorkspaceCore implements ViewSource {
             views.push({ iri: v, uri: document.uri, text: document.text });
             versions.set(document.uri, document.version);
         }
-        const { edits, ...r } = await runCommand(ctx, views, command);
+        const generation = this.generation;
+        const previous = new Map<string, KeptPrefetch>();
+        for (const v of views) {
+            const entry = this.keptFigures.get(v.iri);
+            if (entry?.generation === generation) previous.set(v.iri, entry.kept);
+        }
+        const { edits, kept, ...r } = await runCommand(ctx, views, command, line => this.log(line), previous);
+        if (kept && generation === this.generation) {
+            for (const [key, state] of kept) this.keptFigures.set(key, { generation, kept: state });
+        }
         if (!r.ok || !edits.length) return r;
         // A change of a document during the command (a text editor, an undo) wins: the edit would replace it with text of the older state.
         const applied = await this.applyEdits(edits.map(e => ({ ...e, version: versions.get(e.uri)! })));
@@ -232,13 +241,18 @@ export abstract class WorkspaceCore implements ViewSource {
 
     /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh. */
     async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
-        const ctx = this.context();
-        return ctx ? expandChoices(ctx, viewId, from, dir) : undefined;
+        const ctx = this.context(), key = viewIriOf(viewId) ?? viewId, file = ctx?.views.get(key);
+        if (!ctx || !file) return undefined;
+        // The view text (the open buffer, else the file as the server has it) and the view's answer kept by the last draw.
+        const entry = this.keptFigures.get(key), kept = entry?.generation === this.generation ? entry.kept : undefined;
+        const text = (await this.documentOf(file, false))?.text ?? await viewTextOf(ctx, file);
+        return expandChoices(ctx, viewId, text, from, dir, kept);
     }
 
     async memberOptions(viewId: string, collection: string): Promise<string[]> {
-        const ctx = this.context();
-        return ctx ? memberOptions(ctx, viewId, collection) : [];
+        const ctx = this.context(), file = ctx?.views.get(viewIriOf(viewId) ?? viewId);
+        if (!ctx || !file) return [];
+        return memberOptions(ctx, viewId, (await this.documentOf(file, false))?.text ?? await viewTextOf(ctx, file), collection);
     }
 
     async instancesNamed(text: string): Promise<string[]> {
