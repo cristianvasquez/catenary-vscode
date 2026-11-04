@@ -240,9 +240,9 @@ try {
       check('TriG on a dirty canvas opens the view as text with no dialog', await page.getByRole('dialog').count() === 0)
       check('TriG opens the view as text with one tab in the same position', await fileTabs.count() === 1 && await fileTabs.evaluate(el => Array.from(el.parentElement.children).indexOf(el)) === tabIndex && await page.locator(WEBVIEW).count() === 0)
       // The new text tab gets its dirty class after the editor shows: wait for it.
-      const textTab = await until(() => fileTabs.getAttribute('class'), c => c.includes('dirty'), 5000)
+      const textTab = await until(() => fileTabs.getAttribute('class'), c => c?.includes('dirty'), 5000)
       const unchanged = fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8') === onDisk
-      check('the text tab keeps the unsaved canvas change (dirty, file on disk unchanged)', textTab.includes('dirty') && unchanged, JSON.stringify({ textTab, unchanged }))
+      check('the text tab keeps the unsaved canvas change (dirty, file on disk unchanged)', textTab?.includes('dirty') === true && unchanged, JSON.stringify({ textTab, unchanged }))
       await page.locator('.editor-instance .monaco-editor').click()
       await page.keyboard.press('Control+f')
       await page.keyboard.type('A simple Bookstore model')
