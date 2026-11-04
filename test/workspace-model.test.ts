@@ -160,6 +160,14 @@ test('a canvas command is one edit of the open view document; the next draw read
         host.folder = undefined;
         await server.stop();
     }
+    // Delayed host work must not write to the closed JSON-RPC transport.
+    const uri = pathToFileURL(file).href;
+    server.open(uri, '', 'trig');
+    server.change(uri, '');
+    await expect(server.query({ query: 'ASK { ?s ?p ?o }' })).rejects.toThrow('the test server is stopped');
+    await expect(server.graph({})).rejects.toThrow('the test server is stopped');
+    await expect(server.port().select('SELECT ?s WHERE { ?s ?p ?o }')).rejects.toThrow('not running');
+    await server.stop();
 }, 20000);
 
 test('a view-only command preserves completed instance records for the next text-first draw', async () => {

@@ -37,7 +37,16 @@ export async function startServer(folder: string, triples: number, timeoutMs = 1
     const conn = createMessageConnection(new StreamMessageReader(proc.stdout), new StreamMessageWriter(proc.stdin));
     conn.onRequest(() => null);
     conn.listen();
-    const stop = async () => {
+    let stopped = false;
+    let stopping: Promise<void> | undefined;
+    const sendRequest = <R>(method: string, params: unknown): Promise<R> => stopped
+        ? Promise.reject(new Error('the test server is stopped'))
+        : conn.sendRequest<R>(method, params);
+    const stop = (): Promise<void> => {
+        stopped = true;
+        return stopping ??= shutdown();
+    };
+    const shutdown = async () => {
         const late = (ms: number) => new Promise<void>(r => setTimeout(r, ms).unref());
         try {
             await Promise.race([conn.sendRequest('shutdown'), late(500)]);
@@ -53,7 +62,7 @@ export async function startServer(folder: string, triples: number, timeoutMs = 1
     await conn.sendNotification('initialized', {});
 
     const port = nodePort({
-        client: () => ({ isRunning: () => true, sendRequest: <R>(method: string, params: unknown) => conn.sendRequest<R>(method, params) }),
+        client: () => ({ isRunning: () => !stopped, sendRequest }),
         idle: async () => {},
     });
     const versions = new Map<string, number>();
@@ -73,16 +82,19 @@ export async function startServer(folder: string, triples: number, timeoutMs = 1
 
     return {
         port: () => port,
-        query: params => conn.sendRequest<QueryAnswer>('turtle/query', params),
-        graph: params => conn.sendRequest<GraphResult>('turtle/graph', params),
+        query: params => sendRequest<QueryAnswer>('turtle/query', params),
+        graph: params => sendRequest<GraphResult>('turtle/graph', params),
         open(uri, text, languageId = 'turtle') {
+            if (stopped) return;
             versions.set(uri, 1);
-            void conn.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId, version: 1, text } });
+            // A notification already queued when stop starts can lose its transport.
+            void conn.sendNotification('textDocument/didOpen', { textDocument: { uri, languageId, version: 1, text } }).catch(() => {});
         },
         change(uri, text) {
+            if (stopped) return;
             const version = (versions.get(uri) ?? 1) + 1;
             versions.set(uri, version);
-            void conn.sendNotification('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text }] });
+            void conn.sendNotification('textDocument/didChange', { textDocument: { uri, version }, contentChanges: [{ text }] }).catch(() => {});
         },
         stop,
     };
