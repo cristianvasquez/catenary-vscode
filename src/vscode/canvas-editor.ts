@@ -71,6 +71,9 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         if (!model) return;
         await model.ready();
         if (!await model.viewOfDocument(uri.fsPath)) return;
+        // The command acts on the active editor: after the awaits it must still be the text of this view.
+        const active = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
+        if (!(active instanceof vscode.TabInputText) || active.uri.toString() !== uri.toString()) return;
         await vscode.commands.executeCommand('reopenActiveEditorWith', CANVAS_EDITOR);
     }
 
