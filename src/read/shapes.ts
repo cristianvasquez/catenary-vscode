@@ -69,7 +69,7 @@ export async function vocabularyOf(port: ModelPort, modelFiles: string[]): Promi
 /**
  * `shapeSubjects`: the subjects of the shapes statements (termKey). `shapeSubjectsByFile`: the same per document (file path), as shapePart
  * classifies per file. `files`: the model files read, without the manifest document. `closure`: the shapes statements (shapesClosureOf),
- * each with its document as graph.
+ * each with its document as graph. `skos`: the statements of the SKOS schemes, concepts and collections (vocabularyOf), each with its document as graph.
  */
 export interface ShapesModelRecords {
     files: string[];
@@ -79,6 +79,7 @@ export interface ShapesModelRecords {
     shapeSubjects: Set<string>;
     shapeSubjectsByFile: Map<string, Set<string>>;
     closure: Quad[];
+    skos: Quad[];
 }
 
 /**
@@ -101,5 +102,5 @@ export async function shapesModelOf(port: ModelPort, modelFiles: string[], manif
         const file = fileOfGraph(q.graph.value);
         (shapeSubjectsByFile.get(file) ?? shapeSubjectsByFile.set(file, new Set()).get(file)!).add(termKey(q.subject));
     }
-    return { files, index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))), shapeSubjectsByFile, closure };
+    return { files, index, vocabulary, meta, shapeSubjects: new Set(closure.map(q => termKey(q.subject))), shapeSubjectsByFile, closure, skos };
 }
