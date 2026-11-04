@@ -262,7 +262,8 @@ export interface TargetBadges { shapes: Map<string, number>; nodes: Map<string, 
  * The target badges (TargetBadges) from the direct target declarations of the closure (sh:targetClass with rdfs:subClassOf*, implicit
  * class, sh:targetSubjectsOf, sh:targetObjectsOf, sh:targetNode), one COUNT query each: the instances that each placed shape targets,
  * `placedIris` excluded in the query; the node shapes of the model that are not placed and target each of `placedIris`. An instance has
- * an rdf:type or rdfs:label statement that the shapes closure does not hold, unless it is a SKOS subject of the shapes (isInstance of
+ * an rdf:type or rdfs:label statement that the shapes closure does not hold (a SKOS subject of the shapes keeps its own), or it is a
+ * shapes subject (ShapesModelRecords.shapeSubjects) with a SKOS type or a SKOS membership statement in any of `modelFiles` (isInstance of
  * choices.ts). The sh:node walk (applicableMatches) is not run: it is for the targets picker only. Two queries at most.
  */
 export async function targetBadges(port: ModelPort, modelFiles: string[], shapes: ShapesModelRecords, placedShapes: string[], placedIris: string[]): Promise<TargetBadges> {
@@ -281,7 +282,11 @@ export async function targetBadges(port: ModelPort, modelFiles: string[], shapes
         return o ? [`(${iri(q.subject.value)} ${iri(q.predicate.value)} ${o})`] : [];
     }))];
     const notShapes = shapesOnly.length ? ` FILTER NOT EXISTS { VALUES (?cn ?cp ?co) { ${shapesOnly.join(' ')} } FILTER (sameTerm(?cn, ?node) && sameTerm(?cp, ?tp) && sameTerm(?co, ?tv)) }` : '';
-    const instance = `FILTER EXISTS { VALUES ?tp { rdf:type rdfs:label } ?node ?tp ?tv${notShapes} }`;
+    const skos = `VALUES (?sp ?so) { ${[...SKOS_TYPES].map(t => `(rdf:type <${t}>)`).join(' ')} } ?node ?sp ?so`;
+    const membership = `VALUES ?sp { ${[...SKOS_MEMBERSHIP].map(p => `<${p}>`).join(' ')} } ?node ?sp ?so`;
+    const subjects = [...shapes.shapeSubjects].filter(k => k.startsWith('<') && !k.startsWith(`<${BLANK}`));
+    const shapesSubject = subjects.length ? `FILTER (?node IN (${subjects.join(', ')}))` : '';
+    const instance = `FILTER EXISTS { { VALUES ?tp { rdf:type rdfs:label } ?node ?tp ?tv${notShapes} }${subjects.length ? ` UNION { ${skos} ${shapesSubject} } UNION { ${membership} ${shapesSubject} }` : ''} }`;
     const count = async (into: Map<string, number>, group: 'shape' | 'node', chosen: Declaration[], where: string) => {
         const groups = targetGroups(chosen, 'node', true);
         if (!groups.length) return;

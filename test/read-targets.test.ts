@@ -185,30 +185,35 @@ ex:leaf rdfs:label "leaf" .
 describe('target badges (temp folder)', () => {
     const EX = 'http://example.org/';
     const prefixes = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> . @prefix ex: <${EX}> .\n`;
-    // S targets a shapes-only subject (Other), a SKOS subject of the shapes (Term), a model instance (inst) and a shape subject with a model type (Both).
-    const shapes = `${prefixes}ex:S a sh:NodeShape ; sh:targetNode ex:Other, ex:Term, ex:inst, ex:Both .
+    // S targets a shapes-only subject (Other), a SKOS subject of the shapes (Term), a model instance (inst), a shape subject with a model
+    // type (Both), a shape subject with a SKOS membership in the data document (Member), a membership-only shapes subject (Bare) and a
+    // membership-only subject that is not a shapes subject (Loose).
+    const shapes = `${prefixes}ex:S a sh:NodeShape ; sh:targetNode ex:Other, ex:Term, ex:inst, ex:Both, ex:Member, ex:Bare, ex:Loose .
 ex:Other a sh:NodeShape ; rdfs:label "other" .
 ex:Both a sh:NodeShape .
 ex:Term a skos:Concept ; sh:property [ sh:path ex:p ] .
+ex:Member a sh:NodeShape .
+ex:Bare sh:property [ sh:path ex:q ] ; skos:inScheme ex:Scheme .
 `;
-    const data = `${prefixes}ex:inst a ex:Thing .\nex:Both a ex:Thing .\n`;
+    const data = `${prefixes}ex:inst a ex:Thing .\nex:Both a ex:Thing .\nex:Member skos:inScheme ex:Scheme .\nex:Loose skos:inScheme ex:Scheme .\n`;
     let dir: string, server: Awaited<ReturnType<typeof startServer>>;
     beforeAll(async () => {
         dir = mkdtempSync(join(tmpdir(), 'catenary-badges-'));
         writeFileSync(join(dir, 'shapes.ttl'), shapes);
         writeFileSync(join(dir, 'data.ttl'), data);
-        server = await startServer(dir, 13);
+        server = await startServer(dir, 22);
     }, 20000);
     afterAll(async () => {
         await server?.stop();
         if (dir) rmSync(dir, { recursive: true, force: true });
     });
 
-    test('a shapes-only target is not an instance; a SKOS subject of the shapes and a model type are', async () => {
+    test('a shapes-only target is not an instance; a SKOS subject of the shapes, a SKOS membership of a shapes subject in any document and a model type are', async () => {
         const files = ['data.ttl', 'shapes.ttl'].map(f => join(dir, f));
         const records = await shapesModelOf(server.port(), files, {});
         const badges = await targetBadges(server.port(), files, records, [`${EX}S`], [`${EX}S`]);
-        expect(badges.shapes.get(`${EX}S`)).toBe(3);
-        expect((await targetBadges(server.port(), files, records, [`${EX}S`], [`${EX}S`, `${EX}inst`])).shapes.get(`${EX}S`)).toBe(2);
+        // Term, inst, Both, Member, Bare; not Other (shapes only), not Loose (membership only, not a shapes subject).
+        expect(badges.shapes.get(`${EX}S`)).toBe(5);
+        expect((await targetBadges(server.port(), files, records, [`${EX}S`], [`${EX}S`, `${EX}inst`, `${EX}Member`])).shapes.get(`${EX}S`)).toBe(3);
     });
 });
