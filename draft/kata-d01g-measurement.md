@@ -33,7 +33,7 @@ View names below omit the common `urn:name:` prefix. Each draw saves 32 requests
 | services | 53 | 21 |
 | datasets | 56 | 24 |
 | teams | 54 | 22 |
-| Total draws | 1005 | 461 |
+| Total draws | 986 | 442 |
 
 ## Open criterion
 
