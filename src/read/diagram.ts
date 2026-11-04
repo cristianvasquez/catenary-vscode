@@ -86,9 +86,13 @@ export const emptyDrawn = (): Drawn => ({ schema: { type: TYPES.GRAPH, id: 'root
 export async function diagramOf(ctx: ModelContext, viewId: string, opts: DiagramOptions = {}): Promise<Drawn> {
     const iri = viewId.includes(':') ? viewId : idIri(viewId), file = iri && ctx.views.get(iri);
     if (!file) return emptyDrawn();
-    const quads = await ctx.port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [file]);
-    const first = drawFromText(ctx, viewId, new Writer({ format: 'application/trig' }).quadsToString(quads), opts.kept, opts);
+    const first = drawFromText(ctx, viewId, await viewTextOf(ctx, file), opts.kept, opts);
     return completeDrawing(ctx, viewId, first.drawn, first.misses);
+}
+
+/** The text of the view file `file` as the server has it (one turtle/query): for a view that no editor has open. */
+export async function viewTextOf(ctx: ModelContext, file: string): Promise<string> {
+    return new Writer({ format: 'application/trig' }).quadsToString(await ctx.port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [file]));
 }
 
 /** Phase 1: no port calls, including when there is no retained index yet. */

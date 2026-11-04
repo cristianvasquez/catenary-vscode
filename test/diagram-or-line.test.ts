@@ -35,7 +35,7 @@ ${both ? `ex:a a view:Placement ; view:element ex:Task ; view:view <${view}> .` 
             return cards.some(e => e.type.startsWith('edge:') && e.sourceId === task?.id && e.targetId === service?.id);
         };
         const before = await diagramOf(ctx, view);
-        const choices = await expandChoices(ctx, iriId(view), iriId('http://example.org/Service'), 'in');
+        const choices = await expandChoices(ctx, iriId(view), docs.text(view), iriId('http://example.org/Service'), 'in');
         expect(choices?.items).toHaveLength(1);
         expect(choices?.items[0].ids).toEqual([iriId('http://example.org/Task')]);
         expect(await docs.run({ kind: 'addToView', view, ids: [iriId('http://example.org/Task')], at: { x: 0, y: 0 } })).toMatchObject({ ok: true });

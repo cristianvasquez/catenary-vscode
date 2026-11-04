@@ -4,7 +4,7 @@ import { RDF, RDFS, SH, iri } from '../catenary/contracts/query';
 import { NodeReference, readNodeReferences } from '../catenary/shacl/backend/node';
 import { focus, term, type QueryTerm, type TargetSelection } from '../catenary/shacl/backend/targets';
 import type { FocusNode, TargetKind, TargetMatch, TargetReason } from '../catenary/shacl/common/index';
-import { byFile, type ModelPort, type Row } from '../model/port';
+import type { ModelPort, Row } from '../model/port';
 import type { ShapesModelRecords } from './shapes';
 
 /** A target declaration of a shape in the closure: `?shape sh:<kind> ?target`, or an implicit class target (target = the shape). */
@@ -20,12 +20,6 @@ const BLANK = 'urn:skolem:blank:';
 export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean }[] {
     const named = [...new Set(nodes.filter(n => !(n.termType === 'NamedNode' && n.value.startsWith(BLANK))).map(term))];
     return named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true }] : [];
-}
-
-/** The VALUES query per file, with its source file on each row. */
-export async function boundRows(port: ModelPort, files: string[], variable: string, nodes: readonly FocusNode[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
-    return (await Promise.all(bindings(variable, nodes).map(async ({ clause }) =>
-        await byFile(port, files, query(clause))))).flat();
 }
 
 const DECLARED: Record<string, TargetKind> = Object.fromEntries((['targetClass', 'targetNode', 'targetSubjectsOf', 'targetObjectsOf'] as const).map(k => [SH + k, k]));

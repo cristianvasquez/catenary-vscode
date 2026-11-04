@@ -10,7 +10,7 @@ import { runCommand, type ViewEdit, type ViewInput, viewFileProblem } from '../e
 import { fail, type Result } from '../edit/ops';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
-import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, drawFromText, completeDrawing, emptyDrawn, modelContextOf, type DrawingUpdate } from '../read/diagram';
+import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, drawFromText, completeDrawing, emptyDrawn, modelContextOf, viewTextOf, type DrawingUpdate } from '../read/diagram';
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
 import type { KeptPrefetch } from '../read/figures';
@@ -232,13 +232,18 @@ export abstract class WorkspaceCore implements ViewSource {
 
     /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh. */
     async expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined> {
-        const ctx = this.context();
-        return ctx ? expandChoices(ctx, viewId, from, dir) : undefined;
+        const ctx = this.context(), key = viewIriOf(viewId) ?? viewId, file = ctx?.views.get(key);
+        if (!ctx || !file) return undefined;
+        // The view text (the open buffer, else the file as the server has it) and the view's answer kept by the last draw.
+        const entry = this.keptFigures.get(key), kept = entry?.generation === this.generation ? entry.kept : undefined;
+        const text = (await this.documentOf(file, false))?.text ?? await viewTextOf(ctx, file);
+        return expandChoices(ctx, viewId, text, from, dir, kept);
     }
 
     async memberOptions(viewId: string, collection: string): Promise<string[]> {
-        const ctx = this.context();
-        return ctx ? memberOptions(ctx, viewId, collection) : [];
+        const ctx = this.context(), file = ctx?.views.get(viewIriOf(viewId) ?? viewId);
+        if (!ctx || !file) return [];
+        return memberOptions(ctx, viewId, (await this.documentOf(file, false))?.text ?? await viewTextOf(ctx, file), collection);
     }
 
     async instancesNamed(text: string): Promise<string[]> {

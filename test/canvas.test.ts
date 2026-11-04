@@ -30,24 +30,24 @@ const execute = (c: ViewCommand) => docs.run(c, [view]);
 
 test('expand in of an instance card lists its hidden neighbour', async () => {
     const from = (await named(vid, 'Tangamandapio')).element as string;
-    const choices = await expandChoices(ctx, vid, from, 'in');
+    const choices = await expandChoices(ctx, vid, docs.text(view), from, 'in');
     expect(choices?.items.map(i => i.label)).toEqual(['Cities']);
-    expect(await expandChoices(ctx, vid, from, 'out')).toBeUndefined();
+    expect(await expandChoices(ctx, vid, docs.text(view), from, 'out')).toBeUndefined();
 });
 
 test('expand targets of a node shape card lists the instances it checks', async () => {
-    const choices = await expandChoices(ctx, mid, (await named(mid, 'Book shape')).element as string, 'targets');
+    const choices = await expandChoices(ctx, mid, docs.text('urn:name:Bookshop%20model'), (await named(mid, 'Book shape')).element as string, 'targets');
     expect(choices?.items.map(i => i.label).sort()).toEqual(['Alice’s Adventures in Wonderland', 'Animal Farm', 'Nineteen Eighty-Four']);
 });
 
 test('showRelations of an expand choice places the neighbour: one edit', async () => {
     const from = (await named(vid, 'Tangamandapio')).element as string;
-    const ids = (await expandChoices(ctx, vid, from, 'in'))!.items[0].ids;
+    const ids = (await expandChoices(ctx, vid, docs.text(view), from, 'in'))!.items[0].ids;
     const r = await execute({ kind: 'showRelations', view: vid, ids, at: { x: 0, y: 0 } });
     expect(r).toMatchObject({ ok: true });
     expect(r.edits).toHaveLength(1);
     expect(await named(vid, 'Cities')).toBeDefined();
-    expect(await expandChoices(ctx, vid, from, 'in')).toBeUndefined();
+    expect(await expandChoices(ctx, vid, docs.text(view), from, 'in')).toBeUndefined();
 });
 
 test.each(['in', 'out'] as const)('restore a deleted relation from its %s end without changing cards', async dir => {
@@ -58,7 +58,7 @@ test.each(['in', 'out'] as const)('restore a deleted relation from its %s end wi
     expect((await part(vid)).views[vid].edges.filter(e => !e.hidden)).toHaveLength(before.edges.filter(e => !e.hidden).length - 1);
     const from = dir === 'out' ? relation.subject : relation.object;
     const other = dir === 'out' ? relation.object : relation.subject;
-    const choices = (await expandChoices(ctx, vid, from, dir))!;
+    const choices = (await expandChoices(ctx, vid, docs.text(view), from, dir))!;
     const item = choices.items.find(i => i.ids.includes(relation.id))!;
     const removed = await part(vid);
     expect(item.label).toBe(removed.instances[other].label);
@@ -71,7 +71,7 @@ test.each(['in', 'out'] as const)('restore a deleted relation from its %s end wi
     const after = (await part(vid)).views[vid];
     expect(after.edges.filter(e => !e.hidden)).toHaveLength(v.edges.filter(e => !e.hidden).length + 1);
     expect(after.boxes).toEqual(before.boxes);
-    expect((await expandChoices(ctx, vid, from, dir))?.items.some(i => i.ids.includes(relation.id)) ?? false).toBe(false);
+    expect((await expandChoices(ctx, vid, docs.text(view), from, dir))?.items.some(i => i.ids.includes(relation.id)) ?? false).toBe(false);
 });
 
 test('arrow gesture: a note can point to a card, a card not to a card', async () => {
