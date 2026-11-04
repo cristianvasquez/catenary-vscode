@@ -124,7 +124,7 @@ describe('answerPort and nodePort without a server', () => {
     const answer = (a: QueryAnswer) => answerPort(async () => a);
 
     test('both ports send the row limit for every query kind, with and without a file scope', async () => {
-        expect(MAX_ROWS).toBe(1000000);
+        expect(MAX_ROWS).toBe(0);
         const calls: { method: string; params: unknown }[] = [];
         const send = async <R>(method: string, params: unknown): Promise<R> => {
             calls.push({ method, params });
@@ -167,7 +167,7 @@ describe('answerPort and nodePort without a server', () => {
     });
 
     test('omitted > 0 and an answer of another kind throw', async () => {
-        await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 2, elapsedMs: 0 }).select('')).rejects.toThrow(`maxRows (${MAX_ROWS})`);
+        await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 2, elapsedMs: 0 }).select('')).rejects.toThrow(`server query.maxRows limit (request maxRows: ${MAX_ROWS})`);
         await expect(answer({ kind: 'select', head: { vars: [] }, results: { bindings: [] }, omitted: 0, elapsedMs: 0 }).construct('')).rejects.toThrow(/select to a construct/);
         await expect(answer({ kind: 'construct', triples: [], omitted: 0, elapsedMs: 0 }).select('')).rejects.toThrow(/construct to a select/);
     });

@@ -1,5 +1,6 @@
 // Kata thfz: the port of the browser page (turtle/query over LspClient) and the edits of WebWorkspace (buffer + FileStore), with a fake client.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import { MAX_ROWS } from '../src/model/port';
 import type { VersionedEdit } from '../src/model/workspace-core';
 import { FileStore, pathOf, uriOf } from '../src/web/files';
 import { webPort } from '../src/web/port';
@@ -22,10 +23,10 @@ const client = (request: (method: string, params: unknown) => Promise<unknown>) 
 test('webPort sends turtle/query with the file paths as file URIs and reads the rows', async () => {
     const request = vi.fn(async () => ({ kind: 'select', results: { bindings: [{ s: { type: 'uri', value: 'urn:a' }, b: { type: 'bnode', value: '1:2' } }] } }));
     const rows = await webPort(client(request)).select('SELECT ?s ?b WHERE { ?s ?p ?b }', [pathOf('a b.ttl')]);
-    expect(request).toHaveBeenCalledWith('turtle/query', { query: 'SELECT ?s ?b WHERE { ?s ?p ?b }', files: ['file:///work/a%20b.ttl'] });
+    expect(request).toHaveBeenCalledWith('turtle/query', { query: 'SELECT ?s ?b WHERE { ?s ?p ?b }', maxRows: MAX_ROWS, files: ['file:///work/a%20b.ttl'] });
     expect(rows.map(r => [r.s.value, r.b.value])).toEqual([['urn:a', 'urn:skolem:blank:000001-00000002']]);
     await webPort(client(request)).select('ASK {}');
-    expect(request).toHaveBeenLastCalledWith('turtle/query', { query: 'ASK {}' });
+    expect(request).toHaveBeenLastCalledWith('turtle/query', { query: 'ASK {}', maxRows: MAX_ROWS });
 });
 
 /** A WebWorkspace over the FileStore `store` with buffers that hold the file text at version 1. */

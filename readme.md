@@ -8,6 +8,8 @@ VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turt
 
 Catenary keeps no copy of the model: it asks every question with the `turtle/query` request of the language server. Until upstream has this request, set `turtle.server.path` to a build of the fork [turtle-lsp, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query) (`cargo build --release --locked`, then `target/release/turtle-lsp`). Without it, the refresh of the workspace fails and the canvas draws nothing.
 
+For a large vocabulary, raise `turtle.query.maxRows` from 1000 to 100000 in the editor settings; Catenary requests the full configured limit (`maxRows: 0`), but cannot raise it.
+
 ## Features
 
 - Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
