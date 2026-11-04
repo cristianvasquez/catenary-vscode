@@ -1,4 +1,4 @@
-// Diagnostics of turtle-lsp as SHACL violations over turtle/query (fork binary over stdio) on test/fixtures/shapes.
+// Diagnostics of turtle-lsp as SHACL violations over turtle/query (turtle-lsp binary over stdio) on test/fixtures/shapes.
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, expect, test } from 'vitest';

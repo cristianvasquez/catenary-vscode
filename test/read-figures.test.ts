@@ -1,4 +1,4 @@
-// Kata af1j: the notation figures from one turtle/query prefetch (fork binary over stdio), against the values of the old viewFiguresOf
+// Kata af1j: the notation figures from one turtle/query prefetch (turtle-lsp binary over stdio), against the values of the old viewFiguresOf
 // (recorded before K11 deleted it: test/fixtures/expected/read-figures.json).
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

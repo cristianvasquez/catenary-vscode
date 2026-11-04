@@ -1,4 +1,4 @@
-// Kata w1pm: shape targets and hidden neighbours from turtle/query (fork binary over stdio), against the values of the old functions
+// Kata w1pm: shape targets and hidden neighbours from turtle/query (turtle-lsp binary over stdio), against the values of the old functions
 // (recorded before K11 deleted them: test/fixtures/expected/read-targets.json).
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

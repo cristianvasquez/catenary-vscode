@@ -25,7 +25,7 @@ export function activateSparqlEndpoint(_context: vscode.ExtensionContext, api: T
         } catch (err) {
             if ((err as { code?: unknown } | undefined)?.code === METHOD_NOT_FOUND && !missingShown) {
                 missingShown = true;
-                void vscode.window.showErrorMessage('The Turtle language server does not have turtle/query; set turtle.server.path to a build that has it.');
+                void vscode.window.showErrorMessage('The Turtle language server does not have turtle/query; update it to 0.14.0 or later.');
             }
             throw err;
         }

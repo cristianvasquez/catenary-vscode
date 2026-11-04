@@ -1,4 +1,4 @@
-// Kata mydh. executeCommand of src/edit/commands.ts through runCommand (turtle/query, fork binary over stdio) gives the view changes and the
+// Kata mydh. executeCommand of src/edit/commands.ts through runCommand (turtle/query, turtle-lsp binary over stdio) gives the view changes and the
 // results that ViewStore.execute of the old pipeline gave, for every case of the old store.test.ts and clipboard.test.ts; factsOf gives the
 // facts of the old graph. The old values were recorded before K11 deleted the old pipeline: test/fixtures/expected/edit-commands.json.
 import type { Quad } from '@rdfjs/types';
@@ -261,7 +261,7 @@ describe('executeCommand through runCommand equals the recorded ViewStore.execut
     });
 });
 
-describe('factsOf against the fork binary equals the recorded facts of the old graph on test/fixtures/shapes', () => {
+describe('factsOf against the turtle-lsp binary equals the recorded facts of the old graph on test/fixtures/shapes', () => {
     /** The facts that a command uses, for each IRI that the prefetch asks about. */
     function facts(f: Facts, iris: string[], doc: boolean) {
         return {

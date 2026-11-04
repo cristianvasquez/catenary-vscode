@@ -1,5 +1,5 @@
 // Copy, cut and paste on the canvas (kata tc43): the clip of a view, its paste into another view, the move of a cut, the Turtle of a paste.
-// The views are the fixture view documents on the fork binary over stdio; a command edits their text.
+// The views are the fixture view documents on the turtle-lsp binary over stdio; a command edits their text.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';

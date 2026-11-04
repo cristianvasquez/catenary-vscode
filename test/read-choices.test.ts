@@ -1,4 +1,4 @@
-// Kata dxwx: the pickers from turtle/query (fork binary over stdio) on test/fixtures/shapes, against the values of model/choices.ts of the
+// Kata dxwx: the pickers from turtle/query (turtle-lsp binary over stdio) on test/fixtures/shapes, against the values of model/choices.ts of the
 // old pipeline (recorded before K11 deleted it: test/fixtures/expected/read-choices.json).
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

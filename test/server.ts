@@ -1,4 +1,4 @@
-// The turtle-lsp fork over stdio on a fixture folder, for tests of the ModelPort. Approach of the fork's test/lsp-client.mjs; nothing imported from the fork.
+// turtle-lsp (0.14.0 or later) over stdio on a fixture folder, for tests of the ModelPort. Approach of turtle-lsp's test/lsp-client.mjs; nothing imported from it.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -29,7 +29,7 @@ interface TestServer {
 
 /** Starts the server with `folder` as the workspace folder and waits until the index has at least `triples` triples. */
 export async function startServer(folder: string, triples: number, timeoutMs = 10000): Promise<TestServer> {
-    if (!existsSync(serverPath)) throw new Error(`turtle-lsp binary not found at ${serverPath}: build it in the fork (branch turtle-query) with \`cargo build --release --locked\`, or set TURTLE_LSP`);
+    if (!existsSync(serverPath)) throw new Error(`turtle-lsp binary not found at ${serverPath}: build it in turtle-lsp (0.14.0 or later) with \`cargo build --release --locked\`, or set TURTLE_LSP`);
     const proc = spawn(serverPath, [], { cwd: folder, stdio: ['pipe', 'pipe', 'pipe'] });
     proc.stdin.on('error', () => {});
     proc.stderr.resume();

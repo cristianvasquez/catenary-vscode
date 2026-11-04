@@ -1,5 +1,5 @@
 // The setup of the UI runner (test/ui/run.mjs), from the old repository main: downloads VS Code (cached in .vscode-test/) and the
-// turtle-lsp 0.13.0 vsix (cached in .cache/), installs the vsix into .cache/extensions, makes a short temp user data dir and a temp
+// turtle-lsp 0.14.0 vsix (cached in .cache/), installs the vsix into .cache/extensions, makes a short temp user data dir and a temp
 // copy of test/fixtures/shapes.
 import { spawnSync } from "node:child_process"
 import fs from "node:fs"
@@ -11,7 +11,7 @@ import { downloadAndUnzipVSCode, resolveCliArgsFromVSCodeExecutablePath } from "
 const here = path.dirname(fileURLToPath(import.meta.url))
 export const root = path.resolve(here, "../..")
 const cache = path.join(root, ".cache")
-const vsix = path.join(cache, "turtle-lsp-linux-x64-0.13.0.vsix")
+const vsix = path.join(cache, "turtle-lsp-linux-x64-0.14.0.vsix")
 export const extensionsDir = path.join(cache, "extensions")
 const source = path.join(root, "test/fixtures/shapes")
 
@@ -65,7 +65,7 @@ function removeStale() {
 export async function prepare() {
   removeStale()
   if (!fs.existsSync(vsix)) {
-    run("gh", ["release", "download", "v0.13.0", "-R", "abhishekkundu25/turtle-lsp", "-p", path.basename(vsix), "-D", cache])
+    run("gh", ["release", "download", "v0.14.0", "-R", "abhishekkundu25/turtle-lsp", "-p", path.basename(vsix), "-D", cache])
   }
   const vscodeExecutablePath = await downloadAndUnzipVSCode(process.env.VSCODE_VERSION ?? "stable")
   // The default CLI args name the default extensions dir; this one replaces it.

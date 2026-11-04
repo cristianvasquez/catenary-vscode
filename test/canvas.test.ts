@@ -1,5 +1,5 @@
 // The reads and the steps that the canvas edits use (kata embt): halo expand choices, gesture answers, placements, view commands.
-// The choices come from turtle/query (fork binary over stdio, kata dxwx); a command edits the text of the view document, which reaches the server.
+// The choices come from turtle/query (turtle-lsp binary over stdio, kata dxwx); a command edits the text of the view document, which reaches the server.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, expect, test } from 'vitest';

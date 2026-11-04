@@ -1,5 +1,5 @@
 // Types of the turtle-lsp browser editor module (web/app/editor-lsp.js, MIT), which the web build copies next to the page
-// (scripts/build-web.mjs, from the turtle-lsp fork) and loads at run time. Only the members that the page uses.
+// (scripts/build-web.mjs, from turtle-lsp) and loads at run time. Only the members that the page uses.
 
 export interface LspPosition { line: number; character: number }
 export interface LspRange { start: LspPosition; end: LspPosition }

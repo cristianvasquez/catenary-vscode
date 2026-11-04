@@ -1,4 +1,4 @@
-// The workspace of the page: turtle-lsp in a worker (engine.wasm, built from the fork) answers turtle/query and turtle/graph for the open
+// The workspace of the page: turtle-lsp in a worker (engine.wasm, built from turtle-lsp 0.14.0 or later) answers turtle/query and turtle/graph for the open
 // buffers; diagnostics arrive as LSP notifications. The documents of the model are the RDF files of the FileStore; every file is an open
 // buffer of the server (main.ts sends didOpen and didChange). A canvas command replaces the text of the view buffer (didChange follows)
 // and writes the file to the FileStore.

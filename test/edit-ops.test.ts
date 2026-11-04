@@ -1,4 +1,4 @@
-// Each op of src/edit/ops.ts over the view quads of the server and the facts of factsOf (fork binary over stdio) gives the result and the
+// Each op of src/edit/ops.ts over the view quads of the server and the facts of factsOf (turtle-lsp binary over stdio) gives the result and the
 // view change that the op of the old src/catenary/rdf/ops.ts gave over the graph (recorded before K11 deleted it:
 // test/fixtures/expected/edit-ops.json). A test starts from the fixture views; its steps reach the server as the text of the view.
 import type { NamedNode } from '@rdfjs/types';

@@ -1,4 +1,4 @@
-// Kata 8twe: the diagram of each fixture view from turtle/query (fork binary over stdio), against the expected schemas and against the
+// Kata 8twe: the diagram of each fixture view from turtle/query (turtle-lsp binary over stdio), against the expected schemas and against the
 // schemas of diagramOf of the old pipeline (recorded before K11 deleted it: test/fixtures/expected/diagram.json).
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';

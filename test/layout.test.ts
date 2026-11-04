@@ -12,7 +12,7 @@ import { type ViewDocuments, viewDocuments } from './views';
 const TRIPLES = 282;
 const view = 'urn:name:Bookshop', vid = iriId(view);
 
-describe('the instances view on the fork binary over stdio', () => {
+describe('the instances view on the turtle-lsp binary over stdio', () => {
     let server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext, docs: ViewDocuments;
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);

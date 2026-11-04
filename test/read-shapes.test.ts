@@ -1,4 +1,4 @@
-// Kata q74p: the shapes model from turtle/query (fork binary over stdio) on test/fixtures/shapes, against the values that the old pipeline
+// Kata q74p: the shapes model from turtle/query (turtle-lsp binary over stdio) on test/fixtures/shapes, against the values that the old pipeline
 // gave (recorded before K11 deleted it: test/fixtures/expected/read-shapes.json).
 import type { Quad, Term } from '@rdfjs/types';
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';

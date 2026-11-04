@@ -3,9 +3,9 @@
 ## Unreleased
 
 - Local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` over the workspace through the Turtle language server `turtle/query` request: setting `catenary.sparql.port`, commands Start, Stop and Copy SPARQL Endpoint URL, a status bar item, and browser pages from the origins in `catenary.sparql.allowOrigins`.
-- The canvas draws from `turtle/query` of the Turtle language server (fork `cristianvasquez/turtle-lsp`, branch `turtle-query`): no model copy for the drawing. A change of an open model document redraws the canvas before a save.
+- The canvas draws from `turtle/query` of the Turtle language server (turtle-lsp 0.14.0 or later): no model copy for the drawing. A change of an open model document redraws the canvas before a save.
 - The canvas is a text editor of the view `.trig` file: a canvas edit is one text edit of the file, and undo, redo, the unsaved state, save, revert and backup are VS Code's. A change of the file in a text editor redraws the canvas. The canvas and the text editor switch without a save. A paste of a cut from another view edits both view files (one undo step in each). Until the engine of the browser page answers `turtle/query`, its canvas is read-only.
-- No model store: Oxigraph and the in-memory model graph are removed (`oxigraph` is no longer a dependency; `dist/` has no `node_bg.wasm`). Every question about the model is a `turtle/query` request, so the fork of turtle-lsp (`turtle.server.path`) is required. Pasted Turtle and the built-in notations are parsed with `n3`.
+- No model store: Oxigraph and the in-memory model graph are removed (`oxigraph` is no longer a dependency; `dist/` has no `node_bg.wasm`). Every question about the model is a `turtle/query` request, so turtle-lsp 0.14.0 or later is required. Pasted Turtle and the built-in notations are parsed with `n3`.
 - Browser page: its engine has no `turtle/query` yet, and its port fails with "needs the fork engine": the page reads no model and its canvas draws nothing until the engine is built from the fork. Insert Element shows that message.
 
 ## 0.0.3

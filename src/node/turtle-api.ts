@@ -5,7 +5,7 @@ const GRAPH_METHOD = 'turtle/graph'
 const QUERY_METHOD = 'turtle/query'
 
 /** The message when the server does not have turtle/query. */
-export const QUERY_MISSING = 'turtle/query is not available: set turtle.server.path to a build of the turtle-lsp fork (branch turtle-query)'
+export const QUERY_MISSING = 'turtle/query is not available: update the Turtle language server to 0.14.0 or later'
 
 /** The language client surface used here (vscode-languageclient LanguageClient). */
 interface GraphClient {
@@ -13,7 +13,7 @@ interface GraphClient {
   sendRequest<R>(method: string, params: unknown): Promise<R>
 }
 
-/** What turtle-lsp 0.13.0 `activate()` returns (`TurtleApi` in its `editors/vscode/src/extension.ts`). */
+/** What turtle-lsp 0.14.0 `activate()` returns (`TurtleApi` in its `editors/vscode/src/extension.ts`). */
 export interface TurtleApi {
   /** `undefined` until the server starts. */
   client(): GraphClient | undefined

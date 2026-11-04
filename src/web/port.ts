@@ -1,4 +1,4 @@
-// The ModelPort of the browser page: turtle/query to the embedded turtle-lsp (engine.wasm in a worker, built from the fork).
+// The ModelPort of the browser page: turtle/query to the embedded turtle-lsp (engine.wasm in a worker, built from turtle-lsp 0.14.0 or later).
 import { answerPort, MAX_ROWS, type ModelPort } from '../model/port';
 import type { QueryAnswer } from '../node/sparql-endpoint';
 import { fileUriOf } from './files';

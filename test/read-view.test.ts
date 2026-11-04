@@ -1,4 +1,4 @@
-// Kata 1sx9: the Doc of a view from turtle/query (fork binary over stdio) on test/fixtures/shapes, against the readView values of the old
+// Kata 1sx9: the Doc of a view from turtle/query (turtle-lsp binary over stdio) on test/fixtures/shapes, against the readView values of the old
 // pipeline (recorded before K11 deleted it: test/fixtures/expected/read-view.json; the old pipeline got the data.ttl value of Animal Farm).
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

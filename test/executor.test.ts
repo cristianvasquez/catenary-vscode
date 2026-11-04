@@ -1,4 +1,4 @@
-// runCommand over the fork binary: refusal of model blank-node placements and a cut that edits two view documents.
+// runCommand over the turtle-lsp binary: refusal of model blank-node placements and a cut that edits two view documents.
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { Parser } from 'n3';
 import { tmpdir } from 'node:os';

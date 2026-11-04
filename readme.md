@@ -6,7 +6,7 @@ Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads 
 
 VS Code 1.101 or later and the Turtle RDF language server (`abhishekkundu25.turtle-language-server`). On VS Code, Catenary offers to install it from the Marketplace at first use. On VSCodium and other editors without the Marketplace, install the vsix of your platform from https://github.com/abhishekkundu25/turtle-lsp/releases first.
 
-Catenary keeps no copy of the model: it asks every question with the `turtle/query` request of the language server. Until upstream has this request, set `turtle.server.path` to a build of the fork [turtle-lsp, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query) (`cargo build --release --locked`, then `target/release/turtle-lsp`). Without it, the refresh of the workspace fails and the canvas draws nothing.
+Catenary keeps no copy of the model: it asks every question with the `turtle/query` request of the language server. This request is in [turtle-lsp](https://github.com/abhishekkundu25/turtle-lsp/releases) 0.14.0 and later. With an older server, the refresh of the workspace fails and the canvas draws nothing.
 
 For a large vocabulary, raise `turtle.query.maxRows` from 1000 to 100000 in the editor settings; Catenary requests the full configured limit (`maxRows: 0`), but cannot raise it.
 
@@ -56,20 +56,20 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 
 VS Code Settings exposes card, group and note font sizes, edge style and vocabulary color. These preferences apply across views; they are not model data.
 
-Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` (0 turns it off; Catenary: Start SPARQL Endpoint uses a free port then). It runs SELECT and ASK queries with results in JSON, CSV or TSV, and CONSTRUCT queries with results in N-Triples. Each workspace file is a named graph named by its file URI; the default graph is the union of all files. Browser pages may query it only from the origins listed in `catenary.sparql.allowOrigins` (default empty); curl, scripts and notebooks are not affected. The endpoint needs a Turtle language server with the `turtle/query` request: set `turtle.server.path` to a build of [turtle-lsp, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query) until upstream has it.
+Set `catenary.sparql.port` to a port over 0 to start a local SPARQL endpoint at `http://127.0.0.1:<port>/sparql` (0 turns it off; Catenary: Start SPARQL Endpoint uses a free port then). It runs SELECT and ASK queries with results in JSON, CSV or TSV, and CONSTRUCT queries with results in N-Triples. Each workspace file is a named graph named by its file URI; the default graph is the union of all files. Browser pages may query it only from the origins listed in `catenary.sparql.allowOrigins` (default empty); curl, scripts and notebooks are not affected. The endpoint needs turtle-lsp 0.14.0 or later (the `turtle/query` request).
 
 ## Development
 
 ```sh
 pnpm install
 pnpm build          # dist/extension.js, dist/webview.js
-pnpm verify         # typecheck, knip, unit tests and source citation check (the tests need the fork binary, see below)
+pnpm verify         # typecheck, knip, unit tests and source citation check (the tests need a turtle-lsp 0.14.0 binary, see below)
 pnpm ui             # real mouse and keys in headless VS Code
 pnpm ui -- --section bookshop   # one section of the UI checks (model, bookshop)
 pnpm ui:markdown    # export a Markdown document with an embedded view
 ```
 
-The unit tests start the fork binary over stdio on `test/fixtures/shapes` (`test/server.ts`): `TURTLE_LSP` sets its path, default `~/os/rdf/turtle-lsp/target/release/turtle-lsp`. The values that the old in-memory pipeline gave are recorded under `test/fixtures/expected/` (one JSON line per value); the tests compare the results over `turtle/query` with them.
+The unit tests start a turtle-lsp binary (0.14.0 or later, a release or `cargo build --release --locked`) over stdio on `test/fixtures/shapes` (`test/server.ts`): `TURTLE_LSP` sets its path, default `~/os/rdf/turtle-lsp/target/release/turtle-lsp`. The values that the old in-memory pipeline gave are recorded under `test/fixtures/expected/` (one JSON line per value); the tests compare the results over `turtle/query` with them.
 
 A draw reads the data of a view as one answer, kept per view (the figure prefetch); the hidden-neighbour counts come from that answer, and the target badges from one COUNT query over the direct targets of the placed node shapes (`sh:targetClass` with `rdfs:subClassOf*`, `sh:targetSubjectsOf`, `sh:targetObjectsOf`, `sh:targetNode`) plus one for the node shapes of the cards: the badges do not follow `sh:node`, the targets picker does.
 
@@ -79,7 +79,7 @@ A draw reads the data of a view as one answer, kept per view (the figure prefetc
 
 The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages on each push to `main`; set the repository's Pages source to "GitHub Actions" once.
 
-- turtle-lsp runs as WebAssembly in a worker. The engine comes from the [turtle-lsp fork, branch turtle-query](https://github.com/cristianvasquez/turtle-lsp/tree/turtle-query), which has `turtle/query`. Build it there first: `rustup target add wasm32-unknown-unknown`, install the fork's node dependencies, then `node web/build.mjs`. `pnpm web:build` copies `engine.wasm`, `engine.js`, `lsp-host.js`, `lsp-worker.js`, `editor-lsp.js` and the vendor notices from `TURTLE_LSP_WEB` (default `~/os/rdf/turtle-lsp/web/app`) and fails with the build command when a file is missing. The GitHub Pages workflow has no fork engine: it fails until the workflow builds it.
+- turtle-lsp runs as WebAssembly in a worker. The engine comes from the [turtle-lsp](https://github.com/abhishekkundu25/turtle-lsp) source, 0.14.0 or later (`turtle/query`); the releases have no web engine. Build it there first: `rustup target add wasm32-unknown-unknown`, install its node dependencies, then `node web/build.mjs`. `pnpm web:build` copies `engine.wasm`, `engine.js`, `lsp-host.js`, `lsp-worker.js`, `editor-lsp.js` and the vendor notices from `TURTLE_LSP_WEB` (default `~/os/rdf/turtle-lsp/web/app`) and fails with the build command when a file is missing. The GitHub Pages workflow has no engine: it fails until the workflow builds it.
 - The GLSP server runs in the page (`src/web/server.ts`), one server instance per canvas over a `MessagePort`. Each canvas is an iframe (`src/web/canvas.ts`), as a VS Code webview is.
 - The shared code is not changed for the browser: the web build maps `node:fs`, `node:url`, `node:path` and `node:crypto` to shims (`src/web/shims/`) over an in-memory file system. The SHA-256 shim gives the same placement IRIs as Node.
 - `src/model/workspace-core.ts` holds the workspace logic of both hosts; `src/node/workspace-model.ts` (VS Code) and `src/web/workspace.ts` (page) supply the `turtle/query` port, the documents and the diagnostics.

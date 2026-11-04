@@ -1,4 +1,4 @@
-// Kata 1rhb: the ModelPort over turtle/query, and the facts of the fork's dataset on test/fixtures/shapes, against the real binary over stdio.
+// Kata 1rhb: the ModelPort over turtle/query, and the facts of the server's dataset on test/fixtures/shapes, against the real binary over stdio.
 import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,7 +23,7 @@ const TRIPLES = 282;
 const count = (rows: Row[]) => Number(rows[0]?.n?.value ?? NaN);
 const bnodes = (a: QueryAnswer) => a.kind === 'select' ? a.results.bindings.map(b => b.s).flatMap(t => (t?.type === 'bnode' ? [t.value] : [])) : [];
 
-describe('the server dataset (fork binary over stdio)', () => {
+describe('the server dataset (turtle-lsp binary over stdio)', () => {
     let server: Awaited<ReturnType<typeof startServer>>;
     beforeAll(async () => { server = await startServer(folder, TRIPLES); }, 20000);
     afterAll(async () => { await server?.stop(); });
