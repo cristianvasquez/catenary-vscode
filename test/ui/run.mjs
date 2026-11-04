@@ -239,7 +239,10 @@ try {
       await page.locator('.editor-instance .monaco-editor').waitFor()
       check('TriG on a dirty canvas opens the view as text with no dialog', await page.getByRole('dialog').count() === 0)
       check('TriG opens the view as text with one tab in the same position', await fileTabs.count() === 1 && await fileTabs.evaluate(el => Array.from(el.parentElement.children).indexOf(el)) === tabIndex && await page.locator(WEBVIEW).count() === 0)
-      check('the text tab keeps the unsaved canvas change (dirty, file on disk unchanged)', (await fileTabs.getAttribute('class')).includes('dirty') && fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8') === onDisk)
+      // The new text tab gets its dirty class after the editor shows: wait for it.
+      const textTab = await until(() => fileTabs.getAttribute('class'), c => c.includes('dirty'), 5000)
+      const unchanged = fs.readFileSync(path.join(fixture, 'model.trig'), 'utf8') === onDisk
+      check('the text tab keeps the unsaved canvas change (dirty, file on disk unchanged)', textTab.includes('dirty') && unchanged, JSON.stringify({ textTab, unchanged }))
       await page.locator('.editor-instance .monaco-editor').click()
       await page.keyboard.press('Control+f')
       await page.keyboard.type('A simple Bookstore model')
@@ -780,6 +783,9 @@ try {
       await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^instances\.trig$/ }) }).first().click()
       await page.keyboard.press('Control+W')
       await page.locator('.monaco-dialog-box .monaco-button', { hasText: "Don't Save" }).click()
+      // Quick Open (Control+P in open()) does not show while the dialog has focus: wait until the dialog and the closed tab are gone.
+      await page.locator('.monaco-dialog-box').waitFor({ state: 'detached' })
+      await page.locator('.tabs-container .tab', { has: page.locator('.label-name', { hasText: /^instances\.trig$/ }) }).waitFor({ state: 'detached' })
       await open('instances.trig', ['Animal Farm'])
       await until(() => badge.locator('text').allTextContents(), texts => texts.includes('1'), 60000)
       const bounds = await svg.boundingBox()
