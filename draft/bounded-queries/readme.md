@@ -24,6 +24,9 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 
 ## Open
 
+- `showAsEdge` can still place a blank node implicitly (roborev on fyh4).
+- The figure rounds read blank nodes over the whole folder while the view read uses `files: [viewFile]`: a blank node in a view file is not reachable from the figures (placements of blank nodes are unsupported, so no known case).
+
 - Incoming reads on a blank list cell reached through the closure are marked covered although nothing above a blank node is fetched (roborev on 05rh). No fixture hits it. Needs a rule for incoming reads on blank nodes.
 - Round 2: the other readers still name blank nodes by skolem IRI and branch on `FILTER (isBlank(?s))`: `src/read/targets.ts` `bindings()`, `src/read/view.ts` `BLANK_STATEMENTS`, `src/edit/facts-of.ts`, `src/read/scope.ts`, `src/read/choices.ts`, `src/vscode/paste-rdf.ts`. They do so because the shapes model (`src/read/shapes-index.ts`) addresses an anonymous property shape by its skolem IRI. The address of such a shape should be its holder statement `(owner, sh:property, n)`, as list figures already do with `listTerm`. Design before katas.
 
@@ -32,8 +35,9 @@ The figure prefetch (`src/read/figures.ts`) walked from the placed terms 5 round
 | Kata | Scope | Depends on | State |
 |---|---|---|---|
 | 05rh | `src/read/figures.ts`: miss-driven rounds, closure queries, tests | none | merged (06d4284): 47 queries in 3 rounds, longest 1,857 bytes, 233 tests |
-| bq0e | every query: `files` instead of `GRAPH`; per-file reads for IRI subjects; `ModelContext.views`; `viewFileProblem` from the text | 05rh | done on branch `kata/k2-files-not-graphs` (bd71b48, roborev 2309 pass), not merged: 5 tests fail, all blank-node labels compared across file sets; needs-review |
-| round 3 (to write) | A: `targets.ts` walks as one property path from IRIs, `bindings()` without the isBlank clause; `neighbors.ts` brings type and label of a blank object in the same query. B: `view.ts` marks from the view-file answer, delete `BLANK_STATEMENTS`; `facts-of.ts` delete `BLANK_QUERY`; a placed anonymous shape is refused with a reason (edit-commands test rewritten). Worker: pi. | bq0e | planned |
+| bq0e | every query: `files` instead of `GRAPH`; per-file reads for IRI subjects; `ModelContext.views`; `viewFileProblem` from the text | 05rh | merged (bd71b48, roborev 2309 pass) |
+| mcrr | `targets.ts`: a walk through blank nodes is one query from an IRI; `bindings()` without the isBlank clause; `neighbors.ts`: a blank neighbour's type and label in the same query | bq0e | merged (67a4aa3, roborev 2321 pass) |
+| fyh4 | `view.ts`: no `BLANK_STATEMENTS`, a placed blank node of a model file is a warning; `facts-of.ts`: no `BLANK_QUERY`; a command that places a blank node is refused | bq0e | merged (fcc328b, roborev 2319 fail: `showAsEdge` can still place a blank node implicitly, noted in the kata) |
 
 ## Agent contract (short)
 
