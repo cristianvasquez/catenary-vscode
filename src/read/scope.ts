@@ -8,10 +8,11 @@ import { elementId, elementTerm, relationTriple } from '../catenary/rdf/ids';
 import { type Plain, type Statements, instanceRecords } from '../catenary/rdf/records';
 import { rdf, termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
-import { byFile, type Row } from '../model/port';
+import { byFile } from '../model/port';
 import type { ModelContext } from './diagram';
 import { factsOf, inShapesOf, statementsAround } from './neighbors';
-import { bindings, boundRows } from './targets';
+import { bindings } from './targets';
+import { byDocumentKind, documentSets, type DocumentRow } from './documents';
 import { legacyRows, viewDocOf, viewLabelsOf } from './view';
 
 /** What scopedDoc reads (DocScope of rdf/scoped-doc.ts, deleted with it in K11). */
@@ -42,10 +43,10 @@ const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 /** A view entry with its label only. */
 const labelOnly = (id: string, label: string): View => ({ id, label, uri: elementTerm(id)?.value ?? '', boxes: [], edges: [], arrows: [] });
 
-/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES per model document: boundRows; a blank node among `iris` is left out). */
-async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
+/** The rows of `query(clause)` for `iris` bound to `?variable` (VALUES by document kind; a blank node among `iris` is left out). */
+async function rowsOf(ctx: ModelContext, variable: string, iris: string[], query: (clause: string) => string): Promise<DocumentRow[]> {
     if (!iris.length || !ctx.modelFiles.length) return [];
-    return boundRows(ctx.port, ctx.modelFiles, variable, iris.map(named), query);
+    return (await Promise.all(bindings(variable, iris.map(named)).map(({ clause }) => byDocumentKind(ctx.port, documentSets(ctx.shapes, ctx.modelFiles), query(clause))))).flat();
 }
 
 /** scopedDoc of rdf/scoped-doc.ts: the view labels, the views of `scope` (in full or for the selected elements), the instances of `scope.elements`. */
@@ -93,7 +94,7 @@ export async function scopedDoc(ctx: ModelContext, scope: DocScope): Promise<Doc
 /** The instances with a statement to or from one of `subjects` (other than rdf:type and rdfs:label) in the model documents. */
 async function neighbors(ctx: ModelContext, subjects: string[]): Promise<string[]> {
     const wanted = new Set(subjects), found: string[] = [];
-    for (const r of await statementsAround(ctx.port, ctx.modelFiles, subjects)) {
+    for (const r of await statementsAround(ctx.port, ctx.modelFiles, subjects, inShapesOf(ctx.shapes))) {
         if (wanted.has(r.s.value) && r.o.termType === 'NamedNode') found.push(r.o.value);
         if (wanted.has(r.o.value) && r.s.termType === 'NamedNode') found.push(r.s.value);
     }
@@ -110,15 +111,15 @@ async function records(ctx: ModelContext, doc: Doc, iris: string[]): Promise<voi
     const inShapes = inShapesOf(ctx.shapes);
     const [facts, rows] = await Promise.all([factsOf(ctx.port, ctx.modelFiles, inShapes, iris),
         rowsOf(ctx, 's', iris, clause => `SELECT ?s ?p ?o WHERE { ?s ?p ?o ${clause} }`)]);
-    const bySubject = new Map<string, (Row & { file?: string })[]>();
+    const bySubject = new Map<string, DocumentRow[]>();
     for (const r of rows) (bySubject.get(r.s.value) ?? bySubject.set(r.s.value, []).get(r.s.value)!).push(r);
     const files = new Map<string, string>();
     const subjects: Statements[] = [];
     for (const s of iris) {
         const home = facts.home.get(s) ?? MODEL;
         const own = (bySubject.get(s) ?? []).filter(r => {
-            const doc = inShapes.documentOf(r), shapesPart = doc !== undefined && inShapes(doc, r.s);
-            return home === MODEL ? !shapesPart : shapesPart && dataGraphIri(doc) + '#shapes' === home;
+            const doc = inShapes.documentOf(r), shapesPart = inShapes(r.kind, r.s);
+            return home === MODEL ? !shapesPart : shapesPart && dataGraphIri(doc!) + '#shapes' === home;
         });
         const seen = new Set<string>(), out: Statements['rows'] = [];
         for (const r of legacyRows(own)) {
