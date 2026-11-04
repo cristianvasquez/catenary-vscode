@@ -28,7 +28,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 
 - Open a view file (`.trig`) to display its canvas.
 - Click TriG at the right end of the canvas toolbar to open the view file as text. Unsaved canvas edits stay in the document; no save is needed.
-- Click Catenary: Open in Canvas in the TriG editor title to return to the canvas. With unsaved text, VS Code shows its save prompt (known bug).
+- Click Catenary: Open in Canvas in the TriG editor title to return to the canvas. Unsaved text stays unsaved and shows on the canvas.
 - Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show.
 - Choose Insert… → Link to a file… or Link to a view… to place a file or view reference without dragging.
 - Drag a box to move it; drag its resize handle to resize it.
