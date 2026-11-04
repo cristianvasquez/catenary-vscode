@@ -130,8 +130,8 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         expect(doc.instances[iriId('urn:x:X')]).toMatchObject({ label: 'X', types: ['urn:x:T'], fields: { 'urn:x:p': [{ termType: 'Literal', value: 'v' }] } });
     });
 
-    test('a view that places a blank node of a model file gives its instance with its statements', async () => {
-        // The skolem label names the document by its number: open the view document first, then read the label, then place it.
+    test('a view that places a blank node of a model file warns and omits the card', async () => {
+        // A legacy placement stores a request-local skolem label, not an address.
         const uri = pathToFileURL(join(dir, 'blanks.trig')).href;
         const text = (element: string) => `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
 <${BLANKS}> { <${BLANKS}> a view:View .${element ? ` <urn:x:bp> a view:Placement ; view:view <${BLANKS}> ; view:element <${element}> .` : ''} }`;
@@ -141,9 +141,11 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         expect(blank).toMatch(/^urn:skolem:blank:/);
         server.change(uri, text(blank));
         expect(await blankOf()).toBe(blank);
-        const doc = await viewDocOf(server.port(), new Map([[BLANKS, join(dir, 'blanks.trig')]]), BLANKS, shapes, {});
-        expect(doc.instances[iriId(blank)]).toMatchObject({ uri: blank, label: 'B', types: ['urn:x:T'], fields: { 'urn:x:p': [{ termType: 'Literal', value: 'inner' }] } });
-        expect(doc.views[iriId(BLANKS)].boxes).toMatchObject([{ kind: 'card', id: iriId('urn:x:bp'), element: iriId(blank) }]);
+        const warnings: string[] = [];
+        const doc = await viewDocOf(server.port(), new Map([[BLANKS, join(dir, 'blanks.trig')]]), BLANKS, shapes, {}, { warnings });
+        expect(doc.instances[iriId(blank)]).toBeUndefined();
+        expect(doc.views[iriId(BLANKS)].boxes).toEqual([]);
+        expect(warnings).toContain('placement urn:x:bp: a blank node cannot be placed');
     });
 });
 

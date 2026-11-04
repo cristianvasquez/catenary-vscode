@@ -54,10 +54,6 @@ const MARK_VAR: Record<string, string> = { file: 'ref' };
 const statementsQuery = (values: string) => `${PREFIXES} SELECT ?s ?p ?o ?known WHERE { VALUES ?s { ${values} } ?s ?p ?o FILTER (isIRI(?s))
     BIND (EXISTS { ?o rdf:type|rdfs:label ?any } AS ?known) }`;
 
-/** As statementsQuery for the blank-node subjects, once over the whole folder: a query cannot name a blank node; the rows are matched in code. */
-const BLANK_STATEMENTS = `${PREFIXES} SELECT ?s ?p ?o ?known WHERE { ?s ?p ?o FILTER (isBlank(?s))
-    BIND (EXISTS { ?o rdf:type|rdfs:label ?any } AS ?known) }`;
-
 /** The statements of each IRI subject with a SKOS type, skos:inScheme or skos:topConceptOf in a model document (byFile). */
 const SKOS = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE {
     { ?s a ?t VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } } UNION { ?s skos:inScheme|skos:topConceptOf ?x }
@@ -146,11 +142,8 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     if (!viewFile) return emptyDoc();
     /** A shape subject of any document (the shows test, the object test of the statements filter). */
     const isShape = (t: Term) => shapes.shapeSubjects.has(termKey(t));
-    /**
-     * The subject of the row is a shape in the row's document (shapePart classifies per file). A row without a file (a blank-node subject,
-     * read over the whole folder): a shape in any document.
-     */
-    const shapeRow = (r: Row & { file?: string }) => r.file === undefined ? isShape(r.s) : shapes.shapeSubjectsByFile.get(r.file)?.has(termKey(r.s)) ?? false;
+    /** The subject of the row is a shape in the row's document (shapePart classifies per file). */
+    const shapeRow = (r: FileRow) => shapes.shapeSubjectsByFile.get(r.file)?.has(termKey(r.s)) ?? false;
     /** The view IRI of a view file. */
     const viewOf = new Map([...views].map(([iri, file]) => [file, iri]));
     const viewFiles = [...views.values()];
@@ -165,7 +158,7 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     let allMarks: Promise<FileRow[]> | undefined;
     const marksOf = async (subjects: Iterable<string>) => {
         const wanted = new Set(subjects);
-        return (await (allMarks ??= byFile(port, viewFiles, MARKS_ALL).then(rows => rows.map(published)))).filter(r => wanted.has(r.s.value));
+        return (await (allMarks ??= byFile(port, viewFiles, MARKS_ALL).then(rows => rows.map(published)))).filter(r => wanted.has(r.s.value) && (!r.s.value.startsWith(BLANK) || r.file === viewFile));
     };
 
     const doc = emptyDoc();
@@ -243,19 +236,15 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
 
     // The model statements of the placed IRIs (and of every element of the view: the shows test), without the shapes subjects.
     const elementObjects = elements ? [] : [...vq.values()].flatMap(e => (e.props.get(ELEMENT) ?? []).filter(o => o.termType === 'NamedNode').map(o => o.value));
-    // Blank nodes of a model document: one isBlank query, matched in code by the skolem IRI of the port.
     const wanted = new Set([...placed, ...elementObjects]);
-    const blanks = new Set([...wanted].filter(s => s.startsWith(BLANK)));
-    const [namedRows, blankRows] = await Promise.all([chunked(port, [...wanted].filter(s => !blanks.has(s)), statementsQuery, modelFiles),
-        blanks.size ? port.select(BLANK_STATEMENTS).then(rows => rows.filter(r => blanks.has(r.s.value))) : []]);
-    // File-scoped statements still use the model-wide known-object test of the old query. Only query real IRIs here;
-    // blank-node rows and their labels keep their existing scope and filters.
+    const namedRows = await chunked(port, [...wanted].filter(s => !s.startsWith(BLANK)), statementsQuery, modelFiles);
+    // File-scoped statements still use the model-wide known-object test. Only query real IRIs here.
     const unknown = [...new Set(namedRows.filter(r => r.known?.value !== 'true' && r.o.termType === 'NamedNode' && !r.o.value.startsWith(BLANK)).map(r => r.o.value))];
     const knownQueries: Promise<Row[]>[] = [];
     for (let i = 0; i < unknown.length; i += CHUNK) knownQueries.push(port.select(`${PREFIXES} SELECT DISTINCT ?o WHERE {
         VALUES ?o { ${unknown.slice(i, i + CHUNK).map(o => `<${o}>`).join(' ')} } ?o rdf:type|rdfs:label ?any }`, modelFiles));
     const knownObjects = new Set((await Promise.all(knownQueries)).flat().map(r => publishedIri(r.o.value)));
-    const placedRows = legacyRows<Row & { file?: string }>([...namedRows, ...blankRows]);
+    const placedRows = legacyRows(namedRows);
     const modelRows = placedRows.filter(r => !shapeRow(r)), shapeRows = placedRows.filter(shapeRow);
     const valueSetTypes = new Set(SKOS_TYPES.filter(t => !t.value.endsWith('#Concept')).map(t => t.value));
     const shows = !elements && elementObjects.some(o => shapes.shapeSubjects.has(`<${o}>`)
@@ -374,6 +363,7 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
         const mark = e && marks.get(key(e));
         if (!e && r.values.has('subject')) (first(r.values.get('predicate'))?.value === ARROW ? parts.arrows : parts.edges).push(r);
         else if (mark) parts[mark.kind].push({ s: r.s, values: new Map([...mark.r.values, ...r.values]) });
+        else if (e?.value.startsWith(BLANK)) warnings.push(`placement ${r.s.value}: a blank node cannot be placed`);
         else if (e && e.termType === 'NamedNode' && named.has(e.value)) parts.references.push({ s: r.s, values: new Map([...r.values, ['references', [e]]]) });
         else parts.cards.push(r);
     }

@@ -24,7 +24,7 @@ export interface FactsContext {
     views: Map<string, string>;
 }
 
-/** The IRI prefix of a blank node in a port answer (port.ts): a query cannot name it; it is fetched with an isBlank pattern and kept by its label. */
+/** The IRI prefix of a blank node in a port answer (port.ts); it is not an address. */
 const BLANK = 'urn:skolem:blank:';
 
 /** The commands that read the Doc of a view (docOfViewQuads): they also need the SKOS vocabulary of the model. */
@@ -73,14 +73,12 @@ export function commandIris(shapes: ShapesModelRecords, command: ViewCommand, vi
         for (const q of [...v.match(null, V.element), ...v.match(null, V.member)]) add(q.object);
         for (const q of v.match(null, P.reifies)) if (q.object.termType === 'Quad') { add(q.object.subject); add(q.object.object); }
     }
-    return [...out].filter(i => IRI.test(i) && i !== UNION_GRAPH);
+    return [...out].filter(i => IRI.test(i) && i !== UNION_GRAPH && !i.startsWith(BLANK));
 }
 
 /**
- * The model query, in two parts. Each row is a statement and the branch `?b` that found it. The IRI part, per model document (byFile, each
- * row with its `file`): `a` the statements of a named IRI, `t` rdf:type and rdfs:label of their objects, `v` every statement of an IRI subject
- * with a SKOS type. The blank part, once over the whole folder (no `file`): `x` every statement of a blank node subject (kept by label in
- * code), `y` rdf:type and rdfs:label of the objects of blank nodes.
+ * The model query, per model document (byFile, each row with its `file`). Each row is a statement and the branch `?b` that found it:
+ * `a` the statements of a named IRI, `t` rdf:type and rdfs:label of their objects, `v` every statement of an IRI subject with a SKOS type.
  */
 function namedQuery(named: string[], vocabulary: boolean): string {
     const branches = [
@@ -95,9 +93,6 @@ function namedQuery(named: string[], vocabulary: boolean): string {
 
 const TYPING = `FILTER (?p IN (<${RDF_TYPE}>, <${RDFS_LABEL}>))`;
 
-const BLANK_QUERY = `SELECT DISTINCT ?s ?p ?o ?b WHERE { { ?s ?p ?o FILTER (isBlank(?s)) BIND ("x" AS ?b) }
-    UNION { ?i ?q ?s FILTER (isBlank(?i)) ?s ?p ?o ${TYPING} BIND ("y" AS ?b) } }`;
-
 /** The label statements of each view of `iris` (the view IRI as subject), from its view file. */
 function viewQuery(iris: string[]): string {
     const labels = LABEL_PREDICATES.map(p => `<${p}>`).join(', ');
@@ -110,26 +105,21 @@ const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * The facts of `command` on `views` (the views it edits, as they are before it): the model query over `ctx.modelFiles` without the manifest
- * (the blank part over the folder), and the view label query over the view files, in parallel. `isView`: the IRI is a view of `ctx.views`. A fact about an IRI that the prefetch did not ask about answers as for an IRI
+ * and the view label query over the view files, in parallel. `isView`: the IRI is a view of `ctx.views`. A fact about an IRI that the prefetch did not ask about answers as for an IRI
  * without statements.
  */
 export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Views): Promise<Facts> {
-    const iris = commandIris(ctx.shapes, command, views);
-    const named = iris.filter(i => !i.startsWith(BLANK)), blanks = new Set(iris.filter(i => i.startsWith(BLANK)));
+    const named = commandIris(ctx.shapes, command, views);
     const files = ctx.modelFiles.filter(f => f !== ctx.manifest.file), vocabulary = DOC_KINDS.has(command.kind);
     const viewIris = named.filter(i => ctx.views.has(i));
-    const [namedRows, blankRows, viewRows] = await Promise.all([
+    const [modelRows, viewRows] = await Promise.all([
         named.length || vocabulary ? byFile(ctx.port, files, namedQuery(named, vocabulary)) : [],
-        blanks.size && files.length ? ctx.port.select(BLANK_QUERY) : [],
         viewIris.length ? ctx.port.select(viewQuery(viewIris), viewIris.map(v => ctx.views.get(v)!)) : []
     ]);
-    const modelRows: (Row & { file?: string })[] = [...namedRows, ...blankRows];
 
     // The shapes part: the statements of the shapes closure (K2), by subject; a statement of a document outside it is a model statement.
-    // A row without a file (the blank part, read over the folder): a shape statement when its subject is a shape in any document.
     const shapeKeys = new Set(ctx.shapes.closure.map(q => `${fileOfGraph(q.graph.value)} ${termKey(q.subject)}`));
-    const shapeSubjects = new Set(ctx.shapes.closure.map(q => termKey(q.subject)));
-    const isShapeRow = (r: Row & { file?: string }, q: Quad) => r.file === undefined ? shapeSubjects.has(termKey(q.subject)) : shapeKeys.has(`${r.file} ${termKey(q.subject)}`);
+    const isShapeRow = (r: Row & { file: string }, q: Quad) => shapeKeys.has(`${r.file} ${termKey(q.subject)}`);
     const shapesBySubject = new Map<string, Quad[]>();
     for (const q of ctx.shapes.closure) (shapesBySubject.get(q.subject.value) ?? shapesBySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);
 
@@ -137,11 +127,10 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
     const model = new Map<string, Map<string, Quad>>(), full = new Set<string>(), skos = new Set<string>();
     for (const r of modelRows) {
         const q = quadOf(r), b = r.b?.value;
-        if (b === 'x' && !blanks.has(q.subject.value)) continue;
         if (isShapeRow(r, q)) continue;
         const s = q.subject.value, t = rdf.quad(q.subject, q.predicate, q.object);
         (model.get(s) ?? model.set(s, new Map()).get(s)!).set(tripleKey(t), t);
-        if (b === 'a' || b === 'x' || b === 'v') full.add(s);
+        if (b === 'a' || b === 'v') full.add(s);
         if (b === 'v' && q.predicate.value === RDF_TYPE && SKOS_TYPES.some(x => x.value === q.object.value)) skos.add(s);
     }
     const rowsOf = (s: string) => full.has(s) ? [...model.get(s)?.values() ?? []] : [];
