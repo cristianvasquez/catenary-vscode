@@ -30,7 +30,9 @@ jobs:
           repository: abhishekkundu25/turtle-lsp
           ref: v0.14.0
           path: turtle-lsp
+      # In turtle-lsp: its rust-toolchain.toml pins the compiler, and the target must go to that toolchain.
       - run: rustup target add wasm32-unknown-unknown
+        working-directory: turtle-lsp
       - run: npm ci
         working-directory: turtle-lsp
       - run: node web/build.mjs
