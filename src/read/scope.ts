@@ -55,14 +55,14 @@ export async function scopedDoc(ctx: ModelContext, scope: DocScope): Promise<Doc
     const inShapes = inShapesOf(shapes);
     const doc = emptyDoc();
     doc.shapes = shapes.index.model;
-    for (const [id, label] of Object.entries(await viewLabelsOf(port, ctx.views, manifest.language))) doc.views[id] = labelOnly(id, label);
+    for (const [id, label] of Object.entries(await viewLabelsOf(port, ctx.views, manifest.language, ctx.viewLabels))) doc.views[id] = labelOnly(id, label);
     const read = new Set<string>();
     const readPart = async (viewId: string, elements?: string[]) => {
         if (read.has(viewId) || !doc.views[viewId]) return;
         read.add(viewId);
         const iri = idIri(viewId);
         if (!iri) return;
-        const part = await viewDocOf(port, ctx.views, iri, shapes, manifest, elements ? { elements } : {});
+        const part = await viewDocOf(port, ctx.views, iri, shapes, manifest, { elements, viewLabels: ctx.viewLabels });
         if (part.views[viewId]) doc.views[viewId] = part.views[viewId];
         for (const [id, i] of Object.entries(part.instances)) doc.instances[id] ??= i;
         for (const [id, r] of Object.entries(part.relations)) doc.relations[id] ??= r;

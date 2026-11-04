@@ -4,13 +4,13 @@ import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, test } from 'vitest';
+import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest';
 import type { Doc } from '../src/catenary/model/doc';
 import { iriId } from '../src/catenary/model/ids';
 import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { manifestOf, type ManifestRecords } from '../src/read/manifest';
 import { shapesModelOf, type ShapesModelRecords } from '../src/read/shapes';
-import { viewDocOf, viewLabelsOf } from '../src/read/view';
+import { viewDocOf, viewGraphsOf, viewLabelsOf, type ViewGraph } from '../src/read/view';
 import { json, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
 
@@ -22,7 +22,7 @@ const TRIPLES = 282;
 const VIEWS = ['urn:name:Bookshop', 'urn:name:Bookshop%20model'];
 
 describe('viewDocOf on test/fixtures/shapes', () => {
-    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, shapes: ShapesModelRecords, views: Map<string, string>;
+    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, shapes: ShapesModelRecords, views: Map<string, string>, viewLabels: Map<string, ViewGraph>;
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
         const rdfFiles = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(file);
@@ -31,6 +31,7 @@ describe('viewDocOf on test/fixtures/shapes', () => {
         views = viewFiles.views;
         manifest = await manifestOf(server.port(), modelFiles);
         shapes = await shapesModelOf(server.port(), modelFiles, manifest);
+        viewLabels = await viewGraphsOf(server.port(), views);
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
@@ -38,7 +39,7 @@ describe('viewDocOf on test/fixtures/shapes', () => {
 
     test.each(VIEWS)('%s: views, instances, relations and warnings equal the recorded readView', async viewIri => {
         const warnings: string[] = [];
-        const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { warnings });
+        const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { warnings, viewLabels });
         expect(now.shapes).toBe(shapes.index.model);
         expect(Object.keys(now.views).length).toBeGreaterThan(0);
         expect(Object.keys(now.instances).length).toBeGreaterThan(0);
@@ -47,10 +48,10 @@ describe('viewDocOf on test/fixtures/shapes', () => {
 
     test('the elements branch: a card, a placement, an edge (when the view has one) and a box of each view equal the recorded readView', async () => {
         for (const viewIri of VIEWS) {
-            const view = (await viewDocOf(server.port(), views, viewIri, shapes, manifest)).views[iriId(viewIri)];
+            const view = (await viewDocOf(server.port(), views, viewIri, shapes, manifest, { viewLabels })).views[iriId(viewIri)];
             const cards = view.boxes.filter(b => b.kind === 'card');
             const elements = [cards[0].element, cards[1].id, ...view.edges.slice(0, 1).map(e => e.relation), view.boxes.find(b => b.kind !== 'card')!.id];
-            const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { elements });
+            const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { elements, viewLabels });
             expect(now.views[iriId(viewIri)].boxes.length, viewIri).toBeGreaterThan(1);
             expect({ elements, ...parts(now) as object }).toEqual(R(`elements ${viewIri}`));
         }
@@ -62,7 +63,7 @@ describe('viewDocOf on test/fixtures/shapes', () => {
     });
 
     test('viewLabelsOf equals the recorded viewLabels', async () => {
-        expect(await viewLabelsOf(server.port(), views, manifest.language)).toEqual(R('viewLabels'));
+        expect(await viewLabelsOf(server.port(), views, manifest.language, viewLabels)).toEqual(R('viewLabels'));
     });
 });
 
@@ -117,6 +118,35 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         expect(v.arrows).toEqual([{ id: iriId('urn:x:p3'), from: iriId('urn:x:p1'), to: iriId('urn:x:p2') }]);
         expect(Object.keys(doc.instances)).toEqual([iriId('urn:x:a')]);
         expect(await viewLabelsOf(server.port(), views)).toEqual({ [iriId(VIEW)]: 'Notes', [iriId(LEGACY)]: 'Legacy' });
+    });
+
+    test('cached metadata needs no queries; a draw reads only its own view file and refreshes its own metadata', async () => {
+        const port = server.port(), cached = await viewGraphsOf(port, views);
+        const select = vi.spyOn(port, 'select');
+        expect(await viewLabelsOf(port, views, undefined, cached)).toEqual({ [iriId(VIEW)]: 'Notes', [iriId(LEGACY)]: 'Legacy' });
+        expect(select).not.toHaveBeenCalled();
+        const notesUri = pathToFileURL(join(dir, 'notes.trig')).href;
+        const legacyUri = pathToFileURL(join(dir, 'legacy.trig')).href;
+        const changed = view.replace('rdfs:label "Notes"', 'rdfs:label "Fresh notes" ; view:description "Fresh description"')
+            .replace('<urn:x:p2> a view:Placement', `<urn:x:ref> a view:Placement ; view:element <${LEGACY}> . <urn:x:foreign> a view:Placement ; view:element <urn:x:ln> . <urn:x:p2> a view:Placement`);
+        try {
+            server.open(notesUri, changed, 'trig');
+            server.open(legacyUri, legacy.replace('rdfs:label "Legacy"', 'rdfs:label "Changed elsewhere"'), 'trig');
+            const warnings: string[] = [];
+            const doc = await viewDocOf(port, views, VIEW, shapes, {}, { viewLabels: cached, warnings });
+            expect(doc.views[iriId(VIEW)]).toMatchObject({ label: 'Fresh notes', description: 'Fresh description' });
+            expect(doc.views[iriId(LEGACY)].label).toBe('Legacy');
+            expect(doc.views[iriId(VIEW)].boxes.some(b => b.id === iriId('urn:x:foreign'))).toBe(false);
+            expect(warnings.some(w => w.includes('urn:x:ln') && w.includes('no supported card presentation'))).toBe(true);
+            expect(select.mock.calls.length).toBeGreaterThan(0);
+            for (const [, scope] of select.mock.calls) expect(scope).not.toContain(join(dir, 'legacy.trig'));
+            expect(cached.get(VIEW)).not.toBeUndefined();
+            expect(await viewLabelsOf(port, views, undefined, cached)).toMatchObject({ [iriId(VIEW)]: 'Notes' });
+        } finally {
+            server.change(notesUri, view);
+            server.change(legacyUri, legacy);
+            select.mockRestore();
+        }
     });
 
     test('a view file in the legacy view namespace reads as the published one; a shape of shapes.ttl keeps its data.ttl statements', async () => {

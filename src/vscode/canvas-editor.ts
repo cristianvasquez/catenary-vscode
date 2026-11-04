@@ -85,7 +85,7 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         if (!model || !ctx || !open) return;
         const view = (await model.diagram(iriId(open.iri), {})).doc.views[iriId(open.iri)];
         const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
-        const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.views, ctx.manifest.language)]);
+        const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.views, ctx.manifest.language, ctx.viewLabels)]);
         const { types } = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), labels.keys());
         const items: (vscode.QuickPickItem & { id: string })[] = [];
         for (const shape of Object.values(ctx.shapes.index.model.nodeShapes)) {

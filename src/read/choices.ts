@@ -132,7 +132,7 @@ export async function expandChoices(ctx: ModelContext, viewId: string, from: str
 /** Labels of the instances that are not members of the entity group `collection` of `viewId` (for "+ member"), sorted. */
 export async function memberOptions(ctx: ModelContext, viewId: string, collection: string): Promise<string[]> {
     const iri = idIri(viewId);
-    const [doc, labels] = await Promise.all([iri ? viewDocOf(ctx.port, ctx.views, iri, ctx.shapes, ctx.manifest) : undefined, instanceLabels(ctx)]);
+    const [doc, labels] = await Promise.all([iri ? viewDocOf(ctx.port, ctx.views, iri, ctx.shapes, ctx.manifest, { viewLabels: ctx.viewLabels }) : undefined, instanceLabels(ctx)]);
     const box = doc?.views[viewId]?.boxes.find(b => b.kind === 'collection' && b.id === collection);
     const members = new Set(box?.kind === 'collection' ? box.members : []);
     return [...new Set([...labels].filter(([s]) => !members.has(elementId(rdf.namedNode(s)))).map(([, label]) => label))].sort();

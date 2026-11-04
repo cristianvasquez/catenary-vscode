@@ -1,4 +1,4 @@
-// The Doc of one view from turtle/query answers (readView of view-read.ts over the ModelPort). Nothing is kept between calls.
+// The Doc of one view from turtle/query answers (readView of view-read.ts over the ModelPort). View metadata can come from the refresh context.
 import type { NamedNode, Quad, Term } from '@rdfjs/types';
 import { type Doc, emptyDoc } from '../catenary/model/doc';
 import { pickLabel } from '../catenary/model/labels';
@@ -86,10 +86,10 @@ export function legacyRows<R extends Row>(rows: R[]): R[] {
 /** A row with each IRI in a legacy namespace replaced by its published IRI (as readLegacy); the file of the row stays. */
 const published = <R extends Row>(r: R): R => Object.fromEntries(Object.entries(r).map(([k, t]) => [k, typeof t !== 'string' && t.termType === 'NamedNode' ? rdf.namedNode(publishedIri(t.value)) : t])) as R;
 
-type ViewGraph = { subjects: Map<string, { v: Term; labels: Term[] }>; description?: Term };
+export type ViewGraph = { subjects: Map<string, { v: Term; labels: Term[] }>; description?: Term };
 
 /** The views by IRI: for each view file of `views` (view IRI → file path), its view:View subject that is the view IRI, read with `files: [file]`. */
-async function viewGraphsOf(port: ModelPort, views: Map<string, string>): Promise<Map<string, ViewGraph>> {
+export async function viewGraphsOf(port: ModelPort, views: Map<string, string>): Promise<Map<string, ViewGraph>> {
     const out = new Map<string, ViewGraph>();
     await Promise.all([...views].map(async ([iri, file]) => {
         const rows = (await port.select(VIEW_SUBJECTS, [file])).filter(r => r.v.termType === 'NamedNode' && r.v.value === iri);
@@ -111,9 +111,9 @@ function viewLabel(graph: ViewGraph, language?: string): string {
 }
 
 /** Label of every view (view id → label), as viewLabels of view-read.ts. `views`: view IRI → file path (ModelContext.views). */
-export async function viewLabelsOf(port: ModelPort, views: Map<string, string>, language?: string): Promise<Record<string, string>> {
-    const graphs = await viewGraphsOf(port, views);
-    return Object.fromEntries([...graphs].sort((a, b) => cmp(a[0], b[0])).map(([graph, e]) => [elementId(rdf.namedNode(graph)), viewLabel(e, language)]));
+export async function viewLabelsOf(port: ModelPort, views: Map<string, string>, language?: string, cached?: Map<string, ViewGraph>): Promise<Record<string, string>> {
+    const graphs = cached ?? await viewGraphsOf(port, views);
+    return Object.fromEntries([...graphs].filter(([iri]) => views.has(iri)).sort((a, b) => cmp(a[0], b[0])).map(([graph, e]) => [elementId(rdf.namedNode(graph)), viewLabel(e, language)]));
 }
 
 /** Subject in the view graph → predicate → objects, in answer order. */
@@ -135,9 +135,10 @@ function viewQuadsOf(rows: Row[]): ViewQuads {
  * The Doc of the view `viewIri` (readView of view-read.ts): the view, the instances it places (and the SKOS vocabulary when it shows shapes),
  * their relations, and the views it names. An empty Doc when `viewIri` is not a view of `views` (view IRI → file path, ModelContext.views).
  * `elements`: only these placements and what they need (scopedDoc). `warnings`: receives what the view cannot show.
+ * `viewLabels`: metadata read at refresh; only the drawn view is re-read. Without it, labels are loaded for standalone callers.
  */
 export async function viewDocOf(port: ModelPort, views: Map<string, string>, viewIri: string, shapes: ShapesModelRecords, manifest: ManifestRecords,
-    options: { elements?: string[]; warnings?: string[] } = {}): Promise<Doc> {
+    options: { elements?: string[]; warnings?: string[]; viewLabels?: Map<string, ViewGraph> } = {}): Promise<Doc> {
     const { elements, warnings = [] } = options;
     const language = manifest.language, modelFiles = shapes.files, model = shapes.index.model;
     const viewFile = views.get(viewIri);
@@ -149,10 +150,12 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     const shapeRow = (r: DocumentRow) => inShapes(r.kind, r.s);
     /** The view IRI of a view file. */
     const viewOf = new Map([...views].map(([iri, file]) => [file, iri]));
-    const viewFiles = [...views.values()];
-    const [viewGraphs, viewRows] = await Promise.all([viewGraphsOf(port, views),
+    const viewFiles = [viewFile];
+    const [ownGraph, viewRows] = await Promise.all([viewGraphsOf(port, new Map([[viewIri, viewFile]])),
         port.select('SELECT ?s ?p ?o WHERE { ?s ?p ?o }', [viewFile]).then(legacyRows)]);
-    if (!viewGraphs.has(viewIri)) return emptyDoc();
+    if (!ownGraph.has(viewIri)) return emptyDoc();
+    const viewGraphs = new Map(options.viewLabels ?? await viewGraphsOf(port, new Map([...views].filter(([iri]) => iri !== viewIri))));
+    viewGraphs.set(viewIri, ownGraph.get(viewIri)!);
     const vq = viewQuadsOf(viewRows);
     const objects = (s: string, p: string): Term[] => vq.get(s)?.props.get(p) ?? [];
     const isPlacement = (s: string) => objects(s, TYPE).some(t => t.value === NS.view + 'Placement');
@@ -171,11 +174,12 @@ export async function viewDocOf(port: ModelPort, views: Map<string, string>, vie
     const setsOfMember = new Map<string, string[]>();
     for (const set of Object.values(model.valueSets)) for (const m of set.members) setsOfMember.set(m.uri, [...setsOfMember.get(m.uri) ?? [], set.uri]);
     const memberOf = new Map<string, string[]>();
+    let allMembers: Promise<FileRow[]> | undefined;
     const readMembers = async (terms: Iterable<string>) => {
         const missing = new Set([...terms].filter(t => !memberOf.has(t)));
         for (const t of missing) memberOf.set(t, []);
         if (!missing.size) return;
-        for (const r of (await byFile(port, viewFiles, MEMBERS_ALL)).map(published)) if (missing.has(r.m.value)) memberOf.get(r.m.value)!.push(r.c.value);
+        for (const r of (await (allMembers ??= byFile(port, viewFiles, MEMBERS_ALL).then(rows => rows.map(published))))) if (missing.has(r.m.value)) memberOf.get(r.m.value)!.push(r.c.value);
     };
     const add = (id: string) => {
         const part = model.properties[id] ?? model.constraints[id];
