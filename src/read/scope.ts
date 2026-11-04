@@ -9,11 +9,11 @@ import { type Plain, type Statements, instanceRecords } from '../catenary/rdf/re
 import { rdf, termKey } from '../catenary/rdf/terms';
 import type { FocusNode } from '../catenary/shacl/common/index';
 import { byFile } from '../model/port';
-import type { ModelContext } from './diagram';
+import { type ModelContext, viewDocRead } from './diagram';
 import { factsOf, inShapesOf, statementsAround } from './neighbors';
 import { bindings } from './targets';
 import { byDocumentKind, documentSets, type DocumentRow } from './documents';
-import { legacyRows, viewDocOf, viewLabelsOf } from './view';
+import { legacyRows, viewLabelsOf } from './view';
 
 /** What scopedDoc reads (DocScope of rdf/scoped-doc.ts, deleted with it in K11). */
 export interface DocScope {
@@ -62,7 +62,7 @@ export async function scopedDoc(ctx: ModelContext, scope: DocScope): Promise<Doc
         read.add(viewId);
         const iri = idIri(viewId);
         if (!iri) return;
-        const part = await viewDocOf(port, ctx.views, iri, shapes, manifest, { elements, viewLabels: ctx.viewLabels });
+        const part = await viewDocRead(ctx, iri, { elements });
         if (part.views[viewId]) doc.views[viewId] = part.views[viewId];
         for (const [id, i] of Object.entries(part.instances)) doc.instances[id] ??= i;
         for (const [id, r] of Object.entries(part.relations)) doc.relations[id] ??= r;

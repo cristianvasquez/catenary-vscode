@@ -13,12 +13,12 @@ import { labelFromIri, labelLiterals } from '../catenary/rdf/vocabulary';
 import { reasonText } from '../catenary/shacl/common';
 import type { FocusNode } from '../catenary/shacl/common/index';
 import { byDocumentKind, documentSets, type DocumentRow } from './documents';
-import type { ModelContext } from './diagram';
+import { type ModelContext, viewDocRead } from './diagram';
 import { applyPrefixes } from './manifest';
 import { factsOf, inShapesOf } from './neighbors';
 import { scopedDoc } from './scope';
 import { bindings, boundRows, shapeTargetMatches } from './targets';
-import { legacyRows, viewDocOf } from './view';
+import { legacyRows } from './view';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos: <${NS.skos}> PREFIX sh: <${NS.sh}>`;
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label', PATH = NS.sh + 'path';
@@ -132,7 +132,7 @@ export async function expandChoices(ctx: ModelContext, viewId: string, from: str
 /** Labels of the instances that are not members of the entity group `collection` of `viewId` (for "+ member"), sorted. */
 export async function memberOptions(ctx: ModelContext, viewId: string, collection: string): Promise<string[]> {
     const iri = idIri(viewId);
-    const [doc, labels] = await Promise.all([iri ? viewDocOf(ctx.port, ctx.views, iri, ctx.shapes, ctx.manifest, { viewLabels: ctx.viewLabels }) : undefined, instanceLabels(ctx)]);
+    const [doc, labels] = await Promise.all([iri ? viewDocRead(ctx, iri) : undefined, instanceLabels(ctx)]);
     const box = doc?.views[viewId]?.boxes.find(b => b.kind === 'collection' && b.id === collection);
     const members = new Set(box?.kind === 'collection' ? box.members : []);
     return [...new Set([...labels].filter(([s]) => !members.has(elementId(rdf.namedNode(s)))).map(([, label]) => label))].sort();

@@ -111,6 +111,26 @@ describe('two-phase drawing', () => {
         }
     });
 
+    test('viewDocOf sends no query: a cold draw sends the view read, the figure prefetch and the neighbour and target reads; a kept answer, no round', async () => {
+        const sent: string[] = [];
+        const count = <T>(call: () => Promise<T>) => { sent.push(new Error().stack ?? ''); return call(); };
+        const port: ModelContext['port'] = {
+            select: (...args) => count(() => ctx.port.select(...args)),
+            construct: (...args) => count(() => ctx.port.construct(...args)),
+            ask: (...args) => count(() => ctx.port.ask(...args))
+        };
+        const by = (name: string) => sent.filter(s => s.includes(name)).length;
+        const cold = await diagramOf({ ...ctx, port }, modelIri);
+        expect(JSON.stringify(cold.schema)).toBe(R(modelIri));
+        // 1 view read (diagramOf), 4 prefetchFigures (view, subclasses, 2 rounds), 12 neighbour and target reads (hiddenNeighborCounts).
+        expect([sent.length, by('prefetchFigures'), by('viewDocOf')]).toEqual([17, 4, 0]);
+        sent.length = 0;
+        const warm = await diagramOf({ ...ctx, port }, modelIri, { kept: cold.kept });
+        expect(JSON.stringify(warm.schema)).toBe(R(modelIri));
+        // The kept answer has every read: the prefetch reads the view statements only.
+        expect([sent.length, by('prefetchFigures'), by('viewDocOf')]).toEqual([14, 1, 0]);
+    });
+
     test('completion copies layout by id, not by element order', () => {
         const base: ElementSchema = { type: 'graph', id: 'root', children: [{ type: 'node:card', id: 'a', position: { x: 9, y: 8 }, size: { width: 700, height: 400 } }, { type: 'edge:relation', id: 'b', vertices: [{ x: 11, y: 12 }] }] };
         const final: ElementSchema = { type: 'graph', id: 'root', children: [{ type: 'edge:relation', id: 'b', vertices: [] }, { type: 'node:card', id: 'a', name: 'updated', position: { x: 0, y: 0 }, size: { width: 1, height: 1 } }] };

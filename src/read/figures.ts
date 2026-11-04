@@ -33,10 +33,16 @@ function nquads(quads: Iterable<Quad>): NQuad[] {
 }
 
 
-/** What the prefetch read completely (nkey): every statement of a subject (`outAll`) or an object (`inAll`), of a subject and predicate (`outP`), of an object and predicate (`inP`), of a predicate. */
+/**
+ * What the prefetch read completely (nkey): every statement of a subject (`outAll`) or an object (`inAll`), of a subject and predicate (`outP`),
+ * of an object and predicate (`inP`), of a predicate. `read`: the IRIs (value) whose statements as subject in every document, and the rdf:type
+ * and rdfs:label of their objects, came from the server (the reads of viewDocOf; `outAll` of a shape subject can come from the closure only).
+ */
 interface Coverage {
-    outAll: Set<string>; outP: Set<string>; inAll: Set<string>; inP: Set<string>; predicates: Set<string>;
+    outAll: Set<string>; outP: Set<string>; inAll: Set<string>; inP: Set<string>; predicates: Set<string>; read: Set<string>;
 }
+
+const emptyCoverage = (): Coverage => ({ outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set(), read: new Set() });
 
 /** A read that the prefetch did not cover: the statements of a term as subject (`out`) or object (`in`), of predicate `p` or of any predicate; or every statement of a predicate. */
 type Miss = { kind: 'out' | 'in'; term: NTerm; p?: string } | { kind: 'predicate'; p: string };
@@ -113,12 +119,18 @@ function ntriples(t: TermJSON): string {
     return t.language ? `${text}@${t.language}` : t.datatype ? `${text}^^<${t.datatype}>` : text;
 }
 
-/** A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read). */
-interface Group { kind: Miss['kind']; p?: string; terms: TermJSON[] }
+/**
+ * A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read).
+ * `objects`: the rdf:type and rdfs:label statements of the objects of `terms` (the known-object test of viewDocOf).
+ */
+interface Group { kind: Miss['kind'] | 'objects'; p?: string; terms: TermJSON[] }
+
+const TYPE_LABEL = `VALUES ?p { <${RDF('type')}> <${NS.rdfs}label> }`;
 
 /** One query per round (or VALUES chunk), with shared object closure and incoming-subject closure. */
 function readQuery(groups: Group[]): string {
     const reads = groups.map(g => {
+        if (g.kind === 'objects') return `{ VALUES ?k { ${g.terms.map(ntriples).join(' ')} } ?k ?kp ?s . ${TYPE_LABEL} ?s ?p ?o }`;
         const values = g.kind === 'predicate' ? '' : `VALUES ?${g.kind === 'out' ? 's' : 'o'} { ${g.terms.map(ntriples).join(' ')} } `;
         const predicate = g.p === undefined ? '' : `VALUES ?p { <${g.p}> } `;
         return `{ ${values}${predicate}?s ?p ?o ${g.kind === 'in' ? 'BIND(?s AS ?incoming)' : ''} }`;
@@ -163,6 +175,7 @@ function groupsOf(misses: Iterable<Miss>): Group[] {
  */
 function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
     if (g.kind === 'predicate') covered.predicates.add(g.p!);
+    else if (g.kind === 'objects') for (const t of g.terms) covered.read.add(t.value);
     else for (const k of g.terms.map(nkey)) {
         if (g.kind === 'out') g.p === undefined ? covered.outAll.add(k) : covered.outP.add(`${k} ${g.p}`);
         else g.p === undefined ? covered.inAll.add(k) : covered.inP.add(`${k} ${g.p}`);
@@ -217,9 +230,9 @@ const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.objec
  * The prefetch: (a) the view quads (every statement of `viewFile`); (b) the shapes closure of `shapes`; (c) the statements of the placed terms and `also`; (d) rdfs:subClassOf
  * over `modelFiles`; (e) rounds of bounded queries for the reads that the derivation misses, blank nodes with the IRI that reaches them.
  */
-export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch): Promise<PrefetchedFigures & { kept: KeptPrefetch }> {
-    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept);
-    return { ...prefetch.figures(prefetch.view, also), kept: prefetch.kept };
+export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = []): Promise<PrefetchedFigures & { kept: KeptPrefetch; view: Quad[] }> {
+    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept, reads);
+    return { ...prefetch.figures(prefetch.view, also), kept: prefetch.kept, view: prefetch.view };
 }
 
 /** Derive against retained facts and current view text without a port or a request. */
@@ -234,7 +247,7 @@ export function figuresFromText(viewIri: string, now: Iterable<Quad>, kept: Kept
 
 /** Empty retained index for a view's first text draw. */
 export function emptyPrefetch(shapes?: ShapesModelRecords): KeptPrefetch {
-    return { quads: nquads(shapes?.closure ?? []), view: [], covered: { outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set() } };
+    return { quads: nquads(shapes?.closure ?? []), view: [], covered: emptyCoverage() };
 }
 
 /** At most this many rounds of miss-driven queries. */
@@ -242,9 +255,10 @@ const MAX_ROUNDS = 16;
 
 /**
  * The prefetch of viewFiguresOf, read before a command: `reach` are terms that the command can place (their statements are read as those
- * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them).
+ * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them). `reads`: IRIs whose
+ * statements as subject and the rdf:type and rdfs:label of their objects the first round reads (the misses of viewDocOf; `covered.read`).
  */
-export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = [], kept?: KeptPrefetch): Promise<FiguresPrefetch> {
+export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = [], kept?: KeptPrefetch, reads: string[] = []): Promise<FiguresPrefetch> {
     const notes = readNotations();
     const [view, subclasses] = await Promise.all([
         port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [viewFile]),
@@ -258,8 +272,8 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
     // Copy the coverage: concurrent draws must not mutate the state they started from.
     const covered: Coverage = kept ? {
         outAll: new Set(kept.covered.outAll), outP: new Set(kept.covered.outP),
-        inAll: new Set(kept.covered.inAll), inP: new Set(kept.covered.inP), predicates: new Set(kept.covered.predicates)
-    } : { outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set([SUBCLASS]) };
+        inAll: new Set(kept.covered.inAll), inP: new Set(kept.covered.inP), predicates: new Set(kept.covered.predicates), read: new Set(kept.covered.read)
+    } : { ...emptyCoverage(), predicates: new Set([SUBCLASS]) };
     // The closure holds every sh: statement of the model files without the manifest (shapePart starts at each subject with one), and the
     // statements of its subjects in the documents where they are shapes.
     const closure = kept ? [] : nquads(shapes.closure);
@@ -274,11 +288,19 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
 
     // (c) The statements of the scope terms (the IRI ends of a statement) as subject and object, read in the first round.
     const ends = [...new Set([viewIri, ...scope.flatMap(iris)])].filter(v => !v.startsWith(BLANK)).map(v => ({ termType: 'NamedNode' as const, value: v }));
-    let seed = groupsOf(ends.flatMap(term => [
-        ...covered.outAll.has(nkey(term)) ? [] : [{ kind: 'out' as const, term }],
-        ...covered.inAll.has(nkey(term)) ? [] : [{ kind: 'in' as const, term }]
-    ]));
-    for (const t of ends) { covered.outAll.add(nkey(t)); covered.inAll.add(nkey(t)); }
+    // The reads of viewDocOf: every statement of the IRI as subject (also of a shape subject: the closure has its shapes documents only) and
+    // the types and labels of its objects, in the same round.
+    const docReads = [...new Set(reads)].filter(v => !v.startsWith(BLANK) && !covered.read.has(v)).map(v => ({ termType: 'NamedNode' as const, value: v }));
+    const outs = new Set(docReads.map(t => t.value));
+    let seed: Group[] = [...groupsOf([
+        ...ends.flatMap(term => [
+            ...covered.outAll.has(nkey(term)) || outs.has(term.value) ? [] : [{ kind: 'out' as const, term }],
+            ...covered.inAll.has(nkey(term)) ? [] : [{ kind: 'in' as const, term }]
+        ]),
+        ...docReads.map(term => ({ kind: 'out' as const, term }))
+    ]), ...docReads.length ? [{ kind: 'objects' as const, terms: docReads }] : []];
+    for (const t of [...ends, ...docReads]) covered.outAll.add(nkey(t));
+    for (const t of ends) covered.inAll.add(nkey(t));
 
     for (let round = 0; ; round++) {
         const index = new PrefetchIndex([...viewQuads, ...prefetched], covered);

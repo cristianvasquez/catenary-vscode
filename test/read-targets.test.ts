@@ -14,11 +14,19 @@ import { manifestOf } from '../src/read/manifest';
 import { hiddenNeighborCounts } from '../src/read/neighbors';
 import { shapesModelOf, type ShapesModelRecords } from '../src/read/shapes';
 import { shapeTargetMatches } from '../src/read/targets';
-import { viewDocOf } from '../src/read/view';
+import type { ModelPort } from '../src/model/port';
+import { viewDocRead } from '../src/read/diagram';
+import type { ManifestRecords } from '../src/read/manifest';
+import { type ViewDocOptions, type ViewGraph, viewGraphsOf } from '../src/read/view';
 import { json, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
 
 const R = recorded('read-targets');
+
+/** The Doc of a view with the answer of its figure prefetch (viewDocRead): viewDocOf over the view statements and that answer. */
+async function docOf(port: ModelPort, views: Map<string, string>, iri: string, shapes: ShapesModelRecords, manifest: ManifestRecords, options: ViewDocOptions = {}, viewLabels?: Map<string, ViewGraph>) {
+    return viewDocRead({ port, modelFiles: shapes.files, shapes, manifest, views, viewLabels: viewLabels ?? await viewGraphsOf(port, views) }, iri, options);
+}
 
 const file = (name: string) => join(FIXTURE, name);
 /** Triples of the six fixture documents (port.test.ts). */
@@ -38,7 +46,7 @@ describe('shapeTargetMatches and hiddenNeighborCounts on test/fixtures/shapes', 
         files = modelFiles.filter(f => f !== manifest.file);
         now = await shapesModelOf(server.port(), modelFiles, manifest);
         model = now.index.model;
-        for (const v of VIEWS) views.set(v, (await viewDocOf(server.port(), viewFiles.views, v, now, manifest)).views[iriId(v)]);
+        for (const v of VIEWS) views.set(v, (await docOf(server.port(), viewFiles.views, v, now, manifest)).views[iriId(v)]);
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
@@ -148,7 +156,7 @@ ex:leaf rdfs:label "leaf" .
             for (const file of modelFiles) writeFileSync(file, `${prefixes}ex:root a ex:R ; ex:p [ a ex:Thing ] .`);
             otherServer = await startServer(folder, 6);
             const otherShapes = await shapesModelOf(otherServer.port(), modelFiles, {});
-            const view = (await viewDocOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
+            const view = (await docOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
             const result = await hiddenNeighborCounts(otherServer.port(), modelFiles, otherShapes, view);
             expect(result.get(iriId(`${EX}root`))?.out).toBe(2);
         } finally {
@@ -158,7 +166,7 @@ ex:leaf rdfs:label "leaf" .
     });
 
     test('hiddenNeighborCounts counts the blank neighbour as the old one did', async () => {
-        const view = (await viewDocOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
+        const view = (await docOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now, {})).views[iriId(viewIri)];
         const result = await hiddenNeighborCounts(server.port(), files, now, view);
         expect(result.get(iriId(`${EX}root`))?.out).toBe(1);
         expect(json([...result])).toEqual(recordedBlank('hidden blank'));

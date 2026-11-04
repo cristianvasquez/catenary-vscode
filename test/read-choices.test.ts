@@ -6,9 +6,8 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { iriId } from '../src/catenary/model/ids';
 import { expandChoices, instanceLabels, instancesNamed, memberOptions } from '../src/read/choices';
-import { type ModelContext, modelContextOf } from '../src/read/diagram';
+import { type ModelContext, modelContextOf, viewDocRead } from '../src/read/diagram';
 import { scopedDoc } from '../src/read/scope';
-import { viewDocOf } from '../src/read/view';
 import { json, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
 
@@ -28,7 +27,7 @@ describe('pickers on test/fixtures/shapes', () => {
 
     /** Every box and edge id of the view, and the elements of its cards. */
     const idsOf = async (viewIri: string) => {
-        const view = (await viewDocOf(ctx.port, ctx.views, viewIri, ctx.shapes, ctx.manifest, { viewLabels: ctx.viewLabels })).views[iriId(viewIri)];
+        const view = (await viewDocRead(ctx, viewIri)).views[iriId(viewIri)];
         return [...new Set([...view.boxes.map(b => b.id), ...view.boxes.flatMap(b => b.kind === 'card' ? [b.element] : []), ...view.edges.flatMap(e => e.id ? [e.id, e.relation] : [e.relation])])];
     };
 

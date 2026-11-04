@@ -1,7 +1,7 @@
-// The diagram of a view from turtle/query answers: the Doc (viewDocOf), the hidden neighbours, the notation figures, then toSchema (pure).
+// The diagram of a view from turtle/query answers: the figure prefetch (the answer of the view), the Doc (viewDocOf: the view text and the
+// answer), the hidden neighbours, then toSchema (pure).
 import { Parser, Writer } from 'n3';
 import { pathToFileURL } from 'node:url';
-import { viewDocFromText } from './view-text';
 import type { Doc } from '../catenary/model/doc';
 import { emptyDoc } from '../catenary/model/doc';
 import { type ElementSchema, TYPES } from '../catenary/model/diagram-schema';
@@ -16,7 +16,7 @@ import { applyPrefixes, manifestOf, type ManifestRecords } from './manifest';
 import { emptyPrefetch, figuresFromText, viewFiguresOf, type KeptPrefetch } from './figures';
 import { hiddenNeighborCounts } from './neighbors';
 import { shapesModelOf, type ShapesModelRecords } from './shapes';
-import { viewDocOf, viewGraphsOf, type ViewGraph } from './view';
+import { viewDocOf, type ViewDocOptions, viewGraphsOf, type ViewGraph } from './view';
 
 /**
  * What a read of the model needs. `modelFiles`: the model documents WITHOUT the manifest document (`shapes.files`): the manifest is not
@@ -57,8 +57,8 @@ export async function modelContextOf(window: ModelPort, documents: string[]): Pr
 /** `cardScale`: the card text scale of the canvas (Catenary's catenarySetCardScale); default 1. */
 export interface DiagramOptions { cardScale?: number; violations?: Violation[]; kept?: KeptPrefetch }
 
-/** The schema of a view, the Doc it is drawn from, and its notation figures (undefined: no view). */
-export interface Drawn { schema: ElementSchema; doc: Doc; figures?: ViewFigures; kept?: KeptPrefetch; phase?: 1 | 2; options?: DiagramOptions }
+/** The schema of a view, the Doc it is drawn from, and its notation figures (undefined: no view). `reads`: the misses of the Doc of phase 1 (viewDocOf). */
+export interface Drawn { schema: ElementSchema; doc: Doc; figures?: ViewFigures; kept?: KeptPrefetch; phase?: 1 | 2; options?: DiagramOptions; reads?: string[] }
 
 export interface DrawingUpdate { viewId: string; drawn: Drawn; base: Drawn }
 
@@ -97,26 +97,64 @@ export function drawFromText(ctx: ModelContext, viewId: string, viewText: string
     const iri = viewId.includes(':') ? viewId : idIri(viewId);
     if (!iri || !ctx.views.has(iri)) return { drawn: emptyDrawn(), misses: 0, kept };
     const quads = new Parser({ format: 'application/trig', baseIRI: pathToFileURL(ctx.views.get(iri)!).href }).parse(viewText);
-    const doc = viewDocFromText(ctx, iri, quads, retained);
+    const reads = new Set<string>();
+    const doc = viewDocOf(ctx, iri, quads, retained, { misses: reads });
     const figures = figuresFromText(iri, quads, retained);
     applyPrefixes(ctx.manifest);
     const schema = toSchema(doc, ctx.shapes.meta, iriId(iri), {
         cardScale: opts.cardScale ?? 1, violations: [], notation: figures,
         hidden: { neighbors: () => undefined, shapeSources: () => 0 }
     });
-    const drawn: Drawn = { schema, doc, figures, kept, phase: 1, options: opts };
+    const drawn: Drawn = { schema, doc, figures, kept, phase: 1, options: opts, reads: [...reads] };
     return { drawn, misses: figures.misses, kept };
 }
 
-/** Phase 2: model records, missed figure reads, hidden counts, targets and diagnostics. */
+/** At most this many prefetches for the misses of viewDocOf (the first reads what phase 1 missed; a second only for what that answer adds). */
+const DOC_PREFETCHES = 3;
+
+/**
+ * The figure prefetch of the view with the reads of viewDocOf, then viewDocOf over its answer, until the Doc has no miss. The view quads
+ * are those of the prefetch (the server's view file).
+ */
+async function answered(ctx: ModelContext, iri: string, file: string, kept: KeptPrefetch | undefined, reads: string[], options: ViewDocOptions = {}) {
+    for (let i = 1; ; i++) {
+        const figures = await viewFiguresOf(ctx.port, iri, file, ctx.shapes, ctx.modelFiles, [], kept, reads);
+        const misses = new Set<string>(), warnings: string[] = [];
+        const doc = viewDocOf(ctx, iri, figures.view, figures.kept, { ...options, warnings, misses });
+        kept = figures.kept;
+        if (!misses.size || i === DOC_PREFETCHES) {
+            options.warnings?.push(...warnings);
+            return { doc, figures };
+        }
+        reads = [...misses];
+    }
+}
+
+/**
+ * The Doc of a view for a caller without a drawing (scopedDoc, the pickers): the view statements, viewDocOf on `kept` (or nothing) for its
+ * misses, then the figure prefetch with those reads (answered).
+ */
+export async function viewDocRead(ctx: ModelContext, iri: string, options: ViewDocOptions & { kept?: KeptPrefetch } = {}): Promise<Doc> {
+    const file = ctx.views.get(iri);
+    if (!file) return emptyDoc();
+    const { kept, ...rest } = options;
+    const view = await ctx.port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [file]);
+    const reads = new Set<string>();
+    viewDocOf(ctx, iri, view, kept ?? emptyPrefetch(ctx.shapes), { elements: rest.elements, misses: reads });
+    return (await answered(ctx, iri, file, kept, [...reads], rest)).doc;
+}
+
+/** Phase 2: the figure prefetch with the misses of phase 1, the Doc from its answer, hidden counts, targets and diagnostics. */
 export async function completeDrawing(ctx: ModelContext, viewId: string, drawn: Drawn, _misses: number): Promise<Drawn> {
     const opts = { ...drawn.options, kept: drawn.kept };
     const { port, modelFiles, shapes, manifest, views } = ctx;
     const iri = viewId.includes(':') ? viewId : idIri(viewId), id = viewId.includes(':') ? iriId(viewId) : viewId;
-    if (!iri) return emptyDrawn();
-    const doc = await viewDocOf(port, views, iri, shapes, manifest, { viewLabels: ctx.viewLabels }), view = doc.views[id], file = view && views.get(view.uri);
-    if (!view || !file) return { ...emptyDrawn(), doc };
-    const [neighbors, figures] = await Promise.all([hiddenNeighborCounts(port, modelFiles, shapes, view), viewFiguresOf(port, view.uri, file, shapes, modelFiles, [], opts.kept)]);
+    const file = iri && views.get(iri);
+    if (!iri || !file) return emptyDrawn();
+    const { doc, figures } = await answered(ctx, iri, file, opts.kept, drawn.reads ?? []);
+    const view = doc.views[id];
+    if (!view || !views.get(view.uri)) return { ...emptyDrawn(), doc };
+    const neighbors = await hiddenNeighborCounts(port, modelFiles, shapes, view);
     // After the queries: another workspace can set the prefix table while this one waits; toSchema below is synchronous.
     applyPrefixes(manifest);
     const schemes = new Map((shapes.meta.schemes ?? []).map(x => [x.iri, x.label]));
