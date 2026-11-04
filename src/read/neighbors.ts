@@ -24,7 +24,7 @@ const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
 
 /**
  * The instance test and the home of each IRI (instancesAmong, homesAmong of rdf/quad-read.ts): rdf:type, rdfs:label and the SKOS membership
- * statements with their document (the IRIs per file, the blank nodes once over the folder: boundRows). A statement of a shape subject of its
+ * statements with their document (the IRIs per file: boundRows). A statement of a shape subject of its
  * document (the closure) is in the old shapes graph; its home is `<file URI>#shapes`. `types`: the rdf:type objects of each IRI, in every document.
  */
 export async function factsOf(port: ModelPort, files: string[], inShapes: InShapes, iris: Iterable<string>): Promise<{ instance: Set<string>; home: Map<string, string>; types: Map<string, string[]> }> {
@@ -70,12 +70,14 @@ export function inShapesOf(shapes: ShapesModelRecords): InShapes {
 }
 
 /**
- * The statements (with their document: `file` for the IRI ends, none for the blank-node ends, boundRows) whose subject or object is one of
- * `iris`, with an IRI or blank node at the other end, without rdf:type and rdfs:label.
+ * The statements per file whose subject or object is one of `iris`, without rdf:type and rdfs:label.
+ * `known` tests the other end in the same answer; `direction` identifies that end.
  */
 export async function statementsAround(port: ModelPort, files: string[], iris: string[]): Promise<(Row & { file?: string })[]> {
-    const ask = (end: 's' | 'o') => boundRows(port, files, end, iris.map(named), clause => `${PREFIXES} SELECT ?s ?p ?o WHERE {
-        ?s ?p ?o FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause} }`);
+    const ask = (end: 's' | 'o') => boundRows(port, files, end, iris.map(named), clause => `${PREFIXES} SELECT ?s ?p ?o ?known ?direction WHERE {
+        ?s ?p ?o FILTER (?p NOT IN (rdf:type, rdfs:label) && !isLiteral(?o)) ${clause}
+        BIND (EXISTS { ?${end === 's' ? 'o' : 's'} rdf:type|rdfs:label ?any } AS ?known)
+        BIND ("${end === 's' ? 'out' : 'in'}" AS ?direction) }`);
     return (await Promise.all([ask('s'), ask('o')])).flat();
 }
 
@@ -99,7 +101,7 @@ export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[]
         candidates.length && modelFiles.length ? statementsAround(port, modelFiles, candidates) : [],
     ]);
     const targets = shapeTargets.filter(m => m.node.termType === 'NamedNode' && !placedIris.has(m.node.value));
-    const others = around.flatMap(r => [r.s.value, r.o.value]);
+    const others = around.flatMap(r => [r.s.value, r.o.value]).filter(value => !value.startsWith('urn:skolem:blank:'));
     const facts = await factsOf(port, modelFiles, inShapes, [...candidates, ...targets.map(m => m.node.value), ...others]);
 
     const cards = new Map<string, string>();
@@ -116,21 +118,22 @@ export async function hiddenNeighborCounts(port: ModelPort, modelFiles: string[]
     for (const b of boxes(view, 'card')) for (const m of model.valueSets[b.element]?.members ?? []) shownIris.add(m.uri);
     const placedEdges = new Set(view.edges.filter(e => !e.hidden).map(e => e.relation));
     const neighbors = new Map<string, { in: Set<string>; out: Set<string> }>();
-    const consider = (doc: string | undefined, subject: Term, p: Term, object: Term, dir: 'in' | 'out') => {
+    const consider = (doc: string | undefined, subject: Term, p: Term, object: Term, dir: 'in' | 'out', known: boolean) => {
         const [self, other] = dir === 'out' ? [subject, object] : [object, subject];
         if (!cards.has(self.value) || other.termType !== 'NamedNode') return;
         // A relation is a statement of the graph of its subject: the model graph, or the shapes graph of a SKOS subject.
-        const owner = facts.home.get(subject.value) ?? MODEL, shapesPart = doc !== undefined && inShapes(doc, subject);
+        const owner = facts.home.get(subject.value) ?? MODEL;
+        const shapesPart = !subject.value.startsWith('urn:skolem:blank:') && doc !== undefined && inShapes(doc, subject);
         if (owner === MODEL ? shapesPart : !shapesPart || dataGraphIri(doc) + '#shapes' !== owner) return;
         if (shownIris.has(other.value) && placedEdges.has(relationId(subject as NamedNode, p as NamedNode, object as NamedNode))) return;
-        if (other.value === self.value || !facts.instance.has(other.value)) return;
+        const instance = other.value.startsWith('urn:skolem:blank:') ? known : facts.instance.has(other.value);
+        if (other.value === self.value || !instance) return;
         const o = neighbors.get(self.value) ?? neighbors.set(self.value, { in: new Set(), out: new Set() }).get(self.value)!;
         o[dir].add(other.value);
     };
     for (const r of around) {
         const doc = inShapes.documentOf(r);
-        consider(doc, r.s, r.p, r.o, 'out');
-        consider(doc, r.s, r.p, r.o, 'in');
+        consider(doc, r.s, r.p, r.o, r.direction.value as 'in' | 'out', r.known.value === 'true');
     }
     for (const [self, id] of cards) { const c = neighbors.get(self); if (c) out.set(id, { in: c.in.size, out: c.out.size }); }
     const shownShapes = new Set(boxes(view, 'card').map(c => c.element));

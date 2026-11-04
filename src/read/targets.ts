@@ -16,28 +16,16 @@ interface Context { port: ModelPort; files: string[]; declarations: Declaration[
 /** The prefix of the IRI that the port gives for a blank node (port.ts, toEngine of model/nquads.ts). */
 const BLANK = 'urn:skolem:blank:';
 
-/**
- * The clauses that bind `variable` to `nodes`: `VALUES` for the terms a query can name; for the blank nodes (the port gives them as IRIs,
- * a query cannot name them) `FILTER (isBlank(…))`, whose rows `keep` narrows to the wanted nodes. Place the clause after the pattern, in its
- * group. One query per clause.
- */
-export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean; blank: boolean }[] {
-    const blanks = new Set(nodes.filter(n => n.termType === 'NamedNode' && n.value.startsWith(BLANK)).map(n => n.value));
-    const named = [...new Set(nodes.filter(n => !blanks.has(n.value) || n.termType !== 'NamedNode').map(term))];
-    return [
-        ...named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true, blank: false }] : [],
-        ...blanks.size ? [{ clause: `FILTER (isBlank(?${variable}))`, keep: (t: Term | undefined) => !!t && t.termType === 'NamedNode' && blanks.has(t.value), blank: true }] : [],
-    ];
+/** Bind only addressable terms. A blank-node label cannot be used in another query. */
+export function bindings(variable: string, nodes: readonly FocusNode[]): { clause: string; keep: (t: Term | undefined) => boolean }[] {
+    const named = [...new Set(nodes.filter(n => !(n.termType === 'NamedNode' && n.value.startsWith(BLANK))).map(term))];
+    return named.length ? [{ clause: `VALUES ?${variable} { ${named.join(' ')} }`, keep: () => true }] : [];
 }
 
-/**
- * The rows of `query(clause)` for each clause of bindings(variable, nodes), narrowed by its `keep`: the VALUES clause per file of `files`
- * (byFile, each row with its `file`), the isBlank clause once over the whole folder (no `files`, no `file` on its rows): blank-node labels
- * agree only within one file set.
- */
+/** The VALUES query per file, with its source file on each row. */
 export async function boundRows(port: ModelPort, files: string[], variable: string, nodes: readonly FocusNode[], query: (clause: string) => string): Promise<(Row & { file?: string })[]> {
-    return (await Promise.all(bindings(variable, nodes).map(async ({ clause, keep, blank }) =>
-        (blank ? await port.select(query(clause)) : await byFile(port, files, query(clause))).filter(r => keep(r[variable]))))).flat();
+    return (await Promise.all(bindings(variable, nodes).map(async ({ clause }) =>
+        await byFile(port, files, query(clause))))).flat();
 }
 
 const DECLARED: Record<string, TargetKind> = Object.fromEntries((['targetClass', 'targetNode', 'targetSubjectsOf', 'targetObjectsOf'] as const).map(k => [SH + k, k]));
@@ -72,19 +60,7 @@ async function targetMatches(c: Context, selection: TargetSelection): Promise<Ta
     const shapes = selection.shapes && new Set(selection.shapes);
     const declarations = c.declarations.filter(d => !shapes || shapes.has(d.shape));
     const rows: { shape: string; node: FocusNode; kind: TargetKind; target: FocusNode }[] = [];
-    const values = (kinds: TargetKind[]) => declarations.filter(d => kinds.includes(d.kind)).flatMap(d => {
-        const t = targetTerm(d.target);
-        return t ? [`(${iri(d.shape)} ${JSON.stringify(d.kind)} ${t})`] : [];
-    });
-    const branches = [
-        [['targetClass', 'implicitClass'], '?node rdf:type/rdfs:subClassOf* ?target .'],
-        [['targetSubjectsOf'], '?node ?target ?object .'],
-        [['targetObjectsOf'], '?subject ?target ?node .'],
-    ] as const;
-    const groups = branches.flatMap(([kinds, pattern]) => {
-        const v = values([...kinds]);
-        return v.length ? [`{ VALUES (?shape ?kind ?target) { ${v.join(' ')} } ${pattern} }`] : [];
-    });
+    const groups = targetGroups(declarations, 'node');
     const clauses = selection.nodes ? bindings('node', selection.nodes) : [{ clause: '', keep: () => true }];
     if (groups.length) for (const { clause, keep } of clauses) {
         const found = (await c.port.select(`PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}> SELECT ?shape ?node ?kind ?target WHERE {
@@ -109,62 +85,46 @@ async function targetMatches(c: Context, selection: TargetSelection): Promise<Ta
     return [...result.values()].sort((a, b) => a.shape.localeCompare(b.shape) || JSON.stringify(a.node).localeCompare(JSON.stringify(b.node)));
 }
 
-/** The values of `predicates` from each of `nodes` (reverse: to each of `nodes`): one CONSTRUCT on the port. */
-async function traverse(c: Context, nodes: readonly FocusNode[], predicates: readonly string[], reverse: boolean): Promise<{ node: FocusNode; predicate: string; value: FocusNode }[]> {
-    const byTerm = new Map(nodes.map(n => [term(n), n]));
-    const pattern = reverse ? '?value ?p ?node' : '?node ?p ?value';
-    const out: { node: FocusNode; predicate: string; value: FocusNode }[] = [];
-    for (const { clause, keep } of bindings('node', nodes)) for (const q of await c.port.construct(`CONSTRUCT { ${pattern} } WHERE {
-        VALUES ?p { ${predicates.map(iri).join(' ')} } ${pattern} ${clause} }`, c.files)) {
-        const [n, v] = reverse ? [q.object, q.subject] : [q.subject, q.object];
-        if (!keep(n) || (v.termType !== 'NamedNode' && v.termType !== 'Literal')) continue;
-        const key = targetTerm(n), node = key && byTerm.get(key);
-        if (node) out.push({ node, predicate: q.predicate.value, value: focus(v as QueryTerm) });
+/** Target patterns binding the requested node variable, optionally including targetNode origins. */
+function targetGroups(declarations: Declaration[], variable: string, includeNodes = false): string[] {
+    const values = (kinds: TargetKind[]) => declarations.filter(d => kinds.includes(d.kind)).flatMap(d => {
+        const t = targetTerm(d.target);
+        return t ? [`(${iri(d.shape)} ${JSON.stringify(d.kind)} ${t})`] : [];
+    });
+    const branches = [
+        [['targetClass', 'implicitClass'], '?node rdf:type/rdfs:subClassOf* ?target .'],
+        [['targetSubjectsOf'], '?node ?target ?object .'],
+        [['targetObjectsOf'], '?subject ?target ?node .'],
+    ] as const;
+    const groups = branches.flatMap(([kinds, pattern]) => {
+        const v = values([...kinds]);
+        return v.length ? [`{ VALUES (?shape ?kind ?target) { ${v.join(' ')} } ${pattern} }`] : [];
+    });
+    if (includeNodes) {
+        const nodes = declarations.filter(d => d.kind === 'targetNode').flatMap(d => {
+            const t = targetTerm(d.target);
+            return t ? [`(${iri(d.shape)} ${t})`] : [];
+        });
+        if (nodes.length) groups.push(`{ VALUES (?shape ?node) { ${nodes.join(' ')} } }`);
     }
-    return out;
+    return groups.map(g => g.replaceAll('?node', `?${variable}`));
 }
 
-/** applicableMatches of shacl/backend/node.ts with an asynchronous select and traverse. Applicable means checked, not conforming. */
+/** Full reference chains keep every intermediate node inside one answer. */
+function chainPattern(chain: NodeReference[], reverse: boolean): string {
+    return chain.map((ref, i) => {
+        const previous = i ? `?n${i}` : '?origin', next = `?n${i + 1}`;
+        return ref.path ? `${reverse ? next : previous} ${ref.path} ${reverse ? previous : next} .` : `BIND (${previous} AS ${next})`;
+    }).join(' ');
+}
+
+/** Applicable means checked, not conforming. */
 async function applicableMatches(c: Context, selection: TargetSelection): Promise<TargetMatch[]> {
     if (selection.nodes?.length === 0 || selection.shapes?.length === 0) return [];
     const refs = c.refs;
-    const paths = new Map<string, FocusNode[]>();
-    const fetch = async (wanted: readonly { ref: NodeReference; node: FocusNode }[], reverse: boolean) => {
-        const byPath = new Map<string, Map<string, FocusNode>>();
-        for (const { ref, node } of wanted) {
-            if (!ref.path || paths.has(JSON.stringify([ref.path, node, reverse]))) continue;
-            const nodes = byPath.get(ref.path) ?? byPath.set(ref.path, new Map()).get(ref.path)!;
-            nodes.set(JSON.stringify(node), node);
-        }
-        const simple = [...byPath].filter(([path]) => /^<[^<>]*>$|^\(<[^<>]*>(?:\|<[^<>]*>)+\)$/.test(path));
-        const nodes = [...new Map(simple.flatMap(([, group]) => [...group].map(([key, node]) => [key, node] as const))).values()];
-        const predicates = new Map<string, string[]>();
-        for (const [path, group] of simple) {
-            for (const predicate of path.replace(/^\(|\)$/g, '').split('|').map(p => p.slice(1, -1)))
-                predicates.set(predicate, [...predicates.get(predicate) ?? [], path]);
-            for (const node of group.values()) paths.set(JSON.stringify([path, node, reverse]), []);
-        }
-        if (nodes.length) for (const row of await traverse(c, nodes, [...predicates.keys()], reverse)) {
-            for (const path of predicates.get(row.predicate) ?? []) {
-                const key = JSON.stringify([path, row.node, reverse]), values = paths.get(key);
-                if (values && !values.some(v => JSON.stringify(v) === JSON.stringify(row.value))) values.push(row.value);
-            }
-        }
-        for (const [path] of simple) byPath.delete(path);
-        for (const [path, nodes] of byPath) {
-            for (const node of nodes.values()) paths.set(JSON.stringify([path, node, reverse]), []);
-            const seen = new Set<string>();
-            for (const { clause, keep } of bindings('node', [...nodes.values()])) for (const r of (await c.port.select(`SELECT ?node ?value WHERE {
-                ${reverse ? `?value ${path} ?node` : `?node ${path} ?value`} ${clause} }`, c.files)).filter(r => keep(r.node))) {
-                const node = focus(r.node as QueryTerm), value = focus(r.value as QueryTerm), key = JSON.stringify([path, node, reverse]);
-                if (seen.has(key + JSON.stringify(value))) continue;
-                seen.add(key + JSON.stringify(value));
-                paths.get(key)!.push(value);
-            }
-        }
-    };
-    const values = (ref: NodeReference, node: FocusNode, reverse: boolean): FocusNode[] =>
-        ref.path ? paths.get(JSON.stringify([ref.path, node, reverse]))! : [node];
+    const prefixes = `PREFIX rdf: <${RDF}> PREFIX rdfs: <${RDFS}>`;
+    const variables = (chain: NodeReference[]) => chain.map((_, i) => `?n${i + 1}`).join(' ');
+    const pattern = (shape: string, variable: string) => targetGroups(c.declarations.filter(d => d.shape === shape), variable, true).join(' UNION ');
     const reason = (ref: NodeReference, sourceNode: FocusNode): TargetReason => ({
         kind: 'node', target: { termType: 'NamedNode', value: ref.target }, sourceShape: ref.source, sourceNode,
         ...(ref.property ? { property: ref.property } : {})
@@ -179,22 +139,32 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
         for (const direct of await targetMatches(c, selection)) add(direct.shape, direct.node, direct.reasons);
         const targets = [...new Set(refs.map(r => r.target))].filter(s => !selection.shapes || selection.shapes.includes(s));
         const direct = new Map<string, boolean>();
-        type State = { origin: FocusNode; target: string; shape: string; node: FocusNode; first?: TargetReason };
-        let level: State[] = selection.nodes.flatMap(origin => targets.map(target => ({ origin, target, shape: target, node: origin })));
+        type State = { origin: FocusNode; target: string; shape: string; node: FocusNode; chain: NodeReference[]; first?: TargetReason };
+        let level: State[] = selection.nodes.filter(n => n.termType === 'NamedNode' && !n.value.startsWith(BLANK))
+            .flatMap(origin => targets.map(target => ({ origin, target, shape: target, node: origin, chain: [] })));
         const seen = new Set<string>();
         while (level.length) {
-            level = level.filter(state => { const key = JSON.stringify(state); return !seen.has(key) && !!seen.add(key); });
-            const open = level.filter(s => s.first && !direct.has(JSON.stringify([s.shape, s.node])));
-            if (open.length) {
-                const shapes = [...new Set(open.map(s => s.shape))], nodes = [...new Map(open.map(s => [JSON.stringify(s.node), s.node])).values()];
-                for (const s of open) direct.set(JSON.stringify([s.shape, s.node]), false);
-                for (const m of await targetMatches(c, { nodes, shapes })) direct.set(JSON.stringify([m.shape, m.node]), true);
-            }
+            level = level.filter(({ chain: _chain, ...state }) => { const key = JSON.stringify(state); return !seen.has(key) && !!seen.add(key); });
             for (const s of level) if (s.first && direct.get(JSON.stringify([s.shape, s.node]))) add(s.target, s.origin, [s.first]);
-            const steps = level.flatMap(state => refs.filter(r => r.target === state.shape).map(ref => ({ state, ref, node: state.node })));
-            await fetch(steps, true);
-            level = steps.flatMap(({ state, ref }) => values(ref, state.node, true).map(parent =>
-                ({ origin: state.origin, target: state.target, shape: ref.source, node: parent, first: state.first ?? reason(ref, parent) })));
+            const steps = new Map<string, { state: State; ref: NodeReference; chain: NodeReference[] }>();
+            for (const state of level) for (const ref of refs.filter(r => r.target === state.shape)) {
+                const chain = [...state.chain, ref];
+                steps.set(JSON.stringify([state.origin, state.target, chain]), { state, ref, chain });
+            }
+            const next: State[] = [];
+            for (const { state, ref, chain } of steps.values()) {
+                const endpoint = `n${chain.length}`, target = pattern(ref.source, endpoint);
+                const rows = await c.port.select(`${prefixes} SELECT DISTINCT ?origin ${variables(chain)} ?direct WHERE {
+                    VALUES ?origin { ${term(state.origin)} } ${chainPattern(chain, true)}
+                    BIND (${target ? `EXISTS { ${target} }` : 'false'} AS ?direct) }`, c.files);
+                for (const row of rows) {
+                    const parent = focus(row[endpoint] as QueryTerm), first = reason(chain[0], focus(row.n1 as QueryTerm));
+                    const key = JSON.stringify([ref.source, parent]);
+                    direct.set(key, direct.get(key) === true || row.direct.value === 'true');
+                    next.push({ origin: state.origin, target: state.target, shape: ref.source, node: parent, first, chain });
+                }
+            }
+            level = next;
         }
     } else if (selection.shapes) {
         const ancestors = new Set(selection.shapes);
@@ -202,14 +172,27 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
             changed = false;
             for (const ref of refs) if (ancestors.has(ref.target) && !ancestors.has(ref.source)) { ancestors.add(ref.source); changed = true; }
         }
-        let level = await targetMatches(c, { shapes: [...ancestors] });
+        type State = TargetMatch & { originShape: string; chain: NodeReference[] };
+        let level: State[] = (await targetMatches(c, { shapes: [...ancestors] })).map(m => ({ ...m, originShape: m.shape, chain: [] }));
         const seen = new Set<string>();
         while (level.length) {
             for (const state of level) add(state.shape, state.node, state.reasons);
             level = level.filter(state => { const key = JSON.stringify([state.shape, state.node]); return !seen.has(key) && !!seen.add(key); });
-            const steps = level.flatMap(state => refs.filter(r => r.source === state.shape && ancestors.has(r.target)).map(ref => ({ state, ref, node: state.node })));
-            await fetch(steps, false);
-            level = steps.flatMap(({ state, ref }) => values(ref, state.node, false).map(node => ({ shape: ref.target, node, reasons: [reason(ref, state.node)] })));
+            const steps = new Map<string, { originShape: string; chain: NodeReference[]; ref: NodeReference }>();
+            for (const state of level) for (const ref of refs.filter(r => r.source === state.shape && ancestors.has(r.target))) {
+                const chain = [...state.chain, ref];
+                steps.set(JSON.stringify([state.originShape, chain]), { originShape: state.originShape, chain, ref });
+            }
+            const next: State[] = [];
+            for (const { originShape, chain, ref } of steps.values()) {
+                const target = pattern(originShape, 'origin');
+                if (!target) continue;
+                const rows = await c.port.select(`${prefixes} SELECT DISTINCT ?shape ?origin ${variables(chain)} WHERE {
+                    { ${target} } ${chainPattern(chain, false)} }`, c.files);
+                for (const row of rows) next.push({ shape: ref.target, node: focus(row[`n${chain.length}`] as QueryTerm),
+                    reasons: [reason(ref, focus(row[chain.length === 1 ? 'origin' : `n${chain.length - 1}`] as QueryTerm))], originShape, chain });
+            }
+            level = next;
         }
     }
     return [...found.values()].filter(m => !selection.shapes || selection.shapes.includes(m.shape))
@@ -226,8 +209,8 @@ const collator = new Intl.Collator();
  */
 export async function shapeTargetMatches(port: ModelPort, modelFiles: string[], shapes: ShapesModelRecords, selection: TargetSelection): Promise<TargetMatch[]> {
     const closure = shapes.closure;
-    // The rows of readNodeReferences: every shapes statement, from the closure, not from a query.
-    const rows = closure.map(q => ({ s: q.subject, p: q.predicate, o: q.object }) as Record<string, QueryTerm>);
+    // Read reference structure in one answer: the per-file closure can contain blank labels from different file sets.
+    const rows = modelFiles.length ? await port.select('SELECT ?s ?p ?o WHERE { ?s ?p ?o }', modelFiles) : [];
     const refs = closure.length ? readNodeReferences({ select: () => rows }, ['urn:catenary:closure']) : [];
     const c: Context = { port, files: modelFiles, declarations: declarationsOf(closure), refs };
     const nodes = selection.nodes && [...new Map(selection.nodes.map(n => [term(n), n])).values()];
