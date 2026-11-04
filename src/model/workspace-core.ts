@@ -10,7 +10,7 @@ import { runCommand, type ViewEdit, type ViewInput, viewFileProblem } from '../e
 import { fail, type Result } from '../edit/ops';
 import type { ViewSource } from '../node/glsp/view-session';
 import type { GraphResult } from '../node/turtle-api';
-import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDrawn, modelContextOf } from '../read/diagram';
+import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, drawFromText, completeDrawing, emptyDrawn, modelContextOf, type DrawingUpdate } from '../read/diagram';
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
 import type { KeptPrefetch } from '../read/figures';
@@ -58,7 +58,8 @@ export abstract class WorkspaceCore implements ViewSource {
     protected seq = 0;
     protected diagnosticsSeq = 0;
     protected first?: Promise<void>;
-    protected readonly listeners = new Set<() => void>();
+    protected readonly listeners = new Set<(update?: DrawingUpdate) => void>();
+    private drawingEpoch = 0;
     /** The last command started: the next command reads the views after its edits. */
     protected commands: Promise<unknown> = Promise.resolve();
 
@@ -90,19 +91,20 @@ export abstract class WorkspaceCore implements ViewSource {
     protected abstract log(line: string): void;
     protected abstract warn(message: string): void;
 
-    onDidChange(listener: () => void): Releasable {
+    onDidChange(listener: (update?: DrawingUpdate) => void): Releasable {
         this.listeners.add(listener);
         return { dispose: () => this.listeners.delete(listener) };
     }
 
-    protected fire(): void {
-        for (const listener of [...this.listeners]) listener();
+    protected fire(update?: DrawingUpdate): void {
+        for (const listener of [...this.listeners]) listener(update);
     }
 
     protected redrawTimer: ReturnType<typeof setTimeout> | undefined;
 
     /** A view document changed (a canvas edit, an undo, a text editor): the sessions draw again after REDRAW_MS without a change. */
     viewChanged(): void {
+        this.drawingEpoch++;
         clearTimeout(this.redrawTimer);
         this.redrawTimer = setTimeout(() => this.fire(), REDRAW_MS);
     }
@@ -207,7 +209,22 @@ export abstract class WorkspaceCore implements ViewSource {
         if (!ctx) return emptyDrawn();
         const generation = this.generation, key = viewIriOf(viewId) ?? viewId;
         const entry = this.keptFigures.get(key);
-        const drawn = await diagramOf(ctx, viewId, { ...opts, kept: entry?.generation === generation ? entry.kept : undefined });
+        const kept = entry?.generation === generation ? entry.kept : undefined;
+        const epoch = this.drawingEpoch;
+        const file = ctx.views.get(key), document = file && await this.documentOf(file, false);
+        if (document) {
+            const phase1 = drawFromText(ctx, viewId, document.text, kept, opts);
+            setTimeout(() => {
+                void completeDrawing(ctx, viewId, phase1.drawn, phase1.misses).then(async drawn => {
+                    const current = await this.documentOf(file!, false);
+                    if (generation !== this.generation || epoch !== this.drawingEpoch || current?.version !== document.version || current.text !== document.text) return;
+                    if (drawn.kept) this.keptFigures.set(key, { generation, kept: drawn.kept });
+                    this.fire({ viewId, drawn, base: phase1.drawn });
+                }).catch(e => this.log(`workspace ${this.name}: drawing completion: ${String(e)}`));
+            }, 0);
+            return phase1.drawn;
+        }
+        const drawn = await diagramOf(ctx, viewId, { ...opts, kept });
         // An old draw must not overwrite the state of a newer model generation.
         if (drawn.kept && generation === this.generation) this.keptFigures.set(key, { generation, kept: drawn.kept });
         return drawn;

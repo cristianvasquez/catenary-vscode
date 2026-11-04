@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
+import { diagramOf, drawFromText, completeDrawing, keepGeometry, type ModelContext, modelContextOf } from '../src/read/diagram';
 import type { ElementSchema } from '../src/catenary/model/diagram-schema';
 import { iriId } from '../src/catenary/model/ids';
 import { hiddenNeighborCounts } from '../src/read/neighbors';
@@ -47,6 +47,32 @@ describe('the recorded schemas of the old pipeline', () => {
         // The model view keeps its shapes; its reference to the instances view (and the arrow to it) is gone with that view.
         const shapes = (elements: ElementSchema[]) => elements.filter(e => e.type === 'node:shape').map(e => e.id);
         expect(shapes((await diagramOf(without, modelIri)).schema.children!)).toEqual(shapes(model));
+    });
+});
+
+describe('two-phase drawing', () => {
+    test.each([modelIri, instancesIri])('%s: phase 1 sends zero requests and completion equals the recorded schema', async iri => {
+        const full = await diagramOf(ctx, iri);
+        let requests = 0;
+        const port = {
+            select: (...args: Parameters<ModelContext['port']['select']>) => { requests++; return ctx.port.select(...args); },
+            construct: (...args: Parameters<ModelContext['port']['construct']>) => { requests++; return ctx.port.construct(...args); },
+            ask: (...args: Parameters<ModelContext['port']['ask']>) => { requests++; return ctx.port.ask(...args); }
+        };
+        const text = readFileSync(ctx.views.get(iri)!, 'utf8');
+        const first = drawFromText({ ...ctx, port }, iri, text, full.kept);
+        expect(requests).toBe(0);
+        const geometry = (schema: ElementSchema) => schema.children!.map(e => ({ id: e.id, position: e.position, size: e.size, vertices: e.vertices }));
+        expect(geometry(first.drawn.schema)).toEqual(geometry(full.schema));
+        const final = await completeDrawing({ ...ctx, port }, iri, first.drawn, first.misses);
+        expect(JSON.stringify(final.schema)).toBe(R(iri));
+        expect(keepGeometry(final.schema, first.drawn.schema)).toEqual(final.schema);
+    });
+
+    test('completion copies layout by id, not by element order', () => {
+        const base: ElementSchema = { type: 'graph', id: 'root', children: [{ type: 'node:card', id: 'a', position: { x: 9, y: 8 }, size: { width: 700, height: 400 } }, { type: 'edge:relation', id: 'b', vertices: [{ x: 11, y: 12 }] }] };
+        const final: ElementSchema = { type: 'graph', id: 'root', children: [{ type: 'edge:relation', id: 'b', vertices: [] }, { type: 'node:card', id: 'a', name: 'updated', position: { x: 0, y: 0 }, size: { width: 1, height: 1 } }] };
+        expect(keepGeometry(final, base).children).toEqual([{ ...final.children![0], vertices: base.children![1].vertices }, { ...final.children![1], position: base.children![0].position, size: base.children![0].size }]);
     });
 });
 

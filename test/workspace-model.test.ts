@@ -24,6 +24,7 @@ vi.mock('vscode', () => {
         EventEmitter: class { event = disposable; fire() {} dispose() {} },
         RelativePattern: class {},
         workspace: {
+            textDocuments: [],
             createFileSystemWatcher: () => ({ dispose() {}, onDidChange: disposable, onDidCreate: disposable, onDidDelete: disposable }),
             onDidSaveTextDocument: disposable,
             onDidChangeTextDocument: (listener: (e: TextDocumentChangeEvent) => void) => { host.changes.push(listener); return disposable(); },
@@ -32,12 +33,14 @@ vi.mock('vscode', () => {
             openTextDocument: async (uri: { path: string }) => host.document(uri.path),
             applyEdit: async (edit: { replaced: unknown[] }) => { host.applied.push(edit.replaced); return true; }
         },
-        Uri: { parse: (path: string) => ({ path }) },
+        Uri: { parse: (path: string) => ({ path }), file: (path: string) => ({ path, toString: () => pathToFileURL(path).href }) },
         Range: class { constructor(readonly a: number, readonly b: number, readonly c: number, readonly d: number) {} },
         WorkspaceEdit: class { replaced: unknown[] = []; replace(uri: unknown, _range: unknown, text: string) { this.replaced.push({ uri, text }); } },
         languages: { onDidChangeDiagnostics: disposable, getDiagnostics: () => [] }
     };
 });
+import { ViewSession, ViewState } from '../src/node/glsp/view-session';
+import type { Drawn } from '../src/read/diagram';
 import { WorkspaceModel } from '../src/node/workspace-model';
 import { FIXTURE, startServer } from './server';
 
@@ -128,17 +131,21 @@ test('a canvas command is one edit of the open view document; the next draw read
         query.mockClear();
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(at);
         const secondDrawQueries = query.mock.calls.length;
+        expect(secondDrawQueries).toBe(0);
         expect(secondDrawQueries).toBeLessThan(firstDrawQueries);
 
         // A text change of the document (a text editor, an undo) is drawn too.
         fake.type(uri, readFileSync(file, 'utf8'));
+        model.viewChanged();
+        query.mockClear();
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
+        expect(query.mock.calls.length).toBe(0);
 
         // A successful model refresh invalidates the kept statements through the generation check.
         await model.refresh();
         query.mockClear();
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
-        expect(query.mock.calls.length).toBe(firstDrawQueries);
+        expect(query.mock.calls.length).toBe(0);
 
         // A text change between the read of the document and the edit wins over the command.
         fake.beforeEdit = () => fake.type(uri, readFileSync(file, 'utf8') + '\n');
@@ -151,6 +158,44 @@ test('a canvas command is one edit of the open view document; the next draw read
         model.dispose();
         host.files = [];
         host.folder = undefined;
+        await server.stop();
+    }
+}, 20000);
+
+test('the session submits the text model before delayed requests answer, then a content update', async () => {
+    const server = await startServer(FIXTURE, 282);
+    const folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
+    const model = new WorkspaceModel(folder, () => apiOf(server), () => undefined);
+    const fake = fakeHost(model, server);
+    const iri = 'urn:name:Bookshop%20model', vid = iriId(iri), file = join(FIXTURE, 'model.trig');
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    let answered = 0, started = 0;
+    const sent: Drawn[] = [];
+    const session = new ViewSession(), state = new ViewState();
+    Object.assign(state, { store: model });
+    Object.assign(session, { state, submission: { submitModel: async () => { sent.push(state.drawn); return []; } }, dispatcher: { dispatchAll: async () => {} }, sessions: { addListener: () => {} } });
+    try {
+        await model.refresh();
+        // Prime the retained index through the no-editor path.
+        await model.diagram(vid, {});
+        fake.open.add(file);
+        const query = server.query.bind(server);
+        vi.spyOn(server, 'query').mockImplementation(async (...args) => { started++; await gate; const result = await query(...args); answered++; return result; });
+        session.start(vid);
+        model.viewChanged();
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+        expect(sent[0].phase).toBe(1);
+        expect(answered).toBe(0);
+        await vi.waitFor(() => expect(started).toBeGreaterThan(0));
+        const layout = sent[0].schema.children!.map(e => [e.id, e.position, e.size, e.vertices]);
+        release();
+        await vi.waitFor(() => expect(sent).toHaveLength(2));
+        expect(sent[1].phase).toBe(2);
+        expect(sent[1].schema.children!.map(e => [e.id, e.position, e.size, e.vertices])).toEqual(layout);
+    } finally {
+        release();
+        model.dispose();
         await server.stop();
     }
 }, 20000);

@@ -13,7 +13,7 @@ import { Doc, View, placementOfId } from '../../catenary/model/doc';
 import type { Choices } from '../../catenary/model/prompts';
 import type { Result } from '../../edit/ops';
 import type { Violation } from '../../catenary/model/validation';
-import { type DiagramOptions, type Drawn, emptyDrawn } from '../../read/diagram';
+import { type DiagramOptions, type Drawn, type DrawingUpdate, emptyDrawn, keepGeometry } from '../../read/diagram';
 
 /** The workspace that the sessions read and edit. */
 export interface ViewSource {
@@ -24,7 +24,7 @@ export interface ViewSource {
     expandChoices(viewId: string, from: string, dir: 'in' | 'out' | 'targets'): Promise<Choices | undefined>;
     memberOptions(viewId: string, collection: string): Promise<string[]>;
     instancesNamed(text: string): Promise<string[]>;
-    onDidChange(listener: () => void): { dispose(): void };
+    onDidChange(listener: (update?: DrawingUpdate) => void): { dispose(): void };
     /** One edit of the view `viewId` (element id): a text edit of its document; refused when no editor has the view open. */
     execute(viewId: string, command: ViewCommand): Promise<Result<unknown>>;
     /** The last clip of a copy or cut in any canvas of the folder: each view editor is its own webview (handlers.ts PasteHandler). */
@@ -76,7 +76,11 @@ export class ViewSession {
         this.state.viewId = viewId;
         if (this.started) return;
         this.started = true;
-        const listener = this.store.onDidChange(() => { if (!this.muted) void this.refresh(); });
+        const listener = this.store.onDidChange(update => {
+            if (this.muted) return;
+            if (update) { void this.complete(update); return; }
+            void this.refresh();
+        });
         const sessionListener = {
             sessionDisposed: () => {
                 listener.dispose();
@@ -84,6 +88,16 @@ export class ViewSession {
             }
         };
         this.sessions.addListener(sessionListener, this.clientId);
+    }
+
+    /** A completion belongs to exactly the phase-1 model that this session still shows. */
+    protected async complete(update: DrawingUpdate): Promise<void> {
+        if (update.viewId !== this.viewId || this.state.drawn !== update.base) return;
+        try {
+            this.state.drawn = { ...update.drawn, schema: keepGeometry(update.drawn.schema, this.state.drawn.schema) };
+            const actions = await this.submission.submitModel('operation');
+            await this.dispatcher.dispatchAll(actions);
+        } catch (e) { console.error('[catenary] completion failed', e); }
     }
 
     /** Computes the diagram of the view into the state. */

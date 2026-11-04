@@ -192,6 +192,8 @@ export type PrefetchedFigures = ViewFigures & { misses: number };
 
 /** Statements and coverage retained for one view within one model generation. View statements are read fresh on each draw. */
 export interface KeptPrefetch {
+    /** Model records from the completed draw; never view geometry. */
+    records?: Pick<import('../catenary/model/doc').Doc, 'instances' | 'relations'>;
     quads: NQuad[];
     covered: Coverage;
     view: NQuad[];
@@ -218,6 +220,21 @@ const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.objec
 export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch): Promise<PrefetchedFigures & { kept: KeptPrefetch }> {
     const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept);
     return { ...prefetch.figures(prefetch.view, also), kept: prefetch.kept };
+}
+
+/** Derive against retained facts and current view text without a port or a request. */
+export function figuresFromText(viewIri: string, now: Iterable<Quad>, kept: KeptPrefetch, also: NTerm[] = []): PrefetchedFigures {
+    const current = nquads(now), present = new Set(current.map(tripleOf));
+    const gone = new Set(kept.view.map(tripleOf).filter(k => !present.has(k)));
+    const index = new PrefetchIndex([...current, ...kept.quads.filter(q => !gone.has(tripleOf(q)))], kept.covered);
+    const terms = [...[...placementsOf(new TripleIndex(current), viewIri).keys()].map(keyTerm), ...also].filter(figurable);
+    const notes = readNotations();
+    return { ...viewFigures(index, notes, viewIri, deriveFigures(index, notes, viewIri, terms, new Map())), misses: index.missed.size };
+}
+
+/** Empty retained index for a view's first text draw. */
+export function emptyPrefetch(shapes?: ShapesModelRecords): KeptPrefetch {
+    return { quads: nquads(shapes?.closure ?? []), view: [], covered: { outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set() } };
 }
 
 /** At most this many rounds of miss-driven queries. */
@@ -283,15 +300,6 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
     return {
         view,
         kept: { quads: prefetched.filter(q => !served.has(tripleOf(q))), covered, view: viewQuads },
-        figures(now, also = []) {
-            const current = nquads(now), kept = new Set(current.map(tripleOf));
-            // The view statements can also be in (c) and (e) (a read of the view IRI): a statement that left the view leaves the index.
-            const gone = new Set([...served].filter(k => !kept.has(k)));
-            const index = new PrefetchIndex([...current, ...gone.size ? prefetched.filter(q => !gone.has(tripleOf(q))) : prefetched], covered);
-            const terms = [...[...placementsOf(new TripleIndex(current), viewIri).keys()].map(keyTerm), ...also].filter(figurable);
-            const derivation = deriveFigures(index, notes, viewIri, terms, new Map());
-            const result = viewFigures(index, notes, viewIri, derivation);
-            return { ...result, misses: index.missed.size };
-        }
+        figures: (now, also = []) => figuresFromText(viewIri, now, { quads: prefetched, covered, view: viewQuads }, also)
     };
 }
