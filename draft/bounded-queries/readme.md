@@ -71,10 +71,18 @@ Measured on EP-catenary-dprod after round 6 (main a259b5e, maxRows 100000): setu
 
 Open after round 6:
 
-- No document provenance in the answer: a relation, or a type or label triple, present in both a shapes document and a data document is classed as shapes only, so the model side loses it (roborev 2341 on 1nkh, 2342 on a1rw, 2345 on r49d, 2348 on 5p5s). The fork's turtle/query has no named graphs. Exact fix: per-kind reads (one more request per round, shapes files and data files) or a fork feature that reports the file of a row. Decision for the user.
+- No document provenance in the answer: a relation, or a type or label triple, present in both a shapes document and a data document is classed as shapes only, so the model side loses it (roborev 2341 on 1nkh, 2342 on a1rw, 2345 on r49d; 2348 on 5p5s is fixed by q9jg in round 7). The fork's turtle/query has no named graphs. Exact fix: per-kind reads (one more request per round, shapes files and data files) or a fork feature that reports the file of a row. Decision for the user.
 - The vocabulary read at setup still loads whole SKOS schemes; on a large workspace the server setting `turtle.query.maxRows` must be raised (0 = no limit) or the answer is truncated.
 - The largest request is the target badge COUNT query: 96,840 characters for urn:name:unnamed%20view%201-5 (VALUES of shape, kind, target and the `NOT IN` list of placed IRIs).
-- test/workspace-model.test.ts: a flaky unhandled `write EPIPE` / `ERR_STREAM_DESTROYED` (a JSON-RPC write after the test server stops); all its tests pass; seen in about 1 of 9 `pnpm verify` runs.
+
+## Round 7 (merged)
+
+| Kata | Scope | State |
+|---|---|---|
+| q9jg | `facts-of.ts`: the type and label of a shape-subject object of a shape subject's model statement are read by document kind, `exact` rows; regression test | merged (c90290f, roborev 2351 pass): fixture `addToView` 2, `showAsEdge` 1 requests; one more request when such an object exists |
+| vjva | `test/server.ts`: after `stop()` a request rejects, `open`/`change` are no-ops, a notification rejection is handled | merged (394c760, roborev 2352 pass): the EPIPE did not reproduce in 20 runs before or after, so the guard is not a confirmed root-cause fix |
+
+`pnpm verify` on main 34a0dba: 27 files, 275 tests.
 
 ## Agent contract (short)
 
