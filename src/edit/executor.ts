@@ -1,4 +1,4 @@
-// One view command: document quads, scoped model facts and reusable figure prefetch, then executeCommand in memory.
+// One view command: document quads, the figure prefetch from the kept answers, the facts from those answers, then executeCommand in memory.
 // The caller applies the text edits and keeps the returned prefetch for its model generation.
 import type { Quad } from '@rdfjs/types';
 import { readFile } from 'node:fs/promises';
@@ -12,7 +12,7 @@ import type { ModelContext } from '../read/diagram';
 import { prefetchFigures, type KeptPrefetch } from '../read/figures';
 import { applyPrefixes } from '../read/manifest';
 import { executeCommand, type Views } from './commands';
-import { commandIris, factsOf } from './facts-of';
+import { commandIris, factsOf, viewSubjects } from './facts-of';
 import { elementTerm, P, rdf, tripleKey } from './terms';
 import { PREFIXES } from '../catenary/model/shapes-doc';
 import { patchTurtle } from './text-patch';
@@ -71,7 +71,12 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
         if (problem) return { ...fail(problem), edits: [] };
     }
     const quads: Views = Object.fromEntries(await Promise.all(views.map(async v => [v.iri, await viewQuadsOf(ctx, v.iri, fileURLToPath(v.uri), v.text)] as const)));
-    const reach: NTerm[] = commandIris(ctx.shapes, command, quads).map(value => ({ termType: 'NamedNode', value }));
+    // The prefetch of each view starts from its kept answer. Its reach is the IRIs that the command names; the first round of the command's
+    // view also reads the statements of every named IRI that the answer has not read (and the types and labels of their objects), so that
+    // factsOf finds them in the answers and sends no query of its own.
+    const reach: NTerm[] = commandIris(ctx.shapes, command, quads, false).map(value => ({ termType: 'NamedNode', value }));
+    const named = commandIris(ctx.shapes, command, quads), noModel = viewSubjects(ctx, quads, named);
+    const reads = named.filter(iri => !noModel.has(iri));
     const prefetched = await Promise.all(views.map(async v => {
             const file = fileURLToPath(v.uri);
             // The prefetch requests the whole view file once. Serve that read from the same document quads as the command;
@@ -92,12 +97,9 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
                     outAll: new Set([...previous.covered.outAll, ...local]),
                     inAll: new Set([...previous.covered.inAll, ...local]) } };
             }
-            return [v.iri, await prefetchFigures(port, v.iri, file, ctx.shapes, ctx.modelFiles, reach, previous)] as const;
+            return [v.iri, await prefetchFigures(port, v.iri, file, ctx.shapes, ctx.modelFiles, reach, previous, v === views[0] ? reads : [])] as const;
         }));
-    // Connector restoration (for example uncollect) uses relations already read by the figure prefetch, not a second model query.
-    const relations = prefetched.flatMap(([, reader]) => reader.kept.quads.flatMap(q => q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode'
-        ? [rdf.quad(rdf.namedNode(q.subject.value), rdf.namedNode(q.predicate), rdf.namedNode(q.object.value))] : []));
-    const facts = await factsOf(ctx, command, quads, relations, prefetched.length === 1 ? prefetched[0][1].kept : undefined);
+    const facts = await factsOf(ctx, command, quads, new Map(prefetched.map(([iri, reader]) => [iri, reader.kept])));
     const readers = new Map(prefetched);
     const figures = (iri: string, also?: NTerm[]) => {
         const reader = readers.get(iri), view = quads[iri];

@@ -13,11 +13,12 @@ import type { ShapeRow } from '../src/catenary/model/shapes-schema';
 import type { Views } from '../src/edit/commands';
 import { runCommand, type CommandRun } from '../src/edit/executor';
 import type { Facts } from '../src/edit/facts';
-import { commandIris, factsOf } from '../src/edit/facts-of';
+import { commandIris, factsOf, viewSubjects } from '../src/edit/facts-of';
 import { removeTree } from '../src/edit/ops';
 import { P, rdf, tripleKey, V } from '../src/edit/terms';
 import { viewText } from '../src/edit/view-quads';
 import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagram';
+import { prefetchFigures, type KeptPrefetch } from '../src/read/figures';
 import { changeOf, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
 import { type ViewDocuments, viewDocuments } from './views';
@@ -111,33 +112,44 @@ async function compare(c: ViewCommand, iris = [view, model], byIri = false): Pro
     return { run: r, after };
 }
 
-test('kept figures avoid requests for view-only commands after a full draw', async () => {
-    const fresh = 'urn:name:FreshBook';
-    await addToShapes(`<${fresh}> a <urn:name:Book> .`);
+test('after a full draw a view-only command sends no request, a model command at most the reads of its new IRIs (kata 5p5s)', async () => {
+    const fresh = ['urn:name:FreshBook', 'urn:name:FreshBook2', 'urn:name:FreshBook3'];
+    await addToShapes(fresh.map(f => `<${f}> a <urn:name:Book> .`).join('\n'));
     const select = vi.fn(ctx.port.select.bind(ctx.port)), construct = vi.fn(ctx.port.construct.bind(ctx.port)), ask = vi.fn(ctx.port.ask.bind(ctx.port));
     const counting = { ...ctx, port: { select, construct, ask } };
-    const drawn = await diagramOf(counting, view);
-    expect(drawn.kept).toBeDefined();
-    let kept = new Map([[view, drawn.kept!]]);
-    const ids = drawn.schema.children!.filter(e => e.type === 'node:card').slice(0, 2).map(e => e.element as string);
+    const kept = new Map<string, KeptPrefetch>();
+    for (const v of [view, model]) {
+        const drawn = await diagramOf(counting, v);
+        expect(drawn.kept).toBeDefined();
+        kept.set(v, drawn.kept!);
+    }
+    const ids = (await diagramOf(ctx, view)).schema.children!.filter(e => e.type === 'node:card').slice(0, 2).map(e => e.element as string);
     expect(ids).toHaveLength(2);
+    const stocks = (await diagramOf(ctx, model)).schema.children!.find(e => e.type === 'edge:property' && e.name === 'ex:stocks')!.id;
+    const card = (iri: string, x: number) => ({ kind: 'card' as const, id: iri, element: iri, x, y: 0, width: 300, height: 150 });
+    const paste: ViewClip = { format: VIEW_CLIP_FORMAT, mode: 'copy', source: model, edges: [], boxes: [card(fresh[1], 0), card(fresh[2], 400)] };
     const counts: Record<string, number> = {};
-    const commands: ViewCommand[] = [
-        { kind: 'collect', view: vid, ids },
-        { kind: 'setBounds', view: vid, bounds: [{ id: ids[0], ...at }] },
-        { kind: 'createNote', view: vid, text: 'no model read', at },
-        { kind: 'addToView', view: vid, ids: [iriId(fresh)], at }
+    const commands: [ViewCommand, number][] = [
+        [{ kind: 'collect', view: vid, ids }, 0],
+        [{ kind: 'setBounds', view: vid, bounds: [{ id: ids[0], ...at }] }, 0],
+        [{ kind: 'createNote', view: vid, text: 'no model read', at }, 0],
+        [{ kind: 'addToView', view: vid, ids: [iriId(fresh[0])], at }, 2],
+        [{ kind: 'pasteIntoView', view: vid, clip: paste, at }, 2],
+        [{ kind: 'removeFromView', view: mid, ids: [stocks] }, 0],
+        [{ kind: 'showAsEdge', view: mid, id: stocks, at }, 1]
     ];
-    for (const command of commands) {
+    for (const [command, most] of commands) {
         select.mockClear(); construct.mockClear(); ask.mockClear();
-        const r = await runCommand(counting, [{ iri: view, uri: pathToFileURL(join(FIXTURE, 'instances.trig')).href, text: docs.text(view) }], command, undefined, kept);
+        const v = iriOf((command as { view: string }).view);
+        const r = await runCommand(counting, [{ iri: v, uri: pathToFileURL(join(FIXTURE, v === view ? 'instances.trig' : 'model.trig')).href, text: docs.text(v) }], command, undefined, kept);
         counts[command.kind] = select.mock.calls.length + construct.mock.calls.length + ask.mock.calls.length;
         expect(r.ok, command.kind).toBe(true);
-        if (command.kind === 'addToView') expect(counts[command.kind]).toBeLessThanOrEqual(3);
-        else expect(counts[command.kind], command.kind).toBe(0);
-        kept = r.kept!;
-        for (const edit of r.edits) docs.set(view, edit.text);
+        expect(r.edits.length, command.kind).toBe(1);
+        expect(counts[command.kind], command.kind).toBeLessThanOrEqual(most);
+        for (const [k, state] of r.kept!) kept.set(k, state);
+        for (const edit of r.edits) docs.set(v, edit.text);
     }
+    for (const f of fresh) expect((await docs.keys(view)).some(k => k.endsWith(` <${V.element.value}> <${f}>`)), f).toBe(true);
     console.info('command request counts', counts);
 });
 
@@ -307,5 +319,22 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         // The IRIs come in the order of the view statements: the server and the old store give them in another order.
         expect([...iris].sort()).toEqual([...want.iris].sort());
         expect(JSON.parse(JSON.stringify(facts(got, want.iris, doc))), c.kind).toEqual(want.facts);
+        // Without kept answers: one query for every named IRI.
+        expect(select).toHaveBeenCalledTimes(1);
+    });
+
+    test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: the facts from the kept answers of the views match the recording without a query', async i => {
+        const c = (await commands())[i];
+        const views: Views = Object.fromEntries(await Promise.all([view, model].map(async v => [v, await docs.quads(v)] as const)));
+        const iris = commandIris(ctx.shapes, c, views), noModel = viewSubjects(ctx, views, iris);
+        const files: Record<string, string> = { [view]: join(FIXTURE, 'instances.trig'), [model]: join(FIXTURE, 'model.trig') };
+        const answers = new Map(await Promise.all([view, model].map(async (v, n) =>
+            [v, (await prefetchFigures(ctx.port, v, files[v], ctx.shapes, ctx.modelFiles, [], undefined, n ? [] : iris.filter(x => !noModel.has(x)))).kept] as const)));
+        const select = vi.fn(ctx.port.select.bind(ctx.port));
+        const got = await factsOf({ ...ctx, port: { ...ctx.port, select } }, c, views, answers);
+        expect(select).not.toHaveBeenCalled();
+        if (!iris.length) return;
+        const want = R(`facts ${i}`) as { iris: string[]; facts: unknown };
+        expect(JSON.parse(JSON.stringify(facts(got, want.iris, ['pasteIntoView', 'moveBetweenViews'].includes(c.kind)))), c.kind).toEqual(want.facts);
     });
 });
