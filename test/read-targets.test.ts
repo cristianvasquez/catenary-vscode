@@ -13,7 +13,7 @@ import { modelFilesOf, viewFilesOf } from '../src/model/view-files';
 import { manifestOf } from '../src/read/manifest';
 import { hiddenNeighborCounts, viewBadges } from '../src/read/neighbors';
 import { shapesModelOf, type ShapesModelRecords } from '../src/read/shapes';
-import { shapeTargetMatches } from '../src/read/targets';
+import { shapeTargetMatches, targetBadges } from '../src/read/targets';
 import type { ModelPort } from '../src/model/port';
 import { diagramOf, type ModelContext, viewDocRead } from '../src/read/diagram';
 import type { KeptPrefetch } from '../src/read/figures';
@@ -179,5 +179,36 @@ ex:leaf rdfs:label "leaf" .
         const result = await hiddenOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now);
         expect(result.get(iriId(`${EX}root`))?.out).toBe(1);
         expect(json([...result])).toEqual(recordedBlank('hidden blank'));
+    });
+});
+
+describe('target badges (temp folder)', () => {
+    const EX = 'http://example.org/';
+    const prefixes = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix skos: <http://www.w3.org/2004/02/skos/core#> . @prefix ex: <${EX}> .\n`;
+    // S targets a shapes-only subject (Other), a SKOS subject of the shapes (Term), a model instance (inst) and a shape subject with a model type (Both).
+    const shapes = `${prefixes}ex:S a sh:NodeShape ; sh:targetNode ex:Other, ex:Term, ex:inst, ex:Both .
+ex:Other a sh:NodeShape ; rdfs:label "other" .
+ex:Both a sh:NodeShape .
+ex:Term a skos:Concept ; sh:property [ sh:path ex:p ] .
+`;
+    const data = `${prefixes}ex:inst a ex:Thing .\nex:Both a ex:Thing .\n`;
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>;
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-badges-'));
+        writeFileSync(join(dir, 'shapes.ttl'), shapes);
+        writeFileSync(join(dir, 'data.ttl'), data);
+        server = await startServer(dir, 13);
+    }, 20000);
+    afterAll(async () => {
+        await server?.stop();
+        if (dir) rmSync(dir, { recursive: true, force: true });
+    });
+
+    test('a shapes-only target is not an instance; a SKOS subject of the shapes and a model type are', async () => {
+        const files = ['data.ttl', 'shapes.ttl'].map(f => join(dir, f));
+        const records = await shapesModelOf(server.port(), files, {});
+        const badges = await targetBadges(server.port(), files, records, [`${EX}S`], [`${EX}S`]);
+        expect(badges.shapes.get(`${EX}S`)).toBe(3);
+        expect((await targetBadges(server.port(), files, records, [`${EX}S`], [`${EX}S`, `${EX}inst`])).shapes.get(`${EX}S`)).toBe(2);
     });
 });
