@@ -114,7 +114,7 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
         const text = await viewTextOf(v, q, added, removed, log);
         return text === v.text ? [] : [{ uri: v.uri, text }];
     }))).flat();
-    return { ...r, edits, kept: new Map(prefetched.map(([iri, reader]) => [iri, reader.kept])) };
+    return { ...r, edits, kept: new Map(prefetched.map(([iri, reader]) => [iri, { ...reader.kept, records: kept?.get(iri)?.records }])) };
 }
 
 /**
