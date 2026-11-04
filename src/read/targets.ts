@@ -111,9 +111,9 @@ function targetGroups(declarations: Declaration[], variable: string, includeNode
 }
 
 /** Full reference chains keep every intermediate node inside one answer. */
-function chainPattern(chain: NodeReference[], reverse: boolean): string {
+function chainPattern(chain: NodeReference[], reverse: boolean, origin = '?origin'): string {
     return chain.map((ref, i) => {
-        const previous = i ? `?n${i}` : '?origin', next = `?n${i + 1}`;
+        const previous = i ? `?n${i}` : origin, next = `?n${i + 1}`;
         return ref.path ? `${reverse ? next : previous} ${ref.path} ${reverse ? previous : next} .` : `BIND (${previous} AS ${next})`;
     }).join(' ');
 }
@@ -130,28 +130,36 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
         const queries: string[] = [];
         // Compact IRI tokens, not quoted literals, before applying the byte limit.
         const namespaces = new Map<string, string>();
-        const compact = (body: string) => body.replace(/"(?:[^"\\]|\\.)*"|<([^<>"{}|^`\\\x00-\x20]*)>|\s+/g, (token, value: string | undefined) => {
+        const compact = (body: string, used: Set<string>) => body.replace(/"(?:[^"\\]|\\.)*"|<([^<>"{}|^`\\\x00-\x20]*)>|\s+/g, (token, value: string | undefined) => {
             if (value === undefined) return token.startsWith('"') ? token : ' ';
             const split = Math.max(value.lastIndexOf('/'), value.lastIndexOf('#')) + 1;
             const namespace = value.slice(0, split), local = value.slice(split);
             if (!split || !/^[A-Za-z_][A-Za-z0-9_%-]*$/.test(local)) return token;
             const prefix = namespaces.get(namespace) ?? `t${namespaces.size}`;
             namespaces.set(namespace, prefix);
+            used.add(namespace);
             return `${prefix}:${local}`;
         });
-        const bodies = steps.map(step => compact(step.body));
-        const declarations = [...namespaces].map(([namespace, prefix]) => `PREFIX ${prefix}: <${namespace}>`).join(' ');
-        let branches: string[] = [], bytes = 0, depth = 0;
-        const header = (n: number) => `${prefixes} ${declarations} SELECT DISTINCT ?chain ?origin ?direct ${Array.from({ length: n }, (_, i) => `?n${i + 1}`).join(' ')} WHERE { `;
+        const bodies = steps.map(step => {
+            const used = new Set<string>();
+            return { body: compact(step.body, used), used };
+        });
+        let branches: string[] = [], bytes = 0, depth = 0, used = new Set<string>();
+        const header = (n: number, included = used) => {
+            const declarations = [...included].map(namespace => `PREFIX ${namespaces.get(namespace)}: <${namespace}>`).join(' ');
+            return `${prefixes} ${declarations} SELECT DISTINCT ?chain ?origin ?direct ${Array.from({ length: n }, (_, i) => `?n${i + 1}`).join(' ')} WHERE { `;
+        };
         const flush = () => {
             if (branches.length) queries.push(`${header(depth)}${branches.join(' UNION ')} }`);
-            branches = []; bytes = 0; depth = 0;
+            branches = []; bytes = 0; depth = 0; used = new Set();
         };
         for (const [index, step] of steps.entries()) {
-            const branch = `{ BIND (${index} AS ?chain) ${bodies[index]} }`;
+            const branch = `{ BIND (${index} AS ?chain) ${bodies[index].body} }`;
             const size = encoder.encode(branch).length;
             const nextDepth = Math.max(depth, step.chain.length);
-            if (branches.length && encoder.encode(header(nextDepth)).length + bytes + 7 + size + 2 > limit) flush();
+            const included = new Set([...used, ...bodies[index].used]);
+            if (branches.length && encoder.encode(header(nextDepth, included)).length + bytes + 7 + size + 2 > limit) flush();
+            for (const namespace of bodies[index].used) used.add(namespace);
             depth = Math.max(depth, step.chain.length);
             if (encoder.encode(header(depth)).length + size + 2 > limit) throw new Error('Target reference chain exceeds 64 KB query limit');
             bytes += (branches.length ? 7 : 0) + size;
@@ -202,7 +210,7 @@ async function applicableMatches(c: Context, selection: TargetSelection): Promis
             const chains = [...steps.values()];
             const rows = await selectLevel(chains.map(({ state, ref, chain }) => {
                 const target = pattern(ref.source, `n${chain.length}`);
-                return { chain, body: `${chainPattern(chain, true).replaceAll('?origin', term(state.origin))}
+                return { chain, body: `${chainPattern(chain, true, term(state.origin))}
                     ${target ? `BIND (EXISTS { ${target} } AS ?direct)` : ''}` };
             }));
             for (const row of rows) {
