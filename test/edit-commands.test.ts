@@ -11,7 +11,7 @@ import { placementOfId } from '../src/catenary/model/doc';
 import { idIri, iriId } from '../src/catenary/model/ids';
 import type { ShapeRow } from '../src/catenary/model/shapes-schema';
 import type { Views } from '../src/edit/commands';
-import type { CommandRun } from '../src/edit/executor';
+import { runCommand, type CommandRun } from '../src/edit/executor';
 import type { Facts } from '../src/edit/facts';
 import { commandIris, factsOf } from '../src/edit/facts-of';
 import { removeTree } from '../src/edit/ops';
@@ -98,7 +98,7 @@ async function compare(c: ViewCommand, iris = [view, model], byIri = false): Pro
     random.n = 0;
     const r = await docs.run(c, viewsOf(c));
     const after = Object.fromEntries(await Promise.all(iris.map(async i => [i, await docs.keys(i)] as const)));
-    const { edits, ...result } = r;
+    const { edits, kept: _kept, ...result } = r;
     const sorted = byIri && result.ok ? { ...result, value: [...result.value as string[]].sort() } : result;
     const placed = (ks: string[]) => byIri ? ks.filter(k => !isX(k)) : ks;
     const name = expect.getState().currentTestName!.split(" > ").at(-1)!, n = cases.get(name) ?? 0;
@@ -110,6 +110,36 @@ async function compare(c: ViewCommand, iris = [view, model], byIri = false): Pro
     if (!r.ok) expect(edits).toEqual([]);
     return { run: r, after };
 }
+
+test('kept figures avoid requests for view-only commands after a full draw', async () => {
+    const fresh = 'urn:name:FreshBook';
+    await addToShapes(`<${fresh}> a <urn:name:Book> .`);
+    const select = vi.fn(ctx.port.select.bind(ctx.port)), construct = vi.fn(ctx.port.construct.bind(ctx.port)), ask = vi.fn(ctx.port.ask.bind(ctx.port));
+    const counting = { ...ctx, port: { select, construct, ask } };
+    const drawn = await diagramOf(counting, view);
+    expect(drawn.kept).toBeDefined();
+    let kept = new Map([[view, drawn.kept!]]);
+    const ids = drawn.schema.children!.filter(e => e.type === 'node:card').slice(0, 2).map(e => e.element as string);
+    expect(ids).toHaveLength(2);
+    const counts: Record<string, number> = {};
+    const commands: ViewCommand[] = [
+        { kind: 'collect', view: vid, ids },
+        { kind: 'setBounds', view: vid, bounds: [{ id: ids[0], ...at }] },
+        { kind: 'createNote', view: vid, text: 'no model read', at },
+        { kind: 'addToView', view: vid, ids: [iriId(fresh)], at }
+    ];
+    for (const command of commands) {
+        select.mockClear(); construct.mockClear(); ask.mockClear();
+        const r = await runCommand(counting, [{ iri: view, uri: pathToFileURL(join(FIXTURE, 'instances.trig')).href, text: docs.text(view) }], command, undefined, kept);
+        counts[command.kind] = select.mock.calls.length + construct.mock.calls.length + ask.mock.calls.length;
+        expect(r.ok, command.kind).toBe(true);
+        if (command.kind === 'addToView') expect(counts[command.kind]).toBeLessThanOrEqual(3);
+        else expect(counts[command.kind], command.kind).toBe(0);
+        kept = r.kept!;
+        for (const edit of r.edits) docs.set(view, edit.text);
+    }
+    console.info('command request counts', counts);
+});
 
 describe('executeCommand through runCommand equals the recorded ViewStore.execute (store.test.ts, clipboard.test.ts)', () => {
     test('addToView', async () => {
@@ -257,13 +287,21 @@ describe('factsOf against the fork binary equals the recorded facts of the old g
         expect(new Set((await commands()).map(c => c.kind)).size).toBe(19);
     });
 
-    test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: factsOf gives the recorded facts of the old graph for its IRIs', async i => {
+    test.each(Array.from({ length: 19 }, (_, i) => i))('command %i: model facts match the recording, or view-only facts need no query', async i => {
         const c = (await commands())[i];
         const views: Views = Object.fromEntries(await Promise.all([view, model].map(async v => [v, await docs.quads(v)] as const)));
         const iris = commandIris(ctx.shapes, c, views);
+        const doc = ['pasteIntoView', 'moveBetweenViews'].includes(c.kind);
+        const select = vi.fn(ctx.port.select.bind(ctx.port));
+        const got = await factsOf({ ...ctx, port: { ...ctx.port, select } }, c, views);
+        if (!['addToView', 'pasteIntoView', 'moveBetweenViews', 'showAsEdge', 'showRelations'].includes(c.kind)) {
+            expect(iris).toEqual([]);
+            expect(select).not.toHaveBeenCalled();
+            expect(got.isView(view)).toBe(true);
+            expect(got.viewLabel(view)).toBe('Bookshop');
+            return;
+        }
         expect(iris.length).toBeGreaterThan(0);
-        const doc = ['collect', 'pasteIntoView', 'moveBetweenViews'].includes(c.kind);
-        const got = await factsOf(ctx, c, views);
         const want = R(`facts ${i}`) as { command: unknown; iris: string[]; facts: unknown };
         expect(JSON.parse(JSON.stringify(c))).toEqual(want.command);
         // The IRIs come in the order of the view statements: the server and the old store give them in another order.

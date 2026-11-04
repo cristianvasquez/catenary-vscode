@@ -136,7 +136,16 @@ export abstract class WorkspaceCore implements ViewSource {
             views.push({ iri: v, uri: document.uri, text: document.text });
             versions.set(document.uri, document.version);
         }
-        const { edits, ...r } = await runCommand(ctx, views, command);
+        const generation = this.generation;
+        const previous = new Map<string, KeptPrefetch>();
+        for (const v of views) {
+            const entry = this.keptFigures.get(v.iri);
+            if (entry?.generation === generation) previous.set(v.iri, entry.kept);
+        }
+        const { edits, kept, ...r } = await runCommand(ctx, views, command, line => this.log(line), previous);
+        if (kept && generation === this.generation) {
+            for (const [key, state] of kept) this.keptFigures.set(key, { generation, kept: state });
+        }
         if (!r.ok || !edits.length) return r;
         // A change of a document during the command (a text editor, an undo) wins: the edit would replace it with text of the older state.
         const applied = await this.applyEdits(edits.map(e => ({ ...e, version: versions.get(e.uri)! })));

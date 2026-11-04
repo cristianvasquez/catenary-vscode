@@ -1,19 +1,19 @@
-// One view command over turtle/query: the view quads from the server (the open buffer wins), the facts prefetch, the figures prefetch,
-// executeCommand in memory, then the new text of each view that changed: the text patched by tree-sitter (comments, layout and unchanged
-// statements stay byte for byte), else the whole-file text. Nothing is kept between commands; the caller applies the edits.
+// One view command: document quads, scoped model facts and reusable figure prefetch, then executeCommand in memory.
+// The caller applies the text edits and keeps the returned prefetch for its model generation.
 import type { Quad } from '@rdfjs/types';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Parser } from 'n3';
 import type { ViewCommand } from '../catenary/model/commands';
-import type { NTerm } from '../catenary/model/notation-graph';
+import { nkey, type NTerm } from '../catenary/model/notation-graph';
+import { NS } from '../catenary/model/terms';
 import { fail, type Result } from './ops';
 import type { ModelContext } from '../read/diagram';
-import { prefetchFigures } from '../read/figures';
+import { prefetchFigures, type KeptPrefetch } from '../read/figures';
 import { applyPrefixes } from '../read/manifest';
 import { executeCommand, type Views } from './commands';
 import { commandIris, factsOf } from './facts-of';
-import { elementTerm, rdf, tripleKey } from './terms';
+import { elementTerm, P, rdf, tripleKey } from './terms';
 import { PREFIXES } from '../catenary/model/shapes-doc';
 import { patchTurtle } from './text-patch';
 import { ViewQuads, viewText } from './view-quads';
@@ -25,11 +25,12 @@ export interface ViewInput { iri: string; uri: string; text?: string }
 export interface ViewEdit { uri: string; text: string }
 
 /** The result of the command and the edits of its view documents (none after a failure or a no-op). */
-export type CommandRun = Result<unknown> & { edits: ViewEdit[] };
+export type CommandRun = Result<unknown> & { edits: ViewEdit[]; kept?: Map<string, KeptPrefetch> };
 
-/** The quads of the view `iri` as the server has them now: every statement of its view file `file`, with the view IRI as graph term. */
-async function viewQuadsOf(ctx: ModelContext, iri: string, file: string): Promise<ViewQuads> {
+/** The view quads from the supplied document text, or the server when no text was supplied. */
+async function viewQuadsOf(ctx: ModelContext, iri: string, file: string, text?: string): Promise<ViewQuads> {
     const g = rdf.namedNode(iri);
+    if (text !== undefined) return new ViewQuads(new Parser({ format: 'application/trig', baseIRI: pathToFileURL(file).href }).parse(text), g);
     const rows = await ctx.port.select('SELECT ?s ?p ?o WHERE { ?s ?p ?o }', [file]);
     return new ViewQuads(rows.map(r => rdf.quad(r.s as never, r.p as never, r.o as never, g)), g);
 }
@@ -56,7 +57,7 @@ export async function viewFileProblem(file: string, iri: string, text?: string):
  * gives no edit and its quads are dropped. A view whose statements did not change, or whose new text equals `text`, gives no edit. A view
  * file with statements outside its view graph is refused (viewFileProblem). `log` gets the reason when the text patch of a view fails.
  */
-export async function runCommand(ctx: ModelContext, views: ViewInput[], command: ViewCommand, log: (line: string) => void = line => console.warn(line)): Promise<CommandRun> {
+export async function runCommand(ctx: ModelContext, views: ViewInput[], command: ViewCommand, log: (line: string) => void = line => console.warn(line), kept?: Map<string, KeptPrefetch>): Promise<CommandRun> {
     const placed = command.kind === 'addToView' ? command.ids
         : command.kind === 'addViewReference' ? [command.target]
         : command.kind === 'pasteIntoView' || command.kind === 'moveBetweenViews'
@@ -69,12 +70,34 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
         const problem = await viewFileProblem(fileURLToPath(v.uri), v.iri, v.text);
         if (problem) return { ...fail(problem), edits: [] };
     }
-    const quads: Views = Object.fromEntries(await Promise.all(views.map(async v => [v.iri, await viewQuadsOf(ctx, v.iri, fileURLToPath(v.uri))] as const)));
+    const quads: Views = Object.fromEntries(await Promise.all(views.map(async v => [v.iri, await viewQuadsOf(ctx, v.iri, fileURLToPath(v.uri), v.text)] as const)));
     const reach: NTerm[] = commandIris(ctx.shapes, command, quads).map(value => ({ termType: 'NamedNode', value }));
-    const [facts, prefetched] = await Promise.all([
-        factsOf(ctx, command, quads),
-        Promise.all(views.map(async v => [v.iri, await prefetchFigures(ctx.port, v.iri, fileURLToPath(v.uri), ctx.shapes, ctx.modelFiles, reach)] as const))
-    ]);
+    const prefetched = await Promise.all(views.map(async v => {
+            const file = fileURLToPath(v.uri);
+            // The prefetch requests the whole view file once. Serve that read from the same document quads as the command;
+            // all other figure reads still go through the model port and its coverage checks.
+            const port = {
+                select: ctx.port.select.bind(ctx.port),
+                ask: ctx.port.ask.bind(ctx.port),
+                construct: (query: string, files?: string[]) => files?.length === 1 && files[0] === file
+                    && query === 'CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }'
+                    ? Promise.resolve(quads[v.iri].quads()) : ctx.port.construct(query, files)
+            };
+            let previous = kept?.get(v.iri);
+            if (previous) {
+                // View-owned marks and placements are complete in the document, including newly created ones.
+                const local = quads[v.iri].match(null, P.type).filter(q => q.object.value.startsWith(NS.view))
+                    .map(q => nkey({ termType: 'NamedNode', value: q.subject.value }));
+                previous = { ...previous, covered: { ...previous.covered,
+                    outAll: new Set([...previous.covered.outAll, ...local]),
+                    inAll: new Set([...previous.covered.inAll, ...local]) } };
+            }
+            return [v.iri, await prefetchFigures(port, v.iri, file, ctx.shapes, ctx.modelFiles, reach, previous)] as const;
+        }));
+    // Connector restoration (for example uncollect) uses relations already read by the figure prefetch, not a second model query.
+    const relations = prefetched.flatMap(([, reader]) => reader.kept.quads.flatMap(q => q.subject.termType === 'NamedNode' && q.object.termType === 'NamedNode'
+        ? [rdf.quad(rdf.namedNode(q.subject.value), rdf.namedNode(q.predicate), rdf.namedNode(q.object.value))] : []));
+    const facts = await factsOf(ctx, command, quads, relations, prefetched.length === 1 ? prefetched[0][1].kept : undefined);
     const readers = new Map(prefetched);
     const figures = (iri: string, also?: NTerm[]) => {
         const reader = readers.get(iri), view = quads[iri];
@@ -91,7 +114,7 @@ export async function runCommand(ctx: ModelContext, views: ViewInput[], command:
         const text = await viewTextOf(v, q, added, removed, log);
         return text === v.text ? [] : [{ uri: v.uri, text }];
     }))).flat();
-    return { ...r, edits };
+    return { ...r, edits, kept: new Map(prefetched.map(([iri, reader]) => [iri, reader.kept])) };
 }
 
 /**

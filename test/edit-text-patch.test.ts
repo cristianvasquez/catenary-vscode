@@ -74,9 +74,9 @@ describe('the text patch of a view document', () => {
         expect(logs).toHaveLength(1);
         expect(logs[0]).toContain('blank node at line 5');
         const text = r.edits[0].text;
-        // The whole-file text: the blank node is written as its skolem IRI.
+        // Document parsing keeps a real blank node, rather than the server's query-local skolem IRI.
         expect(text).not.toContain('[');
-        expect(text).toMatch(/<urn:skolem:blank:[^>]+> <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "anonymous"/);
+        expect(text).toMatch(/_:[^ ]+ <http:\/\/www\.w3\.org\/2000\/01\/rdf-schema#label> "anonymous"/);
         expect(keys(text, blankView).some(k => k.endsWith('"120"^^<http://www.w3.org/2001/XMLSchema#integer>'))).toBe(true);
     });
 });
