@@ -116,16 +116,19 @@ function ntriples(t: TermJSON): string {
 /** A group of misses that one query reads: the same kind and predicate; `terms` the subjects or objects (none for a predicate read). */
 interface Group { kind: Miss['kind']; p?: string; terms: TermJSON[] }
 
-/** One query per round (or VALUES chunk), with a common blank-node closure under the matched object. */
+/** One query per round (or VALUES chunk), with shared object closure and incoming-subject closure. */
 function readQuery(groups: Group[]): string {
     const reads = groups.map(g => {
         const values = g.kind === 'predicate' ? '' : `VALUES ?${g.kind === 'out' ? 's' : 'o'} { ${g.terms.map(ntriples).join(' ')} } `;
         const predicate = g.p === undefined ? '' : `VALUES ?p { <${g.p}> } `;
-        return `{ ${values}${predicate}?s ?p ?o }`;
+        return `{ ${values}${predicate}?s ?p ?o ${g.kind === 'in' ? 'BIND(?s AS ?incoming)' : ''} }`;
     });
     // The empty branch keeps the matched statement even when its object has no blank-node closure.
     const branches = ['{ }'];
-    for (let d = 1; d <= CLOSURE_DEPTH; d++) branches.push(closureBranch('o', d));
+    for (let d = 1; d <= CLOSURE_DEPTH; d++) {
+        branches.push(closureBranch('o', d));
+        if (groups.some(g => g.kind === 'in')) branches.push(closureBranch('incoming', d));
+    }
     return `CONSTRUCT { ?s ?p ?o . ?a ?q ?v } WHERE { { ${reads.join(' UNION ')} } ${branches.join(' UNION ')} }`;
 }
 
@@ -155,8 +158,8 @@ function groupsOf(misses: Iterable<Miss>): Group[] {
 }
 
 /**
- * Marks the VALUES terms by kind and predicate, and blank subjects reached as objects (their closure came with them).
- * A blank subject that is not an object came with one statement only and stays uncovered.
+ * Marks the VALUES terms by kind and predicate, blank subjects reached as objects, and incoming blank roots.
+ * Other blank subjects came with one statement only and stay uncovered.
  */
 function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
     if (g.kind === 'predicate') covered.predicates.add(g.p!);
@@ -165,9 +168,11 @@ function cover(covered: Coverage, g: Group, answer: NQuad[]): void {
         else g.p === undefined ? covered.inAll.add(k) : covered.inP.add(`${k} ${g.p}`);
     }
     const objects = new Set(answer.map(q => nkey(q.object)));
+    const terms = new Set(g.terms.map(nkey));
+    const incoming = new Set(g.kind === 'in' ? answer.filter(q => terms.has(nkey(q.object)) && (g.p === undefined || q.predicate === g.p)).map(q => nkey(q.subject)) : []);
     for (const q of answer) {
         const k = nkey(q.subject);
-        if (q.subject.value.startsWith(BLANK) && objects.has(k)) { covered.outAll.add(k); covered.inAll.add(k); }
+        if (q.subject.value.startsWith(BLANK) && (objects.has(k) || incoming.has(k))) { covered.outAll.add(k); covered.inAll.add(k); }
     }
 }
 
