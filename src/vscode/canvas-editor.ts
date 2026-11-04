@@ -60,18 +60,18 @@ export class CanvasEditorProvider implements vscode.CustomTextEditorProvider, vs
         await vscode.commands.executeCommand('workbench.action.reopenTextEditor');
     }
 
-    /** "Open in Canvas" of a view file's text: the canvas replaces the text tab, on the same document (unsaved text included). */
+    /**
+     * "Open in Canvas" of a view file's text: the canvas replaces the text tab in place, on the same document (unsaved text included), with
+     * no save prompt. `reopenActiveEditorWith` is the command that `workbench.action.reopenTextEditor` runs with the editor id "default".
+     */
     async openCanvas(): Promise<void> {
-        const group = vscode.window.tabGroups.activeTabGroup, tab = group.activeTab;
+        const tab = vscode.window.tabGroups.activeTabGroup.activeTab;
         if (!(tab?.input instanceof vscode.TabInputText)) return;
         const uri = tab.input.uri, model = this.modelOf(uri);
         if (!model) return;
         await model.ready();
         if (!await model.viewOfDocument(uri.fsPath)) return;
-        const index = group.tabs.indexOf(tab);
-        await vscode.commands.executeCommand('vscode.openWith', uri, CANVAS_EDITOR, { viewColumn: group.viewColumn, preview: false });
-        if (group.tabs.includes(tab)) await vscode.window.tabGroups.close(tab);
-        await vscode.commands.executeCommand('moveActiveEditor', { to: 'position', by: 'tab', value: index + 1 });
+        await vscode.commands.executeCommand('reopenActiveEditorWith', CANVAS_EDITOR);
     }
 
     /**

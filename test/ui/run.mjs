@@ -250,8 +250,6 @@ try {
       await Promise.race([svg.waitFor({ timeout: 60000 }), prompt.waitFor({ timeout: 60000 })])
       const asked = await prompt.count() ? await prompt.textContent() : ''
       check('Open in Canvas on dirty text opens the canvas with no dialog', !asked, asked)
-      // Close the prompt so the later checks run on the canvas.
-      if (asked) await prompt.getByRole('button', { name: 'Save', exact: true }).click()
       await svg.waitFor({ timeout: 60000 })
       const restored = await until(() => state(svg), s => s.boxes.length === cards.length)
       check('Open in Canvas returns to one tab in the same position with the same cards', await fileTabs.count() === 1 && await fileTabs.evaluate(el => Array.from(el.parentElement.children).indexOf(el)) === tabIndex && JSON.stringify([...restored.boxes].sort()) === JSON.stringify(cards), JSON.stringify(restored.boxes))
