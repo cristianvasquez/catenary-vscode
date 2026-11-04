@@ -347,6 +347,17 @@ export function deriveFigures(data: TripleIndex, notes: Notations, viewIri: stri
         for (const c of f.connectors) { c.start = fig(c.statement.subject); c.end = fig(c.statement.object); }
     }
 
+    // An inline range can stay a row while its member ends are placed. Keep the range box first (an explicit
+    // placement still wins), then its alternatives as end candidates. Do not change endValue: row text reads the full range.
+    const inlineEnds = (f: Figure, seen = new Set<string>()): Figure[] => {
+        if (!f.fs.inline || seen.has(f.id)) return [];
+        const next = new Set(seen).add(f.id);
+        return f.rows.flatMap(r => r.part?.fs.kind === 'Line' ? r.part.ends.flatMap(e => [e, ...inlineEnds(e, next)]) : []);
+    };
+    for (const f of figOf.values()) if (f.fs.kind === 'Line') {
+        f.ends = [...new Set(f.ends.flatMap(e => [e, ...inlineEnds(e)]))];
+    }
+
     // Step 5d: row text (text rule). The end of a line reads as the title of its figure, or inline when it is a list box.
     const endText = (f: Figure): string | undefined => {
         if (!f.endValue) return f.fs.openEnd;
