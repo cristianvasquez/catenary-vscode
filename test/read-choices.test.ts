@@ -137,3 +137,26 @@ describe('the insert picker candidates', () => {
         expect([...await instanceLabels(ctx, { vocabulary: true })]).toEqual([['urn:x:c', 'Concept C'], ['urn:x:i', 'Instance I']]);
     });
 });
+
+describe('a subject of the shapes with data statements', () => {
+    let folder: string, server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
+    const head = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix ex: <http://example.org/> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .`;
+    const view = 'urn:test:view';
+    const text = `${head} <${view}> { <${view}> a view:View . ex:pa a view:Placement ; view:element ex:a ; view:view <${view}> . }`;
+    beforeAll(async () => {
+        folder = mkdtempSync(join(tmpdir(), 'catenary-1nkh-'));
+        writeFileSync(join(folder, 'shapes.ttl'), `${head} ex:X a sh:NodeShape ; sh:targetClass ex:Thing .`);
+        writeFileSync(join(folder, 'data.ttl'), `${head} ex:a a ex:Thing ; ex:rel ex:X . ex:X a ex:Thing ; rdfs:label "X data" .`);
+        writeFileSync(join(folder, 'view.trig'), text);
+        server = await startServer(folder, 10);
+        ctx = (await modelContextOf(server.port(), ['data.ttl', 'shapes.ttl', 'view.trig'].map(f => join(folder, f)))).ctx;
+    }, 20000);
+    afterAll(async () => { await server?.stop(); rmSync(folder, { recursive: true, force: true }); });
+
+    test('is an instance by its data statements: a neighbour of the out picker, with its data label', async () => {
+        expect(ctx.shapes.shapeSubjects.has('<http://example.org/X>')).toBe(true);
+        const choices = await expandChoices(ctx, iriId(view), text, iriId('http://example.org/a'), 'out');
+        expect(choices?.items.map(i => i.label)).toEqual(['X data']);
+    });
+});

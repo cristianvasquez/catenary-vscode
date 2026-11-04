@@ -14,6 +14,7 @@ import type { FocusNode } from '../catenary/shacl/common/index';
 import { byDocumentKind, documentSets, type DocumentRow } from './documents';
 import { type ModelContext, drawFromText } from './diagram';
 import type { KeptPrefetch } from './figures';
+import type { ShapesModelRecords } from './shapes';
 import { applyPrefixes } from './manifest';
 import { inShapesOf } from './neighbors';
 import { bindings, shapeTargetMatches } from './targets';
@@ -81,21 +82,45 @@ function addFact(facts: Facts, s: Term | undefined, p: Term | undefined, o: Term
     if (!objects.some(x => x.equals(o))) objects.push(o);
 }
 
+/** The statements of the shapes closure (ShapesModelRecords.closure) as `s p o` keys, per shapes model. */
+const closureKeys = new WeakMap<ShapesModelRecords, Set<string>>();
+
+const tripleKey = (s: Term, p: Term, o: Term) => `${termKey(s)} ${termKey(p)} ${termKey(o)}`;
+
 /**
- * The instance test of factsOf (neighbors.ts) on one answer over every model document: an IRI that is not a shapes subject is an instance
- * with rdf:type or rdfs:label; a shapes subject, with a SKOS type or a SKOS membership statement. One answer has no document kind: a
- * statement of a shapes subject in a data document counts as a shapes statement.
+ * The objects of `p` for `iri` that are model statements (factsOf of neighbors.ts: outside the shapes). One answer over every model
+ * document has no document kind: a statement of a shapes subject is a model statement when the shapes closure does not hold it.
+ */
+function modelObjects(ctx: ModelContext, facts: Facts, iri: string, p: string): Term[] {
+    const objects = facts.get(iri)?.get(p) ?? [], s = rdf.namedNode(iri);
+    if (!ctx.shapes.shapeSubjects.has(termKey(s))) return objects;
+    let keys = closureKeys.get(ctx.shapes);
+    if (!keys) closureKeys.set(ctx.shapes, keys = new Set(ctx.shapes.closure.map(q => tripleKey(q.subject, q.predicate, q.object))));
+    return objects.filter(o => !keys.has(tripleKey(s, rdf.namedNode(p), o)));
+}
+
+/** In the model graph: rdf:type or rdfs:label outside the shapes (the home of factsOf is the model graph). */
+const inModel = (ctx: ModelContext, facts: Facts, iri: string) => [TYPE, LABEL].some(p => modelObjects(ctx, facts, iri, p).length);
+
+/**
+ * The instance test of factsOf (neighbors.ts) on one answer over every model document: rdf:type or rdfs:label outside the shapes
+ * (modelObjects), or, for a shapes subject, a SKOS type or a SKOS membership statement.
  */
 function isInstance(ctx: ModelContext, facts: Facts, iri: string): boolean {
     const own = facts.get(iri);
     if (!own || iri === UNION_GRAPH) return false;
-    if (!ctx.shapes.shapeSubjects.has(termKey(rdf.namedNode(iri)))) return own.has(TYPE) || own.has(LABEL);
-    return (own.get(TYPE) ?? []).some(t => SKOS_TYPES.has(t.value)) || [...SKOS_MEMBERSHIP].some(p => own.has(p));
+    if (inModel(ctx, facts, iri)) return true;
+    return ctx.shapes.shapeSubjects.has(termKey(rdf.namedNode(iri)))
+        && ((own.get(TYPE) ?? []).some(t => SKOS_TYPES.has(t.value)) || [...SKOS_MEMBERSHIP].some(p => own.has(p)));
 }
 
-/** The label of `iri` (the label rule by the manifest language); `path`: else its first sh:path (labelsOf); else from the IRI. */
-function labelOf(ctx: ModelContext, facts: Facts, iri: string, path = false): string {
-    const objects = (p: string) => facts.get(iri)?.get(p) ?? [];
+/**
+ * The label of `iri` (the label rule by the manifest language); `path`: else its first sh:path (labelsOf); else from the IRI. `home`: the
+ * statements of the graph of an instance only (records of the old scopedDoc): of a shapes subject in the model graph, its model statements.
+ */
+function labelOf(ctx: ModelContext, facts: Facts, iri: string, path = false, home = false): string {
+    const model = home && inModel(ctx, facts, iri);
+    const objects = (p: string) => model ? modelObjects(ctx, facts, iri, p) : facts.get(iri)?.get(p) ?? [];
     const paths = path ? objects(PATH).map(o => o.value).filter(v => !v.startsWith('urn:skolem:')).sort() : [];
     return pickLabel(labelLiterals(objects), ctx.manifest.language) ?? labelFromIri(paths[0] ?? iri);
 }
@@ -111,7 +136,7 @@ async function factsOfIris(ctx: ModelContext, iris: string[]): Promise<Facts> {
 
 /** An instance record from its facts (instanceRecords of rdf/records.ts: the label and the types; no fields). */
 const instanceOf = (ctx: ModelContext, facts: Facts, iri: string): Instance => ({
-    id: elementId(rdf.namedNode(iri)), uri: iri, label: labelOf(ctx, facts, iri),
+    id: elementId(rdf.namedNode(iri)), uri: iri, label: labelOf(ctx, facts, iri, false, true),
     types: [...new Set((facts.get(iri)?.get(TYPE) ?? []).map(t => t.value))].sort(cmp), fields: {}
 });
 
