@@ -190,10 +190,11 @@ export abstract class WorkspaceCore implements ViewSource {
     async viewOfDocument(file: string): Promise<{ iri: string } | { problem: string } | undefined> {
         const ctx = this.context();
         if (!ctx) return { problem: this.error ?? 'The model is not read yet.' };
-        const iris = [...(await viewFilesOf(ctx.port, [file])).views.keys()];
+        const { views, skipped } = await viewFilesOf(ctx.port, [file]);
+        if (skipped.length) return { problem: `${file}: ${skipped[0].reason}: a view file holds one.` };
+        const iris = [...views.keys()];
         if (!iris.length) return undefined;
-        if (iris.length > 1) return { problem: `${file} has ${iris.length} view graphs: a view file holds one.` };
-        const problem = await viewFileProblem(ctx.port, file, iris[0]);
+        const problem = await viewFileProblem(file, iris[0], (await this.documentOf(file, false))?.text);
         return problem ? { problem } : { iri: iris[0] };
     }
 

@@ -14,6 +14,11 @@ export function readFileSync(p: string, _encoding?: unknown): string {
     return files.get(normal(p)) ?? missing(p);
 }
 
+/** Asynchronous text read for the shared view-file parser (node:fs/promises). */
+export async function readFile(p: string, _encoding?: unknown): Promise<string> {
+    return readFileSync(p, _encoding);
+}
+
 export function existsSync(p: string): boolean {
     const n = normal(p);
     return files.has(n) || [...files.keys()].some(f => f.startsWith(n + '/'));

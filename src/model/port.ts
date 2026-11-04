@@ -13,6 +13,15 @@ export interface ModelPort {
     ask(query: string, files?: string[]): Promise<boolean>;
 }
 
+/**
+ * `query` once per file of `files` (`files: [file]`), the rows of each with the path of its file. The file is the scope: the server has no
+ * named graphs. For IRI subjects only: the blank-node labels of two file sets are not comparable, so a blank-node query runs once over the folder.
+ */
+export async function byFile(port: ModelPort, files: string[], query: string): Promise<(Row & { file: string })[]> {
+    const answers = await Promise.all(files.map(file => port.select(query, [file])));
+    return answers.flatMap((rows, i) => rows.map(r => Object.assign(r, { file: files[i] }) as Row & { file: string }));
+}
+
 /** Runs one query text over the given file paths and gives the turtle/query answer. */
 export type RunQuery = (query: string, files?: string[]) => Promise<QueryAnswer>;
 
@@ -51,8 +60,27 @@ function expect<K extends QueryAnswer['kind']>(answer: QueryAnswer, kind: K): Ex
     return answer as Extract<QueryAnswer, { kind: K }>;
 }
 
-/** A ModelPort over a function that sends turtle/query. */
-export function answerPort(run: RunQuery): ModelPort {
+/** turtle-lsp answers at most this many turtle/query requests at once; one more fails with "4 queries are running". */
+const MAX_IN_FLIGHT = 4;
+let inFlight = 0;
+const waiting: (() => void)[] = [];
+
+/** `run` with at most MAX_IN_FLIGHT requests in flight in this process (every port sends to the same server); the others wait in order. */
+async function limited<T>(run: () => Promise<T>): Promise<T> {
+    if (inFlight >= MAX_IN_FLIGHT) await new Promise<void>(resolve => waiting.push(resolve));
+    else inFlight++;
+    try {
+        return await run();
+    } finally {
+        const next = waiting.shift();
+        if (next) next();
+        else inFlight--;
+    }
+}
+
+/** A ModelPort over a function that sends turtle/query. The requests of every port of the process share MAX_IN_FLIGHT. */
+export function answerPort(send: RunQuery): ModelPort {
+    const run: RunQuery = (query, files) => limited(() => send(query, files));
     return {
         async select(query, files) {
             return expect(await run(query, files), 'select').results.bindings.map(b => Object.fromEntries(Object.entries(b).map(([k, v]) => [k, termOf(v)])));

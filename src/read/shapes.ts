@@ -5,46 +5,65 @@ import { mergeContributions } from '../catenary/model/metamodel';
 import { NS } from '../catenary/model/terms';
 import { rdfsAuthoring } from '../catenary/rdfs/domain-range';
 import { shapePart } from '../catenary/rdf/loader';
+import { isSkolem } from '../catenary/rdf-core/skolem';
 import { buildVocabulary } from '../catenary/rdf/shapes';
 import { readShapes, type ShapesIndex } from './shapes-index';
-import { fileOfGraph } from '../catenary/rdf/files';
+import { dataGraphIri, fileOfGraph } from '../catenary/rdf/files';
 import { rdf, termKey } from '../catenary/rdf/terms';
 import { shaclAuthoring } from '../catenary/shacl/backend/authoring';
-import type { ModelPort, Row } from '../model/port';
+import { byFile, type ModelPort, type Row } from '../model/port';
 import { applyPrefixes, type ManifestRecords } from './manifest';
 
 const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX sh: <${NS.sh}> PREFIX skos: <${NS.skos}>`;
 
 /**
- * The candidate statements of the shapes, per document (`?g`): the statements of the roots (a subject with an sh: predicate or an sh: shape
- * type), of every blank node, and of every RDF list cell. shapePart picks the shapes among them.
+ * The candidate statements of the IRI roots of the shapes, run per document (byFile): the statements of an IRI subject with an sh: predicate
+ * or an sh: shape type, and of every IRI list cell.
  */
-const SHAPE_CANDIDATES = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { GRAPH ?g { ?s ?p ?o FILTER (isBlank(?s)
-    || EXISTS { ?s rdf:first ?first }
+const SHAPE_ROOTS = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE { ?s ?p ?o FILTER (isIRI(?s) && (EXISTS { ?s rdf:first ?first }
     || EXISTS { ?s a ?t FILTER (?t IN (sh:NodeShape, sh:PropertyShape, sh:Shape)) }
-    || EXISTS { ?s ?sp ?x FILTER (STRSTARTS(STR(?sp), "${NS.sh}")) }) } }`;
+    || EXISTS { ?s ?sp ?x FILTER (STRSTARTS(STR(?sp), "${NS.sh}")) })) }`;
 
-/** Every statement (with its document) of each subject typed as a SKOS scheme, concept or collection in one of the documents. */
-const VOCABULARY = `${PREFIXES} SELECT DISTINCT ?g ?s ?p ?o WHERE { ?s a ?t . VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } GRAPH ?g { ?s ?p ?o } }`;
+/** The statements of every blank node and RDF list cell, run once over the whole folder: a blank node belongs to the IRI that reaches it. */
+const SHAPE_BLANKS = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE { ?s ?p ?o FILTER (isBlank(?s) || EXISTS { ?s rdf:first ?first }) }`;
 
-const quadOf = ({ g, s, p, o }: Row): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], g as Quad['graph']);
+/** Every statement of each IRI subject typed as a SKOS scheme, concept or collection, run per document (byFile). */
+const VOCABULARY = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE { ?s a ?t . VALUES ?t { skos:ConceptScheme skos:Concept skos:Collection } ?s ?p ?o FILTER (isIRI(?s)) }`;
+
+const quadOf = ({ s, p, o }: Row, graph: Quad['graph'] = rdf.defaultGraph()): Quad => rdf.quad(s as Quad['subject'], p as Quad['predicate'], o as Quad['object'], graph);
+
+/** The rows of `byFile`, each as a quad with its document (`dataGraphIri` of its file) as graph. */
+const documentQuads = (rows: (Row & { file: string })[]): Quad[] => rows.map(r => quadOf(r, rdf.namedNode(dataGraphIri(r.file))));
 
 /**
- * The statements of the shapes of `modelFiles`, each with its document as graph: the statements of the subjects that shapePart (loader.ts)
- * gives for the candidates of each document. The port gives a blank node as a skolem IRI, so shapePart follows it as in the old loader.
+ * The statements of the shapes of `modelFiles`, each with its document as graph: per document, the subjects that shapePart (loader.ts)
+ * gives for the IRI candidates of the document and every blank-node candidate of the folder. A blank-node statement belongs to the document
+ * whose IRI statements of the shapes reach it; a blank node that no IRI reaches is in no document. The port gives a blank node as a skolem IRI.
  */
 export async function shapesClosureOf(port: ModelPort, modelFiles: string[]): Promise<Quad[]> {
-    const docs = new Map<string, Quad[]>();
-    for (const q of (await port.select(SHAPE_CANDIDATES, modelFiles)).map(quadOf)) (docs.get(q.graph.value) ?? docs.set(q.graph.value, []).get(q.graph.value)!).push(q);
-    return [...docs.values()].flatMap(quads => {
-        const part = shapePart(quads);
-        return quads.filter(q => part.has(termKey(q.subject)));
+    if (!modelFiles.length) return [];
+    const [named, blankRows] = await Promise.all([byFile(port, modelFiles, SHAPE_ROOTS), port.select(SHAPE_BLANKS)]);
+    const blanks = blankRows.map(r => quadOf(r)).filter(q => isSkolem(q.subject));
+    return modelFiles.flatMap(file => {
+        const graph = rdf.namedNode(dataGraphIri(file));
+        const own = documentQuads(named.filter(r => r.file === file));
+        const part = shapePart([...own, ...blanks]);
+        const bySubject = new Map<string, Quad[]>();
+        for (const q of [...own, ...blanks]) (bySubject.get(termKey(q.subject)) ?? bySubject.set(termKey(q.subject), []).get(termKey(q.subject))!).push(q);
+        // The subjects of the part that the IRI subjects of the part reach.
+        const reached = new Set(own.map(q => termKey(q.subject)).filter(k => part.has(k)));
+        for (const queue = [...reached]; queue.length;) for (const q of bySubject.get(queue.pop()!) ?? []) {
+            const k = termKey(q.object);
+            if (part.has(k) && !reached.has(k)) { reached.add(k); queue.push(k); }
+        }
+        return [...own.filter(q => reached.has(termKey(q.subject))),
+            ...blanks.filter(q => reached.has(termKey(q.subject))).map(q => rdf.quad(q.subject, q.predicate, q.object, graph))];
     });
 }
 
 /** The statements of the SKOS schemes, concepts and collections of `modelFiles`, each with its document as graph. */
 export async function vocabularyOf(port: ModelPort, modelFiles: string[]): Promise<Quad[]> {
-    return (await port.select(VOCABULARY, modelFiles)).map(quadOf);
+    return documentQuads(await byFile(port, modelFiles, VOCABULARY));
 }
 
 /**

@@ -35,7 +35,7 @@ export function viewDocuments(server: Server, ctx: () => ModelContext, files: Re
         },
         async quads(iri) {
             const g = rdf.namedNode(iri);
-            const rows = await server.port().select(`SELECT ?s ?p ?o WHERE { GRAPH <${iri}> { ?s ?p ?o } }`);
+            const rows = await server.port().select('SELECT ?s ?p ?o WHERE { ?s ?p ?o }', [files[iri]]);
             return new ViewQuads(rows.map(r => rdf.quad(r.s as never, r.p as never, r.o as never, g)), g);
         },
         async keys(iri) {

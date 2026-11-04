@@ -22,11 +22,13 @@ const TRIPLES = 282;
 const VIEWS = ['urn:name:Bookshop', 'urn:name:Bookshop%20model'];
 
 describe('viewDocOf on test/fixtures/shapes', () => {
-    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, shapes: ShapesModelRecords;
+    let server: Awaited<ReturnType<typeof startServer>>, manifest: ManifestRecords, shapes: ShapesModelRecords, views: Map<string, string>;
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
         const rdfFiles = readdirSync(FIXTURE).filter(f => /\.(ttl|trig)$/.test(f)).sort().map(file);
-        const modelFiles = modelFilesOf(rdfFiles, await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig'))));
+        const viewFiles = await viewFilesOf(server.port(), rdfFiles.filter(f => f.endsWith('.trig')));
+        const modelFiles = modelFilesOf(rdfFiles, viewFiles);
+        views = viewFiles.views;
         manifest = await manifestOf(server.port(), modelFiles);
         shapes = await shapesModelOf(server.port(), modelFiles, manifest);
     }, 20000);
@@ -36,7 +38,7 @@ describe('viewDocOf on test/fixtures/shapes', () => {
 
     test.each(VIEWS)('%s: views, instances, relations and warnings equal the recorded readView', async viewIri => {
         const warnings: string[] = [];
-        const now = await viewDocOf(server.port(), viewIri, shapes, manifest, { warnings });
+        const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { warnings });
         expect(now.shapes).toBe(shapes.index.model);
         expect(Object.keys(now.views).length).toBeGreaterThan(0);
         expect(Object.keys(now.instances).length).toBeGreaterThan(0);
@@ -45,22 +47,22 @@ describe('viewDocOf on test/fixtures/shapes', () => {
 
     test('the elements branch: a card, a placement, an edge (when the view has one) and a box of each view equal the recorded readView', async () => {
         for (const viewIri of VIEWS) {
-            const view = (await viewDocOf(server.port(), viewIri, shapes, manifest)).views[iriId(viewIri)];
+            const view = (await viewDocOf(server.port(), views, viewIri, shapes, manifest)).views[iriId(viewIri)];
             const cards = view.boxes.filter(b => b.kind === 'card');
             const elements = [cards[0].element, cards[1].id, ...view.edges.slice(0, 1).map(e => e.relation), view.boxes.find(b => b.kind !== 'card')!.id];
-            const now = await viewDocOf(server.port(), viewIri, shapes, manifest, { elements });
+            const now = await viewDocOf(server.port(), views, viewIri, shapes, manifest, { elements });
             expect(now.views[iriId(viewIri)].boxes.length, viewIri).toBeGreaterThan(1);
             expect({ elements, ...parts(now) as object }).toEqual(R(`elements ${viewIri}`));
         }
     });
 
     test('a graph that is not a view gives the empty Doc', async () => {
-        const now = await viewDocOf(server.port(), 'urn:name:none', shapes, manifest);
+        const now = await viewDocOf(server.port(), views, 'urn:name:none', shapes, manifest);
         expect([now.views, now.instances, now.relations]).toEqual([{}, {}, {}]);
     });
 
     test('viewLabelsOf equals the recorded viewLabels', async () => {
-        expect(await viewLabelsOf(server.port(), shapes.files, manifest.language)).toEqual(R('viewLabels'));
+        expect(await viewLabelsOf(server.port(), views, manifest.language)).toEqual(R('viewLabels'));
     });
 });
 
@@ -88,7 +90,7 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
   <urn:x:lnp> a view:Placement ; view:view <${LEGACY}> ; view:element <urn:x:ln> .
   <urn:x:lx> a view:Placement ; view:view <${LEGACY}> ; view:element <urn:x:X> . }
 `;
-    let dir: string, server: Awaited<ReturnType<typeof startServer>>, files: string[], shapes: ShapesModelRecords;
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>, files: string[], shapes: ShapesModelRecords, views: Map<string, string>;
     beforeAll(async () => {
         dir = mkdtempSync(join(tmpdir(), 'catenary-view-'));
         writeFileSync(join(dir, 'data.ttl'), data);
@@ -98,6 +100,7 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         // data 9, shapes 2, notes 17, legacy 14.
         server = await startServer(dir, 42);
         files = [join(dir, 'data.ttl'), join(dir, 'shapes.ttl')];
+        views = new Map([[VIEW, join(dir, 'notes.trig')], [LEGACY, join(dir, 'legacy.trig')]]);
         shapes = await shapesModelOf(server.port(), files, {});
     }, 20000);
     afterAll(async () => {
@@ -106,20 +109,20 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
     });
 
     test('the note (a blank node), its arrow and the card show; the view is named by its file: IRI', async () => {
-        const doc = await viewDocOf(server.port(), VIEW, shapes, {});
+        const doc = await viewDocOf(server.port(), views, VIEW, shapes, {});
         const v = doc.views[iriId(VIEW)];
         expect(v.label).toBe('Notes');
         expect(v.boxes.map(b => b.kind).sort()).toEqual(['card', 'note']);
         expect(v.boxes.find(b => b.kind === 'note')).toMatchObject({ id: iriId('urn:x:p1'), text: 'hello', x: 10, y: 20 });
         expect(v.arrows).toEqual([{ id: iriId('urn:x:p3'), from: iriId('urn:x:p1'), to: iriId('urn:x:p2') }]);
         expect(Object.keys(doc.instances)).toEqual([iriId('urn:x:a')]);
-        expect(await viewLabelsOf(server.port(), files)).toEqual({ [iriId(VIEW)]: 'Notes', [iriId(LEGACY)]: 'Legacy' });
+        expect(await viewLabelsOf(server.port(), views)).toEqual({ [iriId(VIEW)]: 'Notes', [iriId(LEGACY)]: 'Legacy' });
     });
 
     test('a view file in the legacy view namespace reads as the published one; a shape of shapes.ttl keeps its data.ttl statements', async () => {
         expect(shapes.shapeSubjectsByFile.get(join(dir, 'shapes.ttl'))).toEqual(new Set(['<urn:x:X>']));
         expect(shapes.shapeSubjectsByFile.has(join(dir, 'data.ttl'))).toBe(false);
-        const doc = await viewDocOf(server.port(), LEGACY, shapes, {});
+        const doc = await viewDocOf(server.port(), views, LEGACY, shapes, {});
         const v = doc.views[iriId(LEGACY)];
         expect(v.label).toBe('Legacy');
         expect(v.boxes.find(b => b.kind === 'note')).toMatchObject({ id: iriId('urn:x:lnp'), text: 'old' });
@@ -138,8 +141,27 @@ describe('viewDocOf in a temp folder: blank nodes, a file: view IRI, legacy term
         expect(blank).toMatch(/^urn:skolem:blank:/);
         server.change(uri, text(blank));
         expect(await blankOf()).toBe(blank);
-        const doc = await viewDocOf(server.port(), BLANKS, shapes, {});
+        const doc = await viewDocOf(server.port(), new Map([[BLANKS, join(dir, 'blanks.trig')]]), BLANKS, shapes, {});
         expect(doc.instances[iriId(blank)]).toMatchObject({ uri: blank, label: 'B', types: ['urn:x:T'], fields: { 'urn:x:p': [{ termType: 'Literal', value: 'inner' }] } });
         expect(doc.views[iriId(BLANKS)].boxes).toMatchObject([{ kind: 'card', id: iriId('urn:x:bp'), element: iriId(blank) }]);
     });
 });
+
+test('an unplaced object typed or labelled in another model file is a hidden relation, not an ordinary field', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'catenary-cross-file-'));
+    let server: Awaited<ReturnType<typeof startServer>> | undefined;
+    const VIEW = 'urn:x:cross-file', V = 'https://cristianvasquez.github.io/catenary/vocab/view#';
+    try {
+        writeFileSync(join(dir, 'data.ttl'), '<urn:x:a> a <urn:x:T> ; <urn:x:typed> <urn:x:b> ; <urn:x:labelled> <urn:x:c> ; <urn:x:unknown> <urn:x:d> .');
+        writeFileSync(join(dir, 'other.ttl'), '<urn:x:b> a <urn:x:T> . <urn:x:c> <http://www.w3.org/2000/01/rdf-schema#label> "C" .');
+        writeFileSync(join(dir, 'view.trig'), `<${VIEW}> { <${VIEW}> a <${V}View> . <urn:x:placement> a <${V}Placement> ; <${V}view> <${VIEW}> ; <${V}element> <urn:x:a> . }`);
+        server = await startServer(dir, 10);
+        const files = ['data.ttl', 'other.ttl'].map(f => join(dir, f));
+        const shapes = await shapesModelOf(server.port(), files, {});
+        const doc = await viewDocOf(server.port(), new Map([[VIEW, join(dir, 'view.trig')]]), VIEW, shapes, {});
+        expect(doc.instances[iriId('urn:x:a')].fields).toEqual({ 'urn:x:unknown': [{ termType: 'NamedNode', value: 'urn:x:d' }] });
+    } finally {
+        await server?.stop();
+        rmSync(dir, { recursive: true, force: true });
+    }
+}, 20000);

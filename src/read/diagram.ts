@@ -24,6 +24,8 @@ export interface ModelContext {
     modelFiles: string[];
     shapes: ShapesModelRecords;
     manifest: ManifestRecords;
+    /** View IRI → file path of its view file (viewFilesOf). */
+    views: Map<string, string>;
 }
 
 /** `port` with the queries without `files` restricted to `documents`: the port of the window answers for every folder (multi-root). */
@@ -44,7 +46,7 @@ export async function modelContextOf(window: ModelPort, documents: string[]): Pr
     const viewFiles = await viewFilesOf(port, documents.filter(f => f.endsWith('.trig')));
     const files = modelFilesOf(documents, viewFiles), manifest = await manifestOf(port, files);
     const shapes = await shapesModelOf(port, files, manifest);
-    return { ctx: { port, modelFiles: shapes.files, shapes, manifest }, viewFiles };
+    return { ctx: { port, modelFiles: shapes.files, shapes, manifest, views: viewFiles.views }, viewFiles };
 }
 
 /** `cardScale`: the card text scale of the canvas (Catenary's catenarySetCardScale); default 1. */
@@ -58,12 +60,12 @@ export const emptyDrawn = (): Drawn => ({ schema: { type: TYPES.GRAPH, id: 'root
 
 /** diagramOf of model/diagram.ts over the port. Accepts a view IRI or its element id; a view that is not in the model gives emptyDrawn. */
 export async function diagramOf(ctx: ModelContext, viewId: string, opts: DiagramOptions = {}): Promise<Drawn> {
-    const { port, modelFiles, shapes, manifest } = ctx;
+    const { port, modelFiles, shapes, manifest, views } = ctx;
     const iri = viewId.includes(':') ? viewId : idIri(viewId), id = viewId.includes(':') ? iriId(viewId) : viewId;
     if (!iri) return emptyDrawn();
-    const doc = await viewDocOf(port, iri, shapes, manifest), view = doc.views[id];
-    if (!view) return { ...emptyDrawn(), doc };
-    const [neighbors, figures] = await Promise.all([hiddenNeighborCounts(port, modelFiles, shapes, view), viewFiguresOf(port, view.uri, shapes, modelFiles)]);
+    const doc = await viewDocOf(port, views, iri, shapes, manifest), view = doc.views[id], file = view && views.get(view.uri);
+    if (!view || !file) return { ...emptyDrawn(), doc };
+    const [neighbors, figures] = await Promise.all([hiddenNeighborCounts(port, modelFiles, shapes, view), viewFiguresOf(port, view.uri, file, shapes, modelFiles)]);
     // After the queries: another workspace can set the prefix table while this one waits; toSchema below is synchronous.
     applyPrefixes(manifest);
     const schemes = new Map((shapes.meta.schemes ?? []).map(x => [x.iri, x.label]));

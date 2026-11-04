@@ -31,33 +31,29 @@ describe('the server dataset (fork binary over stdio)', () => {
         expect(count(rows)).toBe(1);
     });
 
-    test('GRAPH <file URI> reads one file; files: [file] restricts the dataset to that document', async () => {
+    test('files: [file] restricts the dataset to that document; without files: every document; there are no named graphs', async () => {
         const port = server.port();
-        expect(count(await port.select(`SELECT (COUNT(*) AS ?n) WHERE { GRAPH <${uri('data.ttl')}> { ?s ?p ?o } }`))).toBe(27);
         expect(count(await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }', [file('data.ttl')]))).toBe(27);
-        const graphs = await port.select('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }', [file('data.ttl')]);
-        expect(graphs.map(r => r.g.value)).toEqual([uri('data.ttl')]);
+        expect(count(await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }'))).toBe(TRIPLES);
+        expect(await port.select('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }', [file('data.ttl')])).toEqual([]);
     });
 
-    test('the view graph of instances.trig holds its statements; the document has no graph under its file URI', async () => {
+    test('the statements of the view graph block of instances.trig are the statements of its file', async () => {
         const port = server.port();
-        expect(count(await port.select('SELECT (COUNT(*) AS ?n) WHERE { GRAPH <urn:name:Bookshop> { ?s ?p ?o } }'))).toBe(93);
-        expect(count(await port.select(`SELECT (COUNT(*) AS ?n) WHERE { GRAPH <${uri('instances.trig')}> { ?s ?p ?o } }`))).toBe(0);
-        const graphs = await port.select('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }', [file('instances.trig')]);
-        expect(graphs.map(r => r.g.value)).toEqual(['urn:name:Bookshop']);
+        expect(count(await port.select('SELECT (COUNT(*) AS ?n) WHERE { ?s ?p ?o }', [file('instances.trig')]))).toBe(93);
+        expect(await port.select('SELECT DISTINCT ?g WHERE { GRAPH ?g { ?s ?p ?o } }', [file('instances.trig')])).toEqual([]);
     });
 
-    test('a blank node comes back as bnode with a <document>:<n> label, the same label in two queries', async () => {
+    test('a blank node comes back as bnode with a g<n> label, the same label in two queries', async () => {
         // shapes.ttl has no blank node; prefixes.ttl has nine (sh:declare [ ... ]).
         const q = { query: 'SELECT ?s WHERE { ?s <http://www.w3.org/ns/shacl#prefix> "ex" }', files: [uri('prefixes.ttl')] };
         const first = bnodes(await server.query(q)), second = bnodes(await server.query(q));
         expect(first).toHaveLength(1);
-        expect(first[0]).toMatch(/^\d+:\d+$/);
+        expect(first[0]).toMatch(/^g\d+$/);
         expect(second).toEqual(first);
         const [row] = await server.port().select(q.query, [file('prefixes.ttl')]);
-        const [d, n] = first[0].split(':');
         expect(row.s.termType).toBe('NamedNode');
-        expect(row.s.value).toBe(`urn:skolem:blank:${d.padStart(6, '0')}-${n.padStart(8, '0')}`);
+        expect(row.s.value).toBe(`urn:skolem:blank:x${first[0]}`);
     });
 
     test('a construct answer keeps the blank-node labels', async () => {
@@ -73,7 +69,7 @@ describe('the server dataset (fork binary over stdio)', () => {
     });
 
     test('ask answers a boolean', async () => {
-        expect(await server.port().ask(`ASK { GRAPH <urn:name:Bookshop%20model> { <urn:name:Bookshop%20model> a <${VIEW}View> } }`)).toBe(true);
+        expect(await server.port().ask(`ASK { <urn:name:Bookshop%20model> a <${VIEW}View> }`, [file('model.trig')])).toBe(true);
         expect(await server.port().ask(`ASK { <urn:name:Bookshop> a <${VIEW}View> }`, [file('data.ttl')])).toBe(false);
     });
 

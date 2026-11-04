@@ -37,7 +37,7 @@ async function textFiles(dir, skip = () => false) {
 
 const shim = name => path.resolve(`src/web/shims/${name}.ts`);
 const ALIASES = {
-    'fs': shim('fs'), 'node:fs': shim('fs'),
+    'fs': shim('fs'), 'node:fs': shim('fs'), 'node:fs/promises': shim('fs'),
     'url': shim('url'), 'node:url': shim('url'),
     'crypto': shim('crypto'), 'node:crypto': shim('crypto'),
     'path': path.resolve('node_modules/path-browserify/index.js'), 'node:path': path.resolve('node_modules/path-browserify/index.js'),
@@ -46,7 +46,7 @@ const ALIASES = {
 const web = {
     name: 'catenary-web',
     setup(b) {
-        b.onResolve({ filter: /^(node:)?(fs|url|path|crypto)$|^@eclipse-glsp\/server\/node$/ }, async args => {
+        b.onResolve({ filter: /^node:fs\/promises$|^(node:)?(fs|url|path|crypto)$|^@eclipse-glsp\/server\/node$/ }, async args => {
             const target = ALIASES[args.path];
             return target.startsWith('/') ? { path: target } : b.resolve(target, { kind: args.kind, resolveDir: args.resolveDir });
         });

@@ -393,7 +393,7 @@ async function insertElement(doc: ViewDoc): Promise<void> {
     if (!ctx) return toast(`Insert: ${ws.error ?? 'the model is not read yet.'}`, 'warning');
     const view = (await ws.diagram(iriId(doc.iri), {})).doc.views[iriId(doc.iri)];
     const placed = new Set([...boxes(view, 'card').map(b => b.element), ...boxes(view, 'collection').flatMap(b => b.members)]);
-    const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.modelFiles, ctx.manifest.language)]);
+    const [labels, viewLabels] = await Promise.all([instanceLabels(ctx, { vocabulary: true }), viewLabelsOf(ctx.port, ctx.views, ctx.manifest.language)]);
     const { types } = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), labels.keys());
     const items: (PickItem & { id?: string; link?: 'file' | 'view' })[] = [];
     for (const shape of Object.values(ctx.shapes.index.model.nodeShapes)) {

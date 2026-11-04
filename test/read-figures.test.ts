@@ -48,7 +48,7 @@ async function inputsOf(server: Awaited<ReturnType<typeof startServer>>, folder:
     const views = await viewFilesOf(port, rdfFiles.filter(f => f.endsWith('.trig')));
     const modelFiles = modelFilesOf(rdfFiles, views);
     const shapes = await shapesModelOf(port, modelFiles, await manifestOf(port, modelFiles));
-    return { port, modelFiles, shapes };
+    return { port, modelFiles, shapes, views: views.views };
 }
 
 describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
@@ -56,7 +56,7 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
     const now = new Map<string, PrefetchedFigures>(), sent = new Map<string, string[]>();
     beforeAll(async () => {
         server = await startServer(FIXTURE, TRIPLES);
-        const { port, modelFiles, shapes } = await inputsOf(server, FIXTURE);
+        const { port, modelFiles, shapes, views } = await inputsOf(server, FIXTURE);
         for (const v of VIEWS) {
             // The port, with every query text that the prefetch sends recorded.
             const texts: string[] = [];
@@ -65,7 +65,7 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
                 construct: (q, f) => { texts.push(q); return port.construct(q, f); },
                 ask: (q, f) => { texts.push(q); return port.ask(q, f); }
             };
-            now.set(v, await viewFiguresOf(recording, v, shapes, modelFiles));
+            now.set(v, await viewFiguresOf(recording, v, views.get(v)!, shapes, modelFiles));
             sent.set(v, texts);
         }
     }, 20000);
@@ -115,7 +115,7 @@ ex:PersonShape-knows sh:path ex:knows ; sh:name "knows" .
     });
 
     test('a gathered link to a labelled blank-node instance reads its label; equal to the recorded viewFiguresOf; no miss', async () => {
-        const got = await viewFiguresOf(inputs.port, VIEW, inputs.shapes, inputs.modelFiles);
+        const got = await viewFiguresOf(inputs.port, VIEW, inputs.views.get(VIEW)!, inputs.shapes, inputs.modelFiles);
         const alice = got.join.boxes.find(b => b.figure.focus.value === `${EX}alice`);
         expect(alice?.rows.map(r => r.text)).toContain('knows: Bob');
         expect(json(plain(got))).toEqual(R('anchors'));
