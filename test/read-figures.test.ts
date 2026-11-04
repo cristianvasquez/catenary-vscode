@@ -71,9 +71,10 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
-    test('urn:name:Bookshop%20model: every query text is under 8 KB; no blank-node dump', () => {
+    test('urn:name:Bookshop%20model: at most two fixed queries plus three rounds, under 64 KB; no blank-node dump', () => {
         const texts = sent.get(VIEWS[0])!, lengths = texts.map(t => Buffer.byteLength(t));
-        expect(Math.max(...lengths)).toBeLessThan(8192);
+        expect(texts.length).toBeLessThanOrEqual(2 + 3);
+        expect(Math.max(...lengths)).toBeLessThan(64 * 1024);
         // A lone FILTER (isBlank(?s)) reads every blank-node statement; a closure branch filters ?s with the nodes below it.
         expect(texts.filter(t => /isBlank\(\?s\)\s*\)/.test(t))).toEqual([]);
     });
