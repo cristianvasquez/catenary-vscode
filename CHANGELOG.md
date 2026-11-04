@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.0.4
 
 - Requires turtle-lsp 0.14.0 or later (the `turtle/query` request). Catenary keeps no copy of the model: every question about the model is a `turtle/query` request.
 - No model store: Oxigraph and the in-memory model graph are removed (`oxigraph` is no longer a dependency; `dist/` has no `node_bg.wasm`). Pasted Turtle and the built-in notations are parsed with `n3`.

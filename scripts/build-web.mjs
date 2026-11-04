@@ -1,7 +1,7 @@
 // Builds the browser page into dist-web/: a static site that runs Catenary, Monaco and turtle-lsp (engine.wasm) in the tab.
 //   main.js, main.css      the page (src/web/main.ts): files, tabs, Monaco, the GLSP server, the workspace graph
 //   canvas.js, canvas.css  one canvas iframe (src/web/canvas.ts): the GLSP client of src/webview
-//   turtle-lsp/            the turtle-lsp browser engine and modules, built in the fork (TURTLE_LSP_WEB, below)
+//   turtle-lsp/            the turtle-lsp browser engine and modules, built in turtle-lsp 0.14.0 or later (TURTLE_LSP_WEB, below)
 //   tree-sitter.wasm, turtle.wasm   the parser of the text patch (src/edit/text-patch.ts)
 //   vendor/monaco/         the Monaco editor (npm monaco-editor, minified AMD build)
 // The shared code runs unchanged: node:fs, node:url, node:path and node:crypto map to browser shims (src/web/shims) over an in-memory file system.
@@ -12,12 +12,12 @@ import os from 'node:os';
 import path from 'node:path';
 
 const out = 'dist-web';
-// The turtle-lsp browser engine with turtle/query: web/app of the fork (cristianvasquez/turtle-lsp, branch turtle-query) after its build.
+// The turtle-lsp browser engine with turtle/query: web/app of turtle-lsp (0.14.0 or later) after its build.
 const engine = process.env.TURTLE_LSP_WEB ?? path.join(os.homedir(), 'os/rdf/turtle-lsp/web/app');
 const ENGINE_FILES = ['engine.wasm', 'engine.js', 'lsp-host.js', 'lsp-worker.js', 'editor-lsp.js', 'vendor/LICENSE', 'vendor/THIRD_PARTY_NOTICES.md'];
 const missing = ENGINE_FILES.filter(f => !existsSync(path.join(engine, f)));
 if (missing.length) {
-    console.error(`web build: ${engine} has no ${missing.join(', ')}. Build the engine in the turtle-lsp fork (branch turtle-query): `
+    console.error(`web build: ${engine} has no ${missing.join(', ')}. Build the engine in turtle-lsp (0.14.0 or later): `
         + 'rustup target add wasm32-unknown-unknown, install its node dependencies, then node web/build.mjs; or set TURTLE_LSP_WEB to a directory with the built files.');
     process.exit(1);
 }
