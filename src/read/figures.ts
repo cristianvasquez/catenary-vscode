@@ -1,4 +1,4 @@
-// The notation figures of a view from one prefetch of turtle/query answers: an in-memory TripleIndex, dropped after the call.
+// The notation figures of a view from turtle/query answers, with prefetch state reusable between draws.
 import type { Quad, Term } from '@rdfjs/types';
 import { deriveFigures } from '../catenary/model/notation';
 import { NQuad, NTerm, RDF, TripleIndex, nkey } from '../catenary/model/notation-graph';
@@ -190,9 +190,17 @@ const figurable = (t: NTerm) => t.termType === 'Triple' || t.termType === 'Named
 /** The figures of a view, its placements and their join, and the number of index reads that the prefetch did not cover. */
 export type PrefetchedFigures = ViewFigures & { misses: number };
 
+/** Statements and coverage retained for one view within one model generation. View statements are read fresh on each draw. */
+export interface KeptPrefetch {
+    quads: NQuad[];
+    covered: Coverage;
+    view: NQuad[];
+}
+
 /** One prefetch of a view: `view` the view quads of the server; `figures` the figures of the view with the given view quads. */
 export interface FiguresPrefetch {
     view: Quad[];
+    kept: KeptPrefetch;
     /**
      * Synchronous: the figures of the view when its quads are `view` (the quads of the server or a copy changed in memory), for the placed
      * terms and `also`. A statement of the server's view quads that `view` does not have is not in the index.
@@ -207,9 +215,9 @@ const tripleOf = (q: NQuad) => `${nkey(q.subject)} ${q.predicate} ${nkey(q.objec
  * The prefetch: (a) the view quads (every statement of `viewFile`); (b) the shapes closure of `shapes`; (c) the statements of the placed terms and `also`; (d) rdfs:subClassOf
  * over `modelFiles`; (e) rounds of bounded queries for the reads that the derivation misses, blank nodes with the IRI that reaches them.
  */
-export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = []): Promise<PrefetchedFigures> {
-    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also);
-    return prefetch.figures(prefetch.view, also);
+export async function viewFiguresOf(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], also: NTerm[] = [], kept?: KeptPrefetch): Promise<PrefetchedFigures & { kept: KeptPrefetch }> {
+    const prefetch = await prefetchFigures(port, viewIri, viewFile, shapes, modelFiles, also, kept);
+    return { ...prefetch.figures(prefetch.view, also), kept: prefetch.kept };
 }
 
 /** At most this many rounds of miss-driven queries. */
@@ -219,30 +227,40 @@ const MAX_ROUNDS = 16;
  * The prefetch of viewFiguresOf, read before a command: `reach` are terms that the command can place (their statements are read as those
  * of the placed terms; they are in the scope of a derivation only when they are placed or the reader asks for them).
  */
-export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = []): Promise<FiguresPrefetch> {
+export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile: string, shapes: ShapesModelRecords, modelFiles: string[], reach: NTerm[] = [], kept?: KeptPrefetch): Promise<FiguresPrefetch> {
     const notes = readNotations();
     const [view, subclasses] = await Promise.all([
         port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [viewFile]),
-        port.construct(SUBCLASSES, modelFiles)
+        kept ? Promise.resolve([]) : port.construct(SUBCLASSES, modelFiles)
     ]);
     const viewQuads = nquads(view);
     const placed = placementsOf(new TripleIndex(viewQuads), viewIri);
     // As the old viewFiguresOf: a placement of another term (a statement with a literal, a blank node) has no figure; the join reports it.
     const scope = [...[...placed.keys()].map(keyTerm), ...reach].filter(figurable);
 
-    const covered: Coverage = { outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set([SUBCLASS]) };
+    // Copy the coverage: concurrent draws must not mutate the state they started from.
+    const covered: Coverage = kept ? {
+        outAll: new Set(kept.covered.outAll), outP: new Set(kept.covered.outP),
+        inAll: new Set(kept.covered.inAll), inP: new Set(kept.covered.inP), predicates: new Set(kept.covered.predicates)
+    } : { outAll: new Set(), outP: new Set(), inAll: new Set(), inP: new Set(), predicates: new Set([SUBCLASS]) };
     // The closure holds every sh: statement of the model files without the manifest (shapePart starts at each subject with one), and the
     // statements of its subjects in the documents where they are shapes.
-    const closure = nquads(shapes.closure);
+    const closure = kept ? [] : nquads(shapes.closure);
     for (const q of closure) {
         covered.outAll.add(nkey(q.subject));
         if (q.predicate.startsWith(NS.sh)) covered.predicates.add(q.predicate);
     }
-    const prefetched = [...closure, ...nquads(subclasses)], have = new Set(prefetched.map(tripleOf));
+    const served = new Set(viewQuads.map(tripleOf));
+    const gone = new Set(kept?.view.map(tripleOf).filter(k => !served.has(k)));
+    const prefetched = kept ? kept.quads.filter(q => !gone.has(tripleOf(q))) : [...closure, ...nquads(subclasses)];
+    const have = new Set(prefetched.map(tripleOf));
 
     // (c) The statements of the scope terms (the IRI ends of a statement) as subject and object, read in the first round.
     const ends = [...new Set([viewIri, ...scope.flatMap(iris)])].filter(v => !v.startsWith(BLANK)).map(v => ({ termType: 'NamedNode' as const, value: v }));
-    let seed = groupsOf(ends.flatMap(term => [{ kind: 'out' as const, term }, { kind: 'in' as const, term }]));
+    let seed = groupsOf(ends.flatMap(term => [
+        ...covered.outAll.has(nkey(term)) ? [] : [{ kind: 'out' as const, term }],
+        ...covered.inAll.has(nkey(term)) ? [] : [{ kind: 'in' as const, term }]
+    ]));
     for (const t of ends) { covered.outAll.add(nkey(t)); covered.inAll.add(nkey(t)); }
 
     for (let round = 0; ; round++) {
@@ -262,9 +280,9 @@ export async function prefetchFigures(port: ModelPort, viewIri: string, viewFile
         if (!added) break;
     }
 
-    const served = new Set(viewQuads.map(tripleOf));
     return {
         view,
+        kept: { quads: prefetched.filter(q => !served.has(tripleOf(q))), covered, view: viewQuads },
         figures(now, also = []) {
             const current = nquads(now), kept = new Set(current.map(tripleOf));
             // The view statements can also be in (c) and (e) (a read of the view IRI): a statement that left the view leaves the index.

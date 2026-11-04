@@ -71,6 +71,41 @@ describe('viewFiguresOf over one prefetch on test/fixtures/shapes', () => {
     }, 20000);
     afterAll(async () => { await server?.stop(); });
 
+    test('an unchanged view reuses its prefetch with exactly one query and equal figures', async () => {
+        const { port, modelFiles, shapes, views } = await inputsOf(server, FIXTURE);
+        const construct = [] as string[];
+        const counting: ModelPort = { ...port, construct: (q, f) => { construct.push(q); return port.construct(q, f); } };
+        const first = await viewFiguresOf(counting, VIEWS[0], views.get(VIEWS[0])!, shapes, modelFiles);
+        expect(construct.length).toBeGreaterThan(1);
+        construct.length = 0;
+        const second = await viewFiguresOf(counting, VIEWS[0], views.get(VIEWS[0])!, shapes, modelFiles, [], first.kept);
+        expect(construct).toEqual(['CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }']);
+        expect(json(plain(second))).toEqual(json(plain(first)));
+        expect(second.misses).toBe(0);
+    });
+
+    test('removing and restoring a placement replaces the previous server view statements', async () => {
+        const { port, modelFiles, shapes, views } = await inputsOf(server, FIXTURE);
+        const file = views.get(VIEWS[0])!;
+        const view = await port.construct('CONSTRUCT { ?s ?p ?o } WHERE { ?s ?p ?o }', [file]);
+        const placement = view.find(q => q.predicate.value.endsWith('view#element'))!.subject.value;
+        let removed = false;
+        const changing: ModelPort = { ...port, construct: async (q, f) => {
+            const answer = await port.construct(q, f);
+            return removed ? answer.filter(q => q.subject.value !== placement) : answer;
+        } };
+        const first = await viewFiguresOf(changing, VIEWS[0], file, shapes, modelFiles);
+        removed = true;
+        const second = await viewFiguresOf(changing, VIEWS[0], file, shapes, modelFiles, [], first.kept);
+        const fresh = await viewFiguresOf(changing, VIEWS[0], file, shapes, modelFiles);
+        expect(second.placed.size).toBe(first.placed.size - 1);
+        expect(json(plain(second))).toEqual(json(plain(fresh)));
+        removed = false;
+        const restored = await viewFiguresOf(changing, VIEWS[0], file, shapes, modelFiles, [], second.kept);
+        expect(json(plain(restored))).toEqual(json(plain(first)));
+        expect(restored.misses).toBe(0);
+    });
+
     test('urn:name:Bookshop%20model: at most two fixed queries plus three rounds, under 64 KB; no blank-node dump', () => {
         const texts = sent.get(VIEWS[0])!, lengths = texts.map(t => Buffer.byteLength(t));
         expect(texts.length).toBeLessThanOrEqual(2 + 3);

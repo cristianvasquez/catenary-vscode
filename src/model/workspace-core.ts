@@ -13,6 +13,7 @@ import type { GraphResult } from '../node/turtle-api';
 import { type DiagramOptions, type Drawn, type ModelContext, diagramOf, emptyDrawn, modelContextOf } from '../read/diagram';
 import { diagnosticsOf } from '../read/diagnostics';
 import type { ManifestRecords } from '../read/manifest';
+import type { KeptPrefetch } from '../read/figures';
 import type { ShapesModelRecords } from '../read/shapes';
 import { expandChoices, instancesNamed, memberOptions } from '../read/choices';
 import type { Choices } from '../catenary/model/prompts';
@@ -45,6 +46,8 @@ export abstract class WorkspaceCore implements ViewSource {
     manifest: ManifestRecords = {};
     /** Incremented on each refresh that succeeds. */
     generation = 0;
+    /** Prefetched figure statements per view; only entries of the current model generation are reused. */
+    private readonly keptFigures = new Map<string, { generation: number; kept: KeptPrefetch }>();
     /** The context of the reads (modelContextOf): its port reads the documents of this folder only. */
     protected ctx: ModelContext | undefined;
     violations: Violation[] = [];
@@ -201,7 +204,13 @@ export abstract class WorkspaceCore implements ViewSource {
     /** The diagram of the view `viewId` from turtle/query: the open buffer of its document wins over the saved file. */
     async diagram(viewId: string, opts: DiagramOptions): Promise<Drawn> {
         const ctx = this.context();
-        return ctx ? diagramOf(ctx, viewId, opts) : emptyDrawn();
+        if (!ctx) return emptyDrawn();
+        const generation = this.generation, key = viewIriOf(viewId) ?? viewId;
+        const entry = this.keptFigures.get(key);
+        const drawn = await diagramOf(ctx, viewId, { ...opts, kept: entry?.generation === generation ? entry.kept : undefined });
+        // An old draw must not overwrite the state of a newer model generation.
+        if (drawn.kept && generation === this.generation) this.keptFigures.set(key, { generation, kept: drawn.kept });
+        return drawn;
     }
 
     /** The pickers of the halo and of "+ member" from turtle/query (read/choices.ts); none before the first refresh. */

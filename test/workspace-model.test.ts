@@ -98,11 +98,14 @@ test('a canvas command is one edit of the open view document; the next draw read
     const folder = host.folder = { name: 'shapes', uri: { fsPath: FIXTURE } } as WorkspaceFolder;
     const model = new WorkspaceModel(folder, () => apiOf(server), () => undefined);
     const fake = fakeHost(model, server);
+    const query = vi.spyOn(server, 'query');
     try {
         await model.refresh();
         const iri = 'urn:name:Bookshop', vid = iriId(iri), file = host.files[0], uri = pathToFileURL(file).href;
         const cardsOf = async () => (await model.diagram(vid, {})).schema.children!.filter(e => e.type === 'node:card');
+        query.mockClear();
         const card = (await cardsOf())[0], at = { x: 4321, y: 1234 };
+        const firstDrawQueries = query.mock.calls.length;
         const command: ViewCommand = { kind: 'setBounds', view: vid, bounds: [{ id: card.element as string, ...at }] };
 
         expect(await model.execute(vid, command)).toEqual({ ok: false, error: 'The view is not open in an editor.' });
@@ -120,12 +123,22 @@ test('a canvas command is one edit of the open view document; the next draw read
         expect(removed.map(k => k.split(' ')[1]).sort()).toEqual([`<${V_NS}x>`, `<${V_NS}y>`]);
         expect(added.map(k => k.split(' ').slice(1).join(' ')).sort()).toEqual([`<${V_NS}x> "4321"^^<http://www.w3.org/2001/XMLSchema#integer>`, `<${V_NS}y> "1234"^^<http://www.w3.org/2001/XMLSchema#integer>`]);
         expect(new Set([...removed, ...added].map(k => k.split(' ')[0])).size).toBe(1);
-        // After didChange the next draw shows the new position.
+        // After didChange the next draw shows the new position and reuses the figure prefetch.
+        model.viewChanged();
+        query.mockClear();
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(at);
+        const secondDrawQueries = query.mock.calls.length;
+        expect(secondDrawQueries).toBeLessThan(firstDrawQueries);
 
         // A text change of the document (a text editor, an undo) is drawn too.
         fake.type(uri, readFileSync(file, 'utf8'));
         expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
+
+        // A successful model refresh invalidates the kept statements through the generation check.
+        await model.refresh();
+        query.mockClear();
+        expect((await cardsOf()).find(c => c.element === card.element)!.position).toEqual(card.position);
+        expect(query.mock.calls.length).toBe(firstDrawQueries);
 
         // A text change between the read of the document and the edit wins over the command.
         fake.beforeEdit = () => fake.type(uri, readFileSync(file, 'utf8') + '\n');
