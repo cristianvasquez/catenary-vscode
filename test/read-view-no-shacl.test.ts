@@ -33,7 +33,7 @@ describe('placed IRIs without SHACL', () => {
         expect(warnings.filter(w => w.includes('no supported card presentation'))).toEqual([]);
     });
 
-    test.each(['carol', 'paris', 'acme', 'eve'])('%s has an engine Box with a title role and no rows', async name => {
+    test.each(['carol', 'paris', 'acme', 'eve'])('%s has an engine Box with a title role and its non-title statements', async name => {
         const got = await viewFiguresOf(ctx.port, VIEW, ctx.views.get(VIEW)!, ctx.shapes, ctx.modelFiles);
         const figure = got.derivation.figures.find(f => f.focus.value === iri(name));
         expect(figure).toBeDefined();
@@ -41,7 +41,40 @@ describe('placed IRIs without SHACL', () => {
         expect(figure!.fs.kind).toBe('Box');
         expect(figure!.fs.props.some(p => p.role === 'title')).toBe(true);
         expect(figure!.title).toBe(name === 'carol' ? 'Carol' : name);
-        expect(figure!.rows).toEqual([]);
+        expect(figure!.rows.map(r => r.text)).toEqual(name === 'paris' ? ['population: 2000000'] : name === 'eve' ? ['knows: Alice'] : []);
+    });
+
+    test('Alice shows every non-title statement once, including known unplaced bob and the address blank node', async () => {
+        const drawn = await diagramOf(ctx, VIEW);
+        const card = drawn.schema.children!.find(c => c.element === iriId(iri('alice')))!;
+        const lines = card.lines as string[];
+        expect(lines).toHaveLength(6);
+        expect(lines[0]).toMatch(/^address: /);
+        expect(lines.slice(1)).toEqual(['age: 30', 'knows: bob', 'knows: Carol', 'livesIn: paris', 'worksAt: acme']);
+        expect(drawn.doc.instances[iriId(iri('alice'))].fields[iri('knows')]).toContainEqual({ termType: 'NamedNode', value: iri('bob') });
+    });
+
+    test('placing bob and the explicit alice-to-bob edge removes only its row', async () => {
+        const file = ctx.views.get(VIEW)!, uri = pathToFileURL(file).href;
+        const original = readFileSync(file, 'utf8');
+        const text = `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+<${VIEW}> {
+  <${VIEW}> a view:View .
+  <urn:test:alice> a view:Placement ; view:view <${VIEW}> ; view:element <${iri('alice')}> .
+  <urn:test:bob> a view:Placement ; view:view <${VIEW}> ; view:element <${iri('bob')}> .
+  <urn:test:knows> a view:Placement ; view:view <${VIEW}> ; rdf:reifies <<( <${iri('alice')}> <${iri('knows')}> <${iri('bob')}> )>> .
+}`;
+        try {
+            server.open(uri, text, 'trig');
+            const drawn = await diagramOf(ctx, VIEW);
+            const card = drawn.schema.children!.find(c => c.element === iriId(iri('alice')))!;
+            expect(card.lines).not.toContain('knows: bob');
+            expect(card.lines).toContain('knows: Carol');
+            expect(drawn.schema.children).toContainEqual(expect.objectContaining({ type: TYPES.RELATION, id: iriId('urn:test:knows') }));
+        } finally {
+            server.change(uri, original);
+        }
     });
 
     test('a statement-free placed IRI is a relation endpoint and its explicit edge renders', async () => {

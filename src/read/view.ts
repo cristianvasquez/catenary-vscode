@@ -176,7 +176,6 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
         if (!iri.startsWith(BLANK) && !answer.covered.read.has(iri)) misses.add(iri);
         return bySubject.get(iri) ?? [];
     };
-    const known = (o: Term) => (bySubject.get(o.value) ?? []).some(r => r.p.value === TYPE || r.p.value === LABEL);
 
     const doc = emptyDoc();
     doc.shapes = model;
@@ -251,7 +250,6 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
     const shows = !elements && elementObjects.some(o => shapes.shapeSubjects.has(`<${o}>`)
         || modelRows.some(r => r.s.value === o && r.p.value === TYPE && valueSetTypes.has(r.o.value)));
     // A blank node of the answer is never a placed element: the port names blank nodes per request, a view blank node can have the same name.
-    const keep = (r: Row) => !!elements || r.p.value === TYPE || r.o.termType !== 'NamedNode' || (placed.has(r.o.value) && !r.o.value.startsWith(BLANK)) || !(known(r.o) && !isShape(r.o));
 
     const statements = new Map<string, Statements>();
     const seen = new Set<string>();
@@ -264,7 +262,7 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
         if (!e) statements.set(key(s), e = { s, rows: [] });
         e.rows.push({ s, p: plain(r.p), o: plain(r.o) });
     };
-    for (const r of modelRows) if (placed.has(r.s.value) && keep(r)) push(r);
+    for (const r of modelRows) if (placed.has(r.s.value)) push(r);
     // A view that shows shapes: the SKOS subjects among the placed IRIs and the members of the placed value sets, with their model statements.
     const skosTypes = new Set(SKOS_TYPES.map(t => t.value)), membership = new Set(SKOS_MEMBERSHIP.map(p => p.value));
     if (shows) {

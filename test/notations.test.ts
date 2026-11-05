@@ -64,6 +64,41 @@ test.each(['urn:name:model', 'urn:skolem:blank:abc'])('the catch-all Card exclud
     expect(got.figures).toEqual([]);
 });
 
+test.each([20, 23])('unshaped rows sort by predicate and value, with a cap for %s statements', count => {
+    const focus = iri('urn:test:subject');
+    const data = new TripleIndex(Array.from({ length: count }, (_, i) => ({
+        subject: focus, predicate: `urn:test:${i % 2 ? 'z' : 'a'}`,
+        object: { termType: 'Literal' as const, value: String(count - i).padStart(2, '0') }
+    })));
+    const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view', [focus]);
+    const rows = got.figures.find(f => f.focus.value === focus.value)!.rows;
+    const sorted = Array.from({ length: count }, (_, i) => `${i % 2 ? 'z' : 'a'}: ${String(count - i).padStart(2, '0')}`).sort();
+    expect(rows.map(r => r.text)).toEqual([...sorted.slice(0, 20), ...(count > 20 ? [`… +${count - 20} more`] : [])]);
+    expect(rows.every(r => r.shaped === false)).toBe(true);
+});
+
+test('shaped rows stay first and unchanged; title and type statements are not unshaped rows', () => {
+    const focus = iri('urn:test:subject'), shape = iri('urn:test:shape'), ps = iri('urn:test:property');
+    const sh = 'http://www.w3.org/ns/shacl#';
+    const data = new TripleIndex([
+        { subject: focus, predicate: TYPE, object: iri('urn:test:Class') },
+        { subject: shape, predicate: sh + 'targetClass', object: iri('urn:test:Class') },
+        { subject: shape, predicate: sh + 'property', object: ps },
+        { subject: ps, predicate: sh + 'path', object: iri('urn:test:z') },
+        { subject: ps, predicate: sh + 'name', object: { termType: 'Literal', value: 'shaped name' } },
+        ...['z', 'a', 'http://www.w3.org/2000/01/rdf-schema#label', 'http://www.w3.org/2004/02/skos/core#prefLabel', sh + 'name'].map(p => ({
+            subject: focus, predicate: p.includes(':') ? p : `urn:test:${p}`, object: { termType: 'Literal' as const, value: 'value' }
+        }))
+    ]);
+    const notes = notations(canonical(parseNotationFiles()));
+    const card = () => deriveFigures(data, notes, 'urn:test:view', [focus]).figures.find(f => f.focus.value === focus.value)!;
+    // The notation's rdf:type text role supplies the class line before gathered rows.
+    expect(card().rows.map(r => r.text)).toEqual(['rdf:type: Class', 'shaped name: value', 'a: value']);
+    expect(card().rows[1].gathered).toEqual(ps);
+    expect(card().rows[1].shaped).toBeUndefined();
+    expect(card().rows[2].shaped).toBe(false);
+});
+
 test('the notation files give the recorded statements of the Oxigraph parser', () => {
     const now = canonical(parseNotationFiles());
     expect(now.length).toBeGreaterThan(300);

@@ -64,6 +64,8 @@ interface Row {
     sub?: Row[];
     connector?: Connector;
     gathered?: NTerm;
+    /** False for statements outside the property shapes, including their overflow row. */
+    shaped?: boolean;
     /** A gathered row: the other sh:name values of its path. */
     names?: string[];
 }
@@ -544,5 +546,18 @@ function gather(D: TripleIndex, f: Figure, warnings: string[], titlePaths: strin
         for (const ps of ownOf(s)) f.rows.push(...rowsOf(ps));
         for (const { op, members } of groupsOf(s)) if (members.length) f.rows.push({ order: 0, rank: 0, text: op, sub: members.flatMap(rowsOf) });
     }
+    const remaining = D.predicates(f.focus)
+        .filter(p => p !== RDF('type') && !LABELS.includes(p) && !titlePaths.includes(p))
+        .flatMap(p => D.objects(f.focus, p).filter(v => !statements.has(nkey(triple(f.focus, p, v)))).map(v => ({ p, v })))
+        .sort((a, b) => localName(a.p).localeCompare(localName(b.p)) || nkey(a.v).localeCompare(nkey(b.v)) || a.p.localeCompare(b.p));
+    for (const { p, v } of remaining.slice(0, 20)) {
+        const row: Row = { order: 0, rank: 0, shaped: false, text: `${localName(p)}: ${label(D, v)}` };
+        if (v.termType === 'NamedNode') {
+            row.connector = { statement: triple(f.focus, p, v), unplaced: 'AsRow', text: row.text };
+            f.connectors.push(row.connector);
+        }
+        f.rows.push(row);
+    }
+    if (remaining.length > 20) f.rows.push({ order: 0, rank: 0, shaped: false, text: `… +${remaining.length - 20} more` });
 }
 

@@ -88,7 +88,7 @@ function joinState(figs: Figure[], placed: ReadonlyMap<string, unknown>) {
 // --- the join ---------------------------------------------------------------------------------------
 
 /** A row of a box. `connector`: the row stands for a link that is not drawn as a line. */
-interface JoinRow { text: string; part?: Figure; connector?: Connector; sub?: JoinRow[]; names?: string[] }
+interface JoinRow { shaped?: boolean; text: string; part?: Figure; connector?: Connector; sub?: JoinRow[]; names?: string[] }
 
 export interface JoinBox { figure: Figure; simple: boolean; rows: JoinRow[] }
 
@@ -129,10 +129,10 @@ function join(d: Derivation, placed: Placements): Join {
         const simple = Boolean(placed.get(nkey(f.placedAs))?.simple);
         const rows: JoinRow[] = simple ? [] : [
             ...f.rows.filter(visible).map(r => ({
-                text: r.text, part: r.part, connector: r.connector, ...(r.names ? { names: r.names } : {}),
+                text: r.text, part: r.part, connector: r.connector, ...(r.shaped === false ? { shaped: false } : {}), ...(r.names ? { names: r.names } : {}),
                 ...(r.sub ? { sub: r.sub.filter(visible).map(s => ({ text: s.text, part: s.part, connector: s.connector, ...(s.names ? { names: s.names } : {}) })) } : {})
             })),
-            ...f.connectors.filter(c => !c.gathered && !lineOf(c)).map(c => ({ text: c.text, connector: c }))
+            ...f.connectors.filter(c => !c.gathered && !f.rows.some(r => r.connector === c) && !lineOf(c)).map(c => ({ text: c.text, connector: c }))
         ];
         boxes.push({ figure: f, simple, rows });
     }
