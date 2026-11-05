@@ -174,10 +174,10 @@ ex:scheme a skos:ConceptScheme .
         }
     });
 
-    test('a gathered link to a labelled blank-node instance reads its label; equal to the recorded viewFiguresOf; no miss', async () => {
+    test('a gathered link to a labelled blank-node instance shows []; equal to the recorded viewFiguresOf; no miss', async () => {
         const got = await viewFiguresOf(inputs.port, VIEW, inputs.views.get(VIEW)!, inputs.shapes, inputs.modelFiles);
         const alice = got.join.boxes.find(b => b.figure.focus.value === `${EX}alice`);
-        expect(alice?.rows.map(r => r.text)).toContain('knows: Bob');
+        expect(alice?.rows.map(r => r.text)).toContain('knows: []');
         expect(json(plain(got))).toEqual(R('anchors'));
         expect(got.misses).toBe(0);
     });

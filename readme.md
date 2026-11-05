@@ -18,7 +18,7 @@ Catenary sets the default of `turtle.query.maxRows` to 5000 (turtle-lsp: 1000); 
 ## Features
 
 - Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
-- Place, remove, move, resize and color view elements; choose Simple (no rows), Shaped rows (property-shape rows only), or All rows (the default) for cards. Instance cards need no type or label. Property-shape rows come first, then other statements sorted by predicate and value (at most 20, followed by “… +k more”). Type and title statements are not rows.
+- Place, remove, move, resize and color view elements; choose Simple (no rows), Shaped rows (property-shape rows only), or All rows (the default) for cards. Instance cards need no type or label. Property-shape rows come first, then other statements sorted by predicate and value (at most 20, followed by “… +k more”). Type and title statements are not rows. Blank values show as `[]`. Relation rows are hidden when the other end has a card or the relation is drawn as a line.
 - Remove relation edges from a view, route edges with bends, and change property rows to lines or back to rows.
 - Collect instance cards into entity groups and expand them back into cards.
 - Edit group labels and note Markdown, add note arrows, and apply Layered or Force layout.
