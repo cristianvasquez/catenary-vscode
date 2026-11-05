@@ -15,7 +15,7 @@ import type { ViewGraph } from '../read/view';
 import type { KeptPrefetch } from '../read/figures';
 import { commandIds, resolveIds, type Views } from './commands';
 import { nodeShapeTerm, type Facts } from './facts';
-import { elementTerm, P, rdf, relationTriple, termKey, tripleKey, V } from './terms';
+import { elementTerm, isSkolem, P, rdf, relationTriple, termKey, tripleKey, V } from './terms';
 
 export interface FactsContext {
     port: ModelPort;
@@ -283,7 +283,9 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
     const facts: Facts = {
         shapes: ctx.shapes.index,
         language: ctx.manifest.language,
-        isInstance: iri => iri !== UNION_GRAPH && (inModel(iri) || vocabularyGraph(iri) !== undefined),
+        isInstance: iri => IRI.test(iri) && iri !== UNION_GRAPH && !isSkolem(rdf.namedNode(iri))
+            && !ctx.views.has(iri) && !Object.values(views).some(v => v.match(rdf.namedNode(iri)).length > 0)
+            && (!shapesBySubject.has(iri) || (model.get(iri)?.size ?? 0) > 0),
         label: iri => pickLabel(labelLiterals(p => rowsOf(iri).filter(q => q.predicate.value === p).map(q => q.object)), ctx.manifest.language) ?? labelFromIri(iri),
         isView: iri => ctx.views.has(iri),
         viewLabel: iri => pickLabel(labelLiterals(p => p === RDFS_LABEL ? ctx.viewLabels?.get(iri)?.subjects.get(termKey(rdf.namedNode(iri)))?.labels ?? [] : []), ctx.manifest.language) ?? labelFromIri(iri),
