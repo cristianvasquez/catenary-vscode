@@ -2,7 +2,7 @@ name: publish
 
 # A push of the tag v<version> (the version of package.json) verifies, packages and publishes the extension to the VS Code
 # Marketplace, and attaches the .vsix file to a GitHub release. Authentication: Marketplace trusted publishing (OIDC), a policy
-# of the publisher cvasquezpaulus for this repository and workflow file; no token secret.
+# of the Marketplace publisher for this repository and workflow file; no token secret.
 on:
   push:
     tags: ['v*']

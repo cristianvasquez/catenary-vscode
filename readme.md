@@ -93,7 +93,7 @@ The workflow `.github/workflows/pages.yml` publishes `dist-web/` to GitHub Pages
 
 The UI scripts build and launch a development host; this repository has no F5 launch configuration. A full `pnpm ui` run takes about 90 s; it stops with a failure after 300 s (`CATENARY_UI_DEADLINE_MS`), and a single Playwright action fails after 15 s. `pnpm package` writes the `.vsix` file.
 
-Release: set `version` in `package.json`, add the entry to `CHANGELOG.md`, commit, tag `v<version>` and push the tag. The workflow `.github/workflows/publish.yml` checks that the tag equals the version, builds turtle-lsp `v0.14.0` for the tests, runs `pnpm verify`, publishes the package to the VS Code Marketplace by trusted publishing (`vsce publish --oidc`: a policy of the publisher `cvasquezpaulus` for this repository and `publish.yml`; no token secret) and attaches the `.vsix` file to a GitHub release. The workflow has not run on GitHub yet.
+Release: set `version` in `package.json`, add the entry to `CHANGELOG.md`, commit, tag `v<version>` and push the tag. The workflow `.github/workflows/publish.yml` checks that the tag equals the version, builds turtle-lsp `v0.14.0` for the tests, runs `pnpm verify`, publishes the package to the VS Code Marketplace by trusted publishing (`vsce publish --oidc`; no token secret) and attaches the `.vsix` file to a GitHub release. The workflow has not run on GitHub yet.
 
 Rules:
 - Copy Catenary's canvas and diagram derivation by dependency; remove model-edit paths and unreachable functions.
