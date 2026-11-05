@@ -122,7 +122,7 @@ export function notationElements(doc: Doc, vf: ViewFigures, opts: GraphOptions):
             cards.push({
                 type: TYPES.SHAPE, id: boxId(f), element: shape.id, ...geometry, size: { width, height },
                 className: 'NodeShape', name: shape.label, subtitle: targetText(shape, shortIri),
-                color: pl?.color ?? '', closed: !!shape.closed, violations, display: simple ? 'simple' : 'detailed', hiddenSources: opts.hidden?.shapeSources(shape.id) ?? 0, hiddenTargets: opts.hidden?.neighbors(shape.id)?.targets ?? 0,
+                color: pl?.color ?? '', closed: !!shape.closed, violations, display: pl?.display ?? (simple ? 'simple' : 'detailed'), hiddenSources: opts.hidden?.shapeSources(shape.id) ?? 0, hiddenTargets: opts.hidden?.neighbors(shape.id)?.targets ?? 0,
                 children: simple ? [] : rows as unknown as ElementSchema[]
             });
         } else if (isValueSets(f)) {

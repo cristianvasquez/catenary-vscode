@@ -1,12 +1,12 @@
 // Join notation figures to placements and determine rows and lines; adapted from Catenary packages/model/src/notation-join.ts.
-import { parseVertices } from './doc';
+import { CardDisplay, parseVertices } from './doc';
 import { Connector, Derivation, Figure, Notations, deriveFigures, termLabel } from './notation';
 import { RDF, TripleIndex, V, iri, nkey, triple } from './notation-graph';
 
 
 /** A placement of a view: its IRI, its display and its geometry (absent on a line, optional on a hub). */
 export interface NotationPlacement {
-    iri: string; simple: boolean; keptByLines: boolean;
+    iri: string; simple: boolean; display?: CardDisplay; keptByLines: boolean;
     x?: number; y?: number; width?: number; height?: number; color?: string; fromSide?: string; toSide?: string;
     vertices?: { x: number; y: number }[];
 }
@@ -26,7 +26,8 @@ export function placementsOf(D: TripleIndex, viewIri: string): Placements {
         const geometry = Object.fromEntries((['x', 'y', 'width', 'height'] as const).map(k => [k, num(k)]).filter(([, v]) => v !== undefined));
         const style = Object.fromEntries((['color', 'fromSide', 'toSide'] as const).map(k => [k, str(k)]).filter(([, v]) => v !== undefined));
         const vertices = parseVertices(str('vertices'));
-        placed.set(nkey(e), { iri: p.value, simple: str('display') === 'simple', keptByLines: str('keptByLines') === 'true', ...geometry, ...style, ...(vertices ? { vertices } : {}) });
+        const value = str('display'), display = value === 'simple' || value === 'shaped' ? value : 'detailed';
+        placed.set(nkey(e), { iri: p.value, simple: display === 'simple', ...(display === 'shaped' ? { display } : {}), keptByLines: str('keptByLines') === 'true', ...geometry, ...style, ...(vertices ? { vertices } : {}) });
     }
     return placed;
 }
@@ -126,13 +127,14 @@ function join(d: Derivation, placed: Placements): Join {
     const boxes: JoinBox[] = [];
     for (const f of figs.filter(f => shown(f) && f.fs.kind === 'Box')) {
         const visible = (r: { part?: Figure; connector?: Connector }) => !drawnFrom(f, r.part) && !(r.connector && lineOf(r.connector));
-        const simple = Boolean(placed.get(nkey(f.placedAs))?.simple);
+        const placement = placed.get(nkey(f.placedAs));
+        const simple = Boolean(placement?.simple), shaped = placement?.display === 'shaped';
         const rows: JoinRow[] = simple ? [] : [
-            ...f.rows.filter(visible).map(r => ({
+            ...f.rows.filter(r => visible(r) && (!shaped || r.shaped !== false)).map(r => ({
                 text: r.text, part: r.part, connector: r.connector, ...(r.shaped === false ? { shaped: false } : {}), ...(r.names ? { names: r.names } : {}),
                 ...(r.sub ? { sub: r.sub.filter(visible).map(s => ({ text: s.text, part: s.part, connector: s.connector, ...(s.names ? { names: s.names } : {}) })) } : {})
             })),
-            ...f.connectors.filter(c => !c.gathered && !f.rows.some(r => r.connector === c) && !lineOf(c)).map(c => ({ text: c.text, connector: c }))
+            ...f.connectors.filter(c => !shaped && !c.gathered && !f.rows.some(r => r.connector === c) && !lineOf(c)).map(c => ({ text: c.text, connector: c }))
         ];
         boxes.push({ figure: f, simple, rows });
     }

@@ -41,7 +41,7 @@ export interface Relation {
 }
 
 
-export type CardDisplay = 'simple' | 'detailed';
+export type CardDisplay = 'simple' | 'shaped' | 'detailed';
 
 
 /** The fields of every box of a view. */
@@ -58,7 +58,7 @@ interface BoxBase extends Box {
 export interface ViewCard extends BoxBase {
     kind: 'card';
     element: string;
-    /** Card content: 'simple' shows the class and the name only. Absent: detailed. */
+    /** Card content: 'simple' shows no rows; 'shaped' shows property-shape rows only. Absent: detailed. */
     display?: CardDisplay;
 }
 

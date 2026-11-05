@@ -222,14 +222,15 @@ export class CanvasInteractions implements IDiagramStartup {
         const shown = id ? this.shown(w, id) : undefined;
         const openable = shown && ([TYPES.CARD, TYPES.SHAPE, TYPES.VALUESET, TYPES.VIEW_REFERENCE] as string[]).includes(shown.type as string);
         const cards = selected.map(element => this.shown(w, element)).filter(element => element?.display !== undefined);
-        const display = cards.every(card => card?.display === 'simple') ? 'detailed' : 'simple';
         void this.actions.pick('Actions', [
             { label: 'Color', swatches: ['', ...COLOR_ORDER].map(color => ({
                 label: color ? COLOR_NAMES[color] : 'default', color: colorValue(color) ?? '', current: shown?.color === color,
                 run: () => this.model.execute({ kind: 'setViewElements', view, ids: selected, patch: { color } })
             })) },
-            ...(cards.length ? [{ label: display === 'detailed' ? 'Show details' : 'Simple cards',
-                run: () => this.model.execute({ kind: 'setViewElements', view, ids: selected, patch: { display } }) }] : []),
+            ...(cards.length ? ([['simple', 'Simple'], ['shaped', 'Shaped rows'], ['detailed', 'All rows']] as const).map(([display, label]) => ({
+                label: `${cards.every(card => card?.display === display) ? '✓ ' : ''}${label}`,
+                run: () => this.model.execute({ kind: 'setViewElements', view, ids: selected, patch: { display } })
+            })) : []),
             { type: 'separator', label: '' },
             { label: 'Remove from view', description: 'Del', run: () => id.endsWith(LEAF_SUFFIX) ? this.actions.removeFromView(view, id)
                 : w.actionDispatcher.dispatch(DeleteElementOperation.create(this.selectedIn(w))) },

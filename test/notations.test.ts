@@ -4,6 +4,7 @@ import type { Quad, Term } from '@rdfjs/types';
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
 import { TripleIndex, iri, triple, type NQuad, type NTerm } from '../src/catenary/model/notation-graph';
+import { viewFigures } from '../src/catenary/model/notation-join';
 import { deriveFigures, notations } from '../src/catenary/model/notation';
 import { termToJSON, type TermJSON } from '../src/catenary/model/terms';
 import { parseNotationFiles } from '../src/catenary/rdf/notations';
@@ -97,6 +98,30 @@ test('shaped rows stay first and unchanged; title and type statements are not un
     expect(card().rows[1].gathered).toEqual(ps);
     expect(card().rows[1].shaped).toBeUndefined();
     expect(card().rows[2].shaped).toBe(false);
+});
+
+test.each(['simple', 'shaped', 'detailed'] as const)('%s joins property-shape rows and capped unshaped rows correctly', display => {
+    const focus = iri('urn:test:subject'), shape = iri('urn:test:shape'), ps = iri('urn:test:property');
+    const view = 'urn:test:view', placement = iri('urn:test:placement'), sh = 'http://www.w3.org/ns/shacl#';
+    const literal = (value: string): NTerm => ({ termType: 'Literal', value });
+    const data = new TripleIndex([
+        { subject: focus, predicate: TYPE, object: iri('urn:test:Class') },
+        { subject: shape, predicate: sh + 'targetClass', object: iri('urn:test:Class') },
+        { subject: shape, predicate: sh + 'property', object: ps },
+        { subject: ps, predicate: sh + 'path', object: iri('urn:test:z') },
+        { subject: focus, predicate: 'urn:test:z', object: literal('shaped value') },
+        ...Array.from({ length: 23 }, (_, i) => ({ subject: focus, predicate: `urn:test:p${String(i).padStart(2, '0')}`, object: literal('extra') })),
+        { subject: placement, predicate: VIEW_NS + 'view', object: iri(view) },
+        { subject: placement, predicate: VIEW_NS + 'element', object: focus },
+        { subject: placement, predicate: VIEW_NS + 'display', object: literal(display) }
+    ]);
+    const got = viewFigures(data, notations(canonical(parseNotationFiles())), view);
+    const box = got.join.boxes.find(b => b.figure.focus.value === focus.value)!;
+    expect(box.simple).toBe(display === 'simple');
+    expect(box.rows.map(r => r.text)).toEqual(display === 'simple' ? [] : [
+        'rdf:type: Class', 'z: shaped value',
+        ...(display === 'detailed' ? [...Array.from({ length: 20 }, (_, i) => `p${String(i).padStart(2, '0')}: extra`), '… +3 more'] : [])
+    ]);
 });
 
 test('the notation files give the recorded statements of the Oxigraph parser', () => {

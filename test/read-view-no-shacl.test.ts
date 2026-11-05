@@ -10,6 +10,7 @@ import { relationId } from '../src/catenary/rdf/ids';
 import { rdf } from '../src/catenary/rdf/terms';
 import { startServer } from './server';
 import { viewFiguresOf } from '../src/read/figures';
+import { viewDocuments } from './views';
 
 const VIEW = 'urn:name:People';
 const PEOPLE = ['alice', 'carol', 'paris', 'acme', 'eve'];
@@ -23,6 +24,26 @@ describe('placed IRIs without SHACL', () => {
         ({ ctx } = await modelContextOf(server.port(), ['data.ttl', 'view.trig'].map(f => resolve(dir, f))));
     }, 20000);
     afterAll(async () => { await server?.stop(); });
+
+    test('display edits round-trip shaped, simple and the detailed default without SHACL', async () => {
+        const docs = viewDocuments(server, () => ctx, { [VIEW]: ctx.views.get(VIEW)! });
+        const id = iriId(iri('alice'));
+        try {
+            for (const display of ['shaped', 'simple', 'detailed'] as const) {
+                expect(await docs.run({ kind: 'setViewElements', view: iriId(VIEW), ids: [id], patch: { display } })).toMatchObject({ ok: true });
+                const drawn = await diagramOf(ctx, VIEW);
+                const placement = drawn.doc.views[iriId(VIEW)].boxes.find(b => b.kind === 'card' && b.element === id)!;
+                expect(placement).toMatchObject(display === 'detailed' ? { kind: 'card' } : { display });
+                expect('display' in placement ? placement.display : undefined).toBe(display === 'detailed' ? undefined : display);
+                const card = drawn.schema.children!.find(c => c.element === id)!;
+                expect(card.display).toBe(display);
+                expect(card.lines).toHaveLength(display === 'detailed' ? 6 : 0);
+                expect(docs.text(VIEW).includes('"shaped"')).toBe(display === 'shaped');
+            }
+        } finally {
+            docs.reset();
+        }
+    });
 
     test('all five placed IRIs have instances and cards without unsupported-presentation warnings', async () => {
         const warnings: string[] = [];

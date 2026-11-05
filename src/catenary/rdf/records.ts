@@ -163,7 +163,8 @@ export function projectView(
         const instance = target?.termType === 'NamedNode' ? instanceIds.get(target.value) : undefined;
         if (!instance) { warnings.push(`${label}: placement of ${target?.value} has no supported card presentation, kept in the file, not shown`); continue; }
         if (cards.has(target!.value)) { warnings.push(`${label}: ${target!.value} placed twice, shows one`); continue; }
-        const display = str(r, 'display') === 'simple' ? 'simple' as const : undefined;
+        const value = str(r, 'display');
+        const display = value === 'simple' || value === 'shaped' ? value : undefined;
         // The placement of a property edge is not drawn under its placement id (an edge, or the pill of one property `<element>_leaf`):
         // its box keeps the id of its element.
         const propertyEdge = properties.has(instance);

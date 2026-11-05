@@ -468,7 +468,7 @@ export function setViewElement(view: ViewQuads, facts: Facts, viewId: string, id
         if (patch.text !== undefined) view.set(mark!, V.text, rdf.literal(patch.text));
     }
     const card = !arrow && !kind;
-    if (card && 'display' in patch) writeString(view, s, V.display, patch.display === 'simple' ? 'simple' : undefined);
+    if (card && 'display' in patch) writeString(view, s, V.display, patch.display === 'simple' || patch.display === 'shaped' ? patch.display : undefined);
     if (!arrow) setBox(view, s, box);
     if ('color' in patch) writeString(view, s, V.color, patch.color);
     return ok(undefined);

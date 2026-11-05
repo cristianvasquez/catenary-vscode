@@ -1,0 +1,9 @@
+@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+view:display a rdf:Property ;
+    rdfs:label "card display" ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Card rows: simple shows no rows; shaped shows only property-shape rows; detailed shows all rows. Absent or unknown values use detailed. The writer omits detailed, the default." .

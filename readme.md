@@ -18,7 +18,7 @@ Catenary sets the default of `turtle.query.maxRows` to 5000 (turtle-lsp: 1000); 
 ## Features
 
 - Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
-- Place, remove, move, resize and color view elements; switch cards between simple and detailed display. Instance cards need no type or label. Property-shape rows come first, then other statements sorted by predicate and value (at most 20, followed by “… +k more”). Type and title statements are not rows.
+- Place, remove, move, resize and color view elements; choose Simple (no rows), Shaped rows (property-shape rows only), or All rows (the default) for cards. Instance cards need no type or label. Property-shape rows come first, then other statements sorted by predicate and value (at most 20, followed by “… +k more”). Type and title statements are not rows.
 - Remove relation edges from a view, route edges with bends, and change property rows to lines or back to rows.
 - Collect instance cards into entity groups and expand them back into cards.
 - Edit group labels and note Markdown, add note arrows, and apply Layered or Force layout.
@@ -41,7 +41,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 - Use halo expansion buttons to place hidden neighbours, applicable shapes or checked instances. The in/out counters and lists include every related IRI, also one with no type or label; they exclude blank nodes, `rdf:type` objects and view-file subjects. A placed neighbour counts while its relation edge is hidden. A list shows at most 200 neighbours; its title gives the exact count.
 - Use a card's halo expand button to show a deleted relation edge again.
 - Use halo … → Color to set or clear the selected elements' view color.
-- Use halo … → Simple cards or Show details to change selected cards' display.
+- Use halo … → Simple, Shaped rows or All rows to change selected cards' display. The current choice is marked when all selected cards use it.
 - Use halo … → Collect to put selected instance cards into an entity group; use Expand to show the cards again.
 - Use an entity group's + member input to add a model IRI subject by name or IRI, even without a type or label; use its row × to remove membership from this view. Subjects only in the shapes closure are excluded.
 - Use a row's ➟ to show its element separately or draw a property as a line; use the line's row control to return a property to a row.
