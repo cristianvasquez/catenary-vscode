@@ -28,9 +28,11 @@ const PREFIXES = `PREFIX rdf: <${NS.rdf}> PREFIX rdfs: <${NS.rdfs}> PREFIX skos:
 const TYPE = NS.rdf + 'type', LABEL = NS.rdfs + 'label', PATH = NS.sh + 'path';
 const SKOS_TYPES = new Set(['ConceptScheme', 'Concept', 'Collection'].map(t => NS.skos + t));
 const SKOS_MEMBERSHIP = new Set(['inScheme', 'topConceptOf'].map(p => NS.skos + p));
-/** Every IRI subject and its statements, including labels and SKOS membership, by model document kind. */
-const INSTANCE_ROWS = `${PREFIXES} SELECT ?s ?p ?o WHERE { ?s ?p ?o
-    FILTER (isIRI(?s) && !STRSTARTS(STR(?s), "${BLANK}")) }`;
+/** Distinct IRI subjects with only their label and SKOS classification statements, by model document kind. */
+const INSTANCE_ROWS = `${PREFIXES} SELECT DISTINCT ?s ?p ?o WHERE {
+    { SELECT DISTINCT ?s WHERE { ?s ?any ?value FILTER (isIRI(?s) && !STRSTARTS(STR(?s), "${BLANK}")) } }
+    OPTIONAL { ?s ?p ?o VALUES ?p { rdf:type rdfs:label skos:prefLabel sh:name skos:inScheme skos:topConceptOf } }
+}`;
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -43,15 +45,17 @@ const named = (value: string): FocusNode => ({ termType: 'NamedNode', value });
  */
 export async function instanceLabels(ctx: ModelContext, options: { vocabulary?: boolean } = {}): Promise<Map<string, string>> {
     const inShapes = inShapesOf(ctx.shapes);
-    const rows = legacyRows(await byDocumentKind(ctx.port, documentSets(ctx.shapes, ctx.modelFiles), INSTANCE_ROWS));
+    const answer = await byDocumentKind(ctx.port, documentSets(ctx.shapes, ctx.modelFiles), INSTANCE_ROWS);
+    const rows = [...legacyRows(answer.filter(r => r.p && r.o)), ...answer.filter(r => !r.p)];
     const modelRows = rows.filter(r => !inShapes(r.kind, r.s));
     const instances = new Set(modelRows.map(r => r.s.value));
-    const vocabulary = new Set(rows.filter(r => inShapes(r.kind, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
+    const vocabulary = new Set(rows.filter(r => r.p && inShapes(r.kind, r.s) && ((r.p.value === TYPE && SKOS_TYPES.has(r.o.value)) || SKOS_MEMBERSHIP.has(r.p.value))).map(r => r.s.value));
     const shapesOnly = options.vocabulary ? new Set([...vocabulary].filter(s => !instances.has(s))) : new Set<string>();
     for (const s of shapesOnly) instances.add(s);
     instances.delete(UNION_GRAPH);
     const objects = new Map<string, Map<string, Term[]>>();
     for (const r of [...modelRows, ...rows.filter(r => shapesOnly.has(r.s.value))]) {
+        if (!r.p || !r.o) continue;
         const bySubject = objects.get(r.s.value) ?? objects.set(r.s.value, new Map()).get(r.s.value)!;
         (bySubject.get(r.p.value) ?? bySubject.set(r.p.value, []).get(r.p.value)!).push(r.o);
     }

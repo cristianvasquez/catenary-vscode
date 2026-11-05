@@ -196,6 +196,32 @@ describe('the insert picker candidates', () => {
     });
 });
 
+describe('picker subjects with many ordinary statements', () => {
+    let folder: string, server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
+    let answerRows = 0, requests = 0;
+    beforeAll(async () => {
+        folder = mkdtempSync(join(tmpdir(), 'catenary-px2s-'));
+        const file = join(folder, 'data.ttl');
+        writeFileSync(file, '<urn:test:subject> a <urn:test:Type> .\n' + Array.from({ length: 6000 }, (_, i) => `<urn:test:subject> <urn:test:value> ${i} .`).join('\n'));
+        server = await startServer(folder, 6001);
+        ctx = (await modelContextOf(server.port(), [file])).ctx;
+        const port = ctx.port;
+        ctx = { ...ctx, port: { ...port, select: async (q, f) => {
+            requests++;
+            const rows = await port.select(q, f);
+            answerRows += rows.length;
+            return rows;
+        } } };
+    }, 20000);
+    afterAll(async () => { await server?.stop(); rmSync(folder, { recursive: true, force: true }); });
+
+    test('decision 6-A: distinct subject discovery does not return ordinary statements or exceed the 5,000-row limit', async () => {
+        expect([...await instanceLabels(ctx)]).toEqual([['urn:test:subject', 'subject']]);
+        expect(requests).toBe(1);
+        expect(answerRows).toBe(1);
+    });
+});
+
 describe('a subject of the shapes with data statements', () => {
     let folder: string, server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
     const head = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix ex: <http://example.org/> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
