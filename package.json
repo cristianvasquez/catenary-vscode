@@ -41,6 +41,9 @@
     "onStartupFinished"
   ],
   "contributes": {
+    "configurationDefaults": {
+      "turtle.query.maxRows": 5000
+    },
     "configuration": {
       "title": "Catenary",
       "properties": {

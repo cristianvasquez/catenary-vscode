@@ -569,6 +569,8 @@ async function main(): Promise<void> {
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => save());
     const init = await lsp.initialize({
         processId: null, rootUri: null,
+        // turtle/query can only lower query.maxRows (default 1000): Catenary reads every row of a view in one answer.
+        initializationOptions: { query: { maxRows: 5000 } },
         capabilities: {
             textDocument: { hover: { contentFormat: ['markdown', 'plaintext'] }, rename: { prepareSupport: true }, publishDiagnostics: { relatedInformation: true } },
             workspace: { inlayHint: { refreshSupport: true }, semanticTokens: { refreshSupport: true } }
