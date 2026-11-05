@@ -94,7 +94,8 @@ function pasteIntoView(views: Views, view: ViewQuads, facts: Facts, viewId: stri
     const dx = at ? at.x - Math.min(...items.map(i => i.b.x)) : 0;
     const dy = at ? at.y - Math.min(...items.map(i => i.b.y)) : 0;
     // A view places an element once: a card, a member of an entity group of the view, or a reference already in the view is skipped.
-    const members = new Set(boxes(docOfViewQuads(view, facts, facts.shapes.model).views[viewId], 'collection').flatMap(c => c.members));
+    const members = new Set(view.subjects(P.type, V.EntityGroup)
+        .flatMap(group => view.objects(group, V.member).filter(t => t.termType === 'NamedNode').map(t => iriId(t.value))));
     const inView = items.filter(({ b, id }) => (b.kind === 'card' && (!!ops.nodeOf(view, rdf.namedNode(b.id)) || members.has(id)))
         || (b.kind === 'reference' && !!ops.nodeOf(view, rdf.namedNode(b.target!))));
     if (inView.length === items.length) return alreadyInView(items.length);

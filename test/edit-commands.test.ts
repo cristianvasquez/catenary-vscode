@@ -49,7 +49,27 @@ describe('edit commands accept every card IRI without SHACL (waax)', () => {
         const id = iriId(ex(name));
         expect(await docs.run({ kind: 'removeFromView', view: vid, ids: [id] })).toMatchObject({ ok: true });
         expect(await docs.run({ kind: 'addToView', view: vid, ids: [id], at })).toMatchObject({ ok: true });
-        expect((await docs.quads(view)).match(null, V.element, rdf.namedNode(ex(name)))).toHaveLength(1);
+        const qs = await docs.quads(view);
+        expect(qs.match(null, V.element, rdf.namedNode(ex(name)))).toHaveLength(1);
+        if (name !== 'no-statements') {
+            const predicate = ex(name === 'paris' ? 'livesIn' : 'worksAt');
+            expect(qs.match(null, P.reifies).some(q => q.object.termType === 'Quad' && q.object.subject.value === ex('alice')
+                && q.object.predicate.value === predicate && q.object.object.value === ex(name))).toBe(true);
+        }
+    });
+
+    test.each(['paris', 'no-statements'])('paste does not place grouped %s a second time', async name => {
+        const iri = ex(name), id = iriId(iri);
+        if (name === 'no-statements') expect(await docs.run({ kind: 'addToView', view: vid, ids: [id], at })).toMatchObject({ ok: true });
+        expect(await docs.run({ kind: 'collect', view: vid, ids: [id, iriId(ex('alice'))] })).toMatchObject({ ok: true });
+        const before = docs.text(view);
+        const clip: ViewClip = { format: VIEW_CLIP_FORMAT, mode: 'copy', source: view, edges: [],
+            boxes: [{ kind: 'card', id: iri, element: iri, x: 0, y: 0, width: 300, height: 150 }] };
+        expect(await docs.run({ kind: 'pasteIntoView', view: vid, clip, at })).toMatchObject({ ok: false, error: expect.stringContaining('already in this view'), edits: [] });
+        expect(docs.text(view)).toBe(before);
+        const qs = await docs.quads(view);
+        expect(qs.match(null, V.member, rdf.namedNode(iri))).toHaveLength(1);
+        expect(qs.match(null, V.element, rdf.namedNode(iri))).toHaveLength(0);
     });
 
     test.each([['paris', 'livesIn'], ['acme', 'worksAt']])('shows alice %s from an expand choice id (%s)', async (end, predicate) => {

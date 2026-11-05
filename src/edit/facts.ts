@@ -21,7 +21,7 @@ export interface Facts {
     has(s: string, p: string, o: string): boolean;
     /** The shape card of an id (the old shapesCardTerm) when the IRI of the id has a statement in a shapes file. */
     shapesCard(id: string): NamedNode | undefined;
-    /** The relations among `iris`: statements of the model whose subject and object are both in `iris` and are instances (type or label), not rdf:type or rdfs:label. */
+    /** The relations among `iris`: model statements whose subject and object are both eligible card IRIs in `iris`, not rdf:type or rdfs:label. */
     statementsAmong(iris: string[]): Quad[];
     /** The statements of the shapes part of the model files that match (IRIs; null matches every term), each with its graph. */
     shapesMatch(s: string | null, p: string | null, o?: string | null): Quad[];

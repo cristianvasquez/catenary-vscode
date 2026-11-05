@@ -304,7 +304,7 @@ export async function factsOf(ctx: FactsContext, command: ViewCommand, views: Vi
         statementsAmong: among => {
             const set = new Set(among);
             return [...set].flatMap(rowsOf).filter(q => set.has(q.object.value) && q.predicate.value !== RDF_TYPE && q.predicate.value !== RDFS_LABEL
-                && typedOrLabelled(q.subject) && typedOrLabelled(q.object));
+                && q.object.termType === 'NamedNode' && facts.isInstance(q.subject.value) && facts.isInstance(q.object.value));
         },
         shapesMatch,
         statementsOf: of => {
