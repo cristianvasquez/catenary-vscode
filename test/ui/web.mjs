@@ -51,7 +51,14 @@ const errors = []
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   page.setDefaultTimeout(15000)
-  page.on("pageerror", (e) => errors.push(e.message))
+  // Monaco 0.52.2 (vendor/monaco): editor.setModel disposes the word highlighter (editor.contrib.wordHighlighter), whose Delayer rejects its pending
+  // promise with a CancellationError that no code awaits. The page shows nothing; the rejection is unhandled. Ignore exactly that error:
+  // name and message "Canceled", thrown from the Monaco bundle. Every other page error fails the check.
+  const monacoCanceled = (e) => e.name === "Canceled" && e.message === "Canceled" && /\/vendor\/monaco\/vs\/editor\/editor\.main\.js:/.test(e.stack?.split("\n")[1] ?? "")
+  page.on("pageerror", (e) => {
+    if (monacoCanceled(e)) console.log(`note - ignored the Monaco cancellation: ${e.stack.split("\n").slice(1, 3).map((l) => l.trim()).join(" ")}`)
+    else errors.push(e.stack ?? e.message)
+  })
   const acceptDialog = (d) => d.accept()
   page.on("dialog", acceptDialog)
   await page.goto(`${url}?open=model.trig`)
