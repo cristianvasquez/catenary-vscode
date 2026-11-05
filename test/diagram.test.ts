@@ -197,10 +197,10 @@ describe('Bookshop instances', () => {
             // data.ttl: "nineteen forty-five" (the SHACL error of the sample).
             ['Animal Farm', 'Animal%20Farm', 'Book', ['publication year: nineteen forty-five']],
             ['Nineteen Eighty-Four', 'Nineteen%20Eighty-Four', 'Book', ['publication year: 1949']],
-            ['George Orwell', 'George%20Orwell', 'Author', ['birth date: 1903-06-25']],
-            ['Lewis Carroll', 'Lewis%20Carroll', 'Author', ['birth date: 1832-01-27']],
+            ['George Orwell', 'George%20Orwell', 'Author', ['birth date: 1903-06-25', 'name: George Orwell']],
+            ['Lewis Carroll', 'Lewis%20Carroll', 'Author', ['birth date: 1832-01-27', 'name: Lewis Carroll']],
             ['Tangamandapio', 'Tangamandapio', 'Concept', []],
-            ['Little corner Bookshop', 'Wonderland%20Books%20(fictional)', 'Bookshop', []]
+            ['Little corner Bookshop', 'Wonderland%20Books%20(fictional)', 'Bookshop', ['name: Little corner Bookshop']]
         ] as const;
         expect(instances.filter(e => e.type === 'node:card')).toHaveLength(expected.length);
         for (const [name, local, className, lines] of expected) {
