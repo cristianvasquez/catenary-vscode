@@ -34,7 +34,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 - Open a view file (`.trig`) to display its canvas. A placed model IRI with no statements has a card with its title from the IRI, class line “no type” and no rows.
 - Click TriG at the right end of the canvas toolbar to open the view file as text. Unsaved canvas edits stay in the document; no save is needed.
 - Click Catenary: Open in Canvas in the TriG editor title to return to the canvas. Unsaved text stays unsaved and shows on the canvas.
-- Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show.
+- Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show. Model candidates include every IRI subject, even without a type or label, but not object-only IRIs, blank nodes or view-file subjects. Shapes-only subjects are excluded except for SKOS vocabulary subjects.
 - Choose Insert… → Link to a file… or Link to a view… to place a file or view reference without dragging.
 - Drag a box to move it; drag its resize handle to resize it.
 - Click × or press Delete to remove selected elements from the view, not the model.
@@ -43,7 +43,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 - Use halo … → Color to set or clear the selected elements' view color.
 - Use halo … → Simple cards or Show details to change selected cards' display.
 - Use halo … → Collect to put selected instance cards into an entity group; use Expand to show the cards again.
-- Use an entity group's + member input to add an existing instance; use its row × to remove membership from this view.
+- Use an entity group's + member input to add a model IRI subject by name or IRI, even without a type or label; use its row × to remove membership from this view. Subjects only in the shapes closure are excluded.
 - Use a row's ➟ to show its element separately or draw a property as a line; use the line's row control to return a property to a row.
 - Drag an edge to add a bend, drag a bend to move it, and double-click a bend to remove it.
 - Choose Group or Note in the palette and click the canvas to create a view mark.

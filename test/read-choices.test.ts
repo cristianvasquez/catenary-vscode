@@ -104,10 +104,15 @@ describe('pickers on test/fixtures/shapes', () => {
         expect(some).toBeGreaterThan(0);
     });
 
-    test('instanceLabels, memberOptions and instancesNamed equal the recorded ones', async () => {
+    test('every model IRI subject is a picker candidate, excluding shapes-only subjects (decision 6-A): recorded members and names', async () => {
         const labels = await instanceLabels(ctx);
         expect(labels.size).toBeGreaterThan(5);
         expect(labels.get('urn:name:Animal%20Farm')).toBe('Animal Farm');
+        for (const subject of ctx.shapes.shapeSubjects) expect(labels.has(subject.slice(1, -1))).toBe(false);
+        const vocabulary = await instanceLabels(ctx, { vocabulary: true });
+        expect(vocabulary.get('urn:name:Tanganana')).toBe('Tanganana');
+        expect(vocabulary.get('urn:name:Tangamandapio')).toBe('Tangamandapio');
+        expect(vocabulary.get('urn:name:unnamed%20collection%201')).toBe('Cities');
         for (const viewIri of VIEWS) for (const collection of ['none', ...await idsOf(viewIri)]) {
             expect(await memberOptions(ctx, iriId(viewIri), textOf(viewIri), collection)).toEqual(R(`members ${viewIri} ${collection}`));
         }
@@ -126,6 +131,22 @@ describe('neighbour picker without SHACL', () => {
         ctx = (await modelContextOf(server.port(), ['data.ttl', 'view.trig'].map(f => join(folder, f)))).ctx;
     }, 20000);
     afterAll(async () => { await server?.stop(); });
+
+    test('decision 6-A: pickers list every model IRI subject, not object-only IRIs, blank nodes or view subjects, in one query', async () => {
+        let requests = 0;
+        const port: ModelPort = { ...ctx.port, select: (q, f) => { requests++; return ctx.port.select(q, f); } };
+        const labels = await instanceLabels({ ...ctx, port });
+        expect([...labels]).toEqual([
+            ['http://ex.org/alice', 'Alice'], ['http://ex.org/bob', 'bob'], ['http://ex.org/carol', 'Carol'],
+            ['http://ex.org/dan', 'dan'], ['http://ex.org/eve', 'eve'], ['http://ex.org/paris', 'paris'],
+        ]);
+        expect(requests).toBe(1);
+        expect([...await instanceLabels(ctx, { vocabulary: true })]).toEqual([...labels]);
+        expect(await memberOptions(ctx, iriId(view), text(), 'none')).toEqual(['Alice', 'Carol', 'bob', 'dan', 'eve', 'paris']);
+        expect(await instancesNamed(ctx, 'eve')).toEqual([iriId('http://ex.org/eve')]);
+        expect(await instancesNamed(ctx, 'http://ex.org/paris')).toEqual([iriId('http://ex.org/paris')]);
+        expect(await instancesNamed(ctx, 'http://ex.org/acme')).toEqual([]);
+    });
 
     test.each([
         ['alice', 'out', ['acme', 'bob', 'carol', 'paris']],
