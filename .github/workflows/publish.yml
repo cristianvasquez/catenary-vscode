@@ -1,14 +1,15 @@
 name: publish
 
 # A push of the tag v<version> (the version of package.json) verifies, packages and publishes the extension to the VS Code
-# Marketplace, and attaches the .vsix file to a GitHub release. Secret VSCE_PAT: an Azure DevOps token with the scope
-# Marketplace > Manage for the publisher cvasquezpaulus.
+# Marketplace, and attaches the .vsix file to a GitHub release. Authentication: Marketplace trusted publishing (OIDC), a policy
+# of the publisher cvasquezpaulus for this repository and workflow file; no token secret.
 on:
   push:
     tags: ['v*']
 
 permissions:
   contents: write
+  id-token: write
 
 concurrency:
   group: publish
@@ -41,9 +42,7 @@ jobs:
           TURTLE_LSP: ${{ runner.temp }}/turtle-lsp/target/release/turtle-lsp
       - run: pnpm package
       - name: Publish to the VS Code Marketplace
-        run: pnpm exec vsce publish --no-dependencies --packagePath "catenary-${GITHUB_REF_NAME#v}.vsix"
-        env:
-          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: pnpm exec vsce publish --oidc --no-dependencies --packagePath "catenary-${GITHUB_REF_NAME#v}.vsix"
       - name: GitHub release with the .vsix
         run: gh release create "${GITHUB_REF_NAME}" "catenary-${GITHUB_REF_NAME#v}.vsix" --title "${GITHUB_REF_NAME}" --notes "See CHANGELOG.md."
         env:
