@@ -1,5 +1,10 @@
 # Catenary
 
+A scribble tool for RDF models, as a VS Code extension. Sketch shapes and instances on a canvas, in any order, until the model is consistent. Then write it up with diagrams and share it.
+
+- [Try it online](https://cristianvasquez.github.io/catenary-vscode/): Catenary in the browser tab. Files stay in the browser.
+- Desktop app: [Catenary](https://github.com/cristianvasquez/catenary).
+
 Catenary draws diagrams of RDF, OWL, SHACL and SKOS models in VS Code. It reads model files through the Turtle RDF language server, stores each diagram as a view file (a `.trig` file with a `view:View`), and exports diagrams into Markdown documents as SVG.
 
 ## Requirements
