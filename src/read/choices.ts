@@ -1,5 +1,7 @@
 // The halo, "+ member" and insert picker choices from turtle/query answers (model/choices.ts and rdf/link-choices.ts over the port).
 import type { Term } from '@rdfjs/types';
+import { Parser } from 'n3';
+import { pathToFileURL } from 'node:url';
 import { type Doc, type Instance, boxes, elementOfId } from '../catenary/model/doc';
 import { pickLabel } from '../catenary/model/labels';
 import { type Choices, neighborChoices, shapeSourceChoices } from '../catenary/model/prompts';
@@ -87,6 +89,12 @@ const closureKeys = new WeakMap<ShapesModelRecords, Set<string>>();
 
 const tripleKey = (s: Term, p: Term, o: Term) => `${termKey(s)} ${termKey(p)} ${termKey(o)}`;
 
+function shapesClosureKeys(ctx: ModelContext): Set<string> {
+    let keys = closureKeys.get(ctx.shapes);
+    if (!keys) closureKeys.set(ctx.shapes, keys = new Set(ctx.shapes.closure.map(q => tripleKey(q.subject, q.predicate, q.object))));
+    return keys;
+}
+
 /**
  * The objects of `p` for `iri` that are model statements (factsOf of neighbors.ts: outside the shapes). One answer over every model
  * document has no document kind: a statement of a shapes subject is a model statement when the shapes closure does not hold it.
@@ -94,9 +102,7 @@ const tripleKey = (s: Term, p: Term, o: Term) => `${termKey(s)} ${termKey(p)} ${
 function modelObjects(ctx: ModelContext, facts: Facts, iri: string, p: string): Term[] {
     const objects = facts.get(iri)?.get(p) ?? [], s = rdf.namedNode(iri);
     if (!ctx.shapes.shapeSubjects.has(termKey(s))) return objects;
-    let keys = closureKeys.get(ctx.shapes);
-    if (!keys) closureKeys.set(ctx.shapes, keys = new Set(ctx.shapes.closure.map(q => tripleKey(q.subject, q.predicate, q.object))));
-    return objects.filter(o => !keys.has(tripleKey(s, rdf.namedNode(p), o)));
+    return objects.filter(o => !shapesClosureKeys(ctx).has(tripleKey(s, rdf.namedNode(p), o)));
 }
 
 /** In the model graph: rdf:type or rdfs:label outside the shapes (the home of factsOf is the model graph). */
@@ -186,16 +192,19 @@ async function shapeTargetChoices(ctx: ModelContext, doc: Doc, viewId: string, f
 
 /**
  * The neighbours of `iri` in `dir` and the FACTS statements of `iri` and of each neighbour: one turtle/query. A neighbour: the other end
- * of a statement other than rdf:type and rdfs:label, an IRI.
+ * of a statement other than rdf:type outside the shapes closure, an IRI that is not a blank node.
  */
 async function neighborsOf(ctx: ModelContext, iri: string, dir: 'in' | 'out'): Promise<{ edges: { p: string; n: string }[]; facts: Facts }> {
     const self = `<${iri}>`;
-    const around = (p: string, n: string) => `${dir === 'out' ? `${self} ${p} ${n}` : `${n} ${p} ${self}`} FILTER (${p} NOT IN (rdf:type, rdfs:label) && isIRI(${n}))`;
+    const around = (p: string, n: string) => `${dir === 'out' ? `${self} ${p} ${n}` : `${n} ${p} ${self}`} FILTER (${p} != rdf:type && isIRI(${n}) && !STRSTARTS(STR(${n}), "${BLANK}"))`;
     const rows = ctx.modelFiles.length ? await ctx.port.select(`${PREFIXES} SELECT DISTINCT ?p ?n ?x ?q ?v WHERE {
         { ${around('?p', '?n')} } UNION { { { ${around('?p0', '?x')} } UNION { VALUES ?x { ${self} } } } ${FACTS} ?x ?q ?v } }`, ctx.modelFiles) : [];
     const edges = new Map<string, { p: string; n: string }>(), facts: Facts = new Map();
     for (const r of rows) {
-        if (r.p && r.n) edges.set(`${r.p.value} ${r.n.value}`, { p: r.p.value, n: r.n.value });
+        if (r.p && r.n) {
+            const self = rdf.namedNode(iri), [s, o] = dir === 'out' ? [self, r.n] : [r.n, self];
+            if (!shapesClosureKeys(ctx).has(tripleKey(s, r.p, o))) edges.set(`${r.p.value} ${r.n.value}`, { p: r.p.value, n: r.n.value });
+        }
         addFact(facts, r.x, r.q, r.v);
     }
     return { edges: [...edges.values()], facts };
@@ -218,13 +227,15 @@ export async function expandChoices(ctx: ModelContext, viewId: string, viewText:
     const iri = elementTerm(element)?.value;
     if (!iri || iri.startsWith(BLANK) || relationTriple(element)) return undefined;
     const { edges, facts } = await neighborsOf(ctx, iri, dir);
-    if (!isInstance(ctx, facts, iri)) return undefined;
+    const viewFile = ctx.views.get(view.uri);
+    const viewSubjects = new Set(new Parser({ format: 'application/trig', baseIRI: viewFile ? pathToFileURL(viewFile).href : undefined }).parse(viewText).map(q => q.subject.value));
+    if (iri === UNION_GRAPH || viewSubjects.has(iri)) return undefined;
     // The relations of `iri` in `dir` are the answer's; the view text gives the placements and the drawn relations.
     const selfId = elementId(rdf.namedNode(iri));
     doc.instances[selfId] = instanceOf(ctx, facts, iri);
     for (const [id, r] of Object.entries(doc.relations)) if ((dir === 'out' ? r.subject : r.object) === selfId) delete doc.relations[id];
     for (const { p, n } of edges) {
-        if (n === iri || !isInstance(ctx, facts, n)) continue;
+        if (n === iri || n === UNION_GRAPH || n.startsWith(BLANK) || viewSubjects.has(n)) continue;
         const other = instanceOf(ctx, facts, n), [s, o] = dir === 'out' ? [iri, n] : [n, iri];
         doc.instances[other.id] = other;
         const id = relationId(rdf.namedNode(s), rdf.namedNode(p), rdf.namedNode(o));

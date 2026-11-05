@@ -9,6 +9,7 @@ import { expandChoices, instanceLabels, instancesNamed, memberOptions } from '..
 import { type ModelContext, modelContextOf, viewDocRead } from '../src/read/diagram';
 import { shapeTargetMatches } from '../src/read/targets';
 import { relationTriple } from '../src/catenary/rdf/ids';
+import { neighborChoices } from '../src/catenary/model/prompts';
 import type { ModelPort } from '../src/model/port';
 import { json, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
@@ -113,6 +114,44 @@ describe('pickers on test/fixtures/shapes', () => {
         for (const text of ['Animal Farm', 'George Orwell', 'urn:name:Animal%20Farm', 'nothing', ...labels.values()]) {
             expect((await instancesNamed(ctx, text)).sort()).toEqual(R(`named ${text}`));
         }
+    });
+});
+
+describe('neighbour picker without SHACL', () => {
+    const folder = join(FIXTURE, '..', 'no-shacl'), view = 'urn:name:People';
+    let server: Awaited<ReturnType<typeof startServer>>, ctx: ModelContext;
+    const text = () => readFileSync(join(folder, 'view.trig'), 'utf8');
+    beforeAll(async () => {
+        server = await startServer(folder, 53);
+        ctx = (await modelContextOf(server.port(), ['data.ttl', 'view.trig'].map(f => join(folder, f)))).ctx;
+    }, 20000);
+    afterAll(async () => { await server?.stop(); });
+
+    test.each([
+        ['alice', 'out', ['acme', 'bob', 'carol', 'paris']],
+        ['alice', 'in', ['dan', 'eve']],
+        ['paris', 'in', ['alice']],
+    ] as const)('%s %s lists every IRI neighbour without an instance test', async (from, dir, expected) => {
+        const choices = await expandChoices(ctx, iriId(view), text(), iriId(`http://ex.org/${from}`), dir);
+        const ends = choices?.items.flatMap(i => i.ids.map(id => {
+            const triple = relationTriple(id)!;
+            return (dir === 'out' ? triple.o : triple.s).value.replace('http://ex.org/', '');
+        })).sort();
+        expect(ends).toEqual(expected);
+        expect(choices?.title).toContain(`(${expected.length} hidden)`);
+    });
+
+    test('caps the picker at 200 while retaining the exact hidden count', async () => {
+        const doc = await viewDocRead(ctx, view), vid = iriId(view), self = iriId('http://ex.org/alice');
+        doc.relations = {};
+        for (let i = 0; i < 612; i++) {
+            const uri = `urn:test:neighbor:${i}`, id = iriId(uri);
+            doc.instances[id] = { id, uri, label: `Neighbour ${i}`, types: [], fields: {} };
+            doc.relations[`relation-${i}`] = { id: `relation-${i}`, subject: self, predicate: 'http://ex.org/knows', object: id };
+        }
+        const choices = neighborChoices(doc, ctx.shapes.meta, vid, self, 'out');
+        expect(choices?.title).toBe('Alice: outgoing (612 hidden, 200 listed)');
+        expect(choices?.items).toHaveLength(200);
     });
 });
 
