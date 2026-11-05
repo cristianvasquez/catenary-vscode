@@ -23,7 +23,7 @@ Catenary sets the default of `turtle.query.maxRows` to 5000 (turtle-lsp: 1000); 
 - Collect instance cards into entity groups and expand them back into cards.
 - Edit group labels and note Markdown, add note arrows, and apply Layered or Force layout.
 - Navigate to model sources and view references; drop workspace files as references.
-- Read model files through turtle-lsp, including labels, prefixes, navigation and SHACL diagnostic badges. Canvas edits write view files only; they do not add or change model statements.
+- Read model files through turtle-lsp, including labels, prefixes, navigation and SHACL diagnostic badges. Instance cards and matching predicate rows are red for Violations or amber for Warnings; Violations take precedence. Cards without SHACL diagnostics stay neutral. Canvas edits write view files only; they do not add or change model statements.
 - Embed views in Markdown and export documents with SVG diagrams.
 - Out of scope: model explorer, outline, forms, properties panel, model relation editing, a separate SHACL validator or a parser for model files.
 

@@ -9,8 +9,8 @@ export const EDIT_CONTROLS = '.member-add, .member-take-out, .member-remove, .ro
 
 /** Validation marks that the export removes: the violation badge of a card. */
 export const VALIDATION_BADGES = '.catenary-card > .badge';
-/** Classes of validation results (`invalid`) and of an instance without a known class (`unknown`). The export draws an element as without them. */
-const VALIDATION_CLASSES = ['invalid', 'unknown'];
+/** Validation states (card and row) and the neutral unknown-class style are omitted from exports. */
+const VALIDATION_CLASSES = ['invalid', 'warning', 'unknown'];
 
 /**
  * Remove the validation classes from the elements of `svg`. The result puts them back. The export calls it on the export canvas

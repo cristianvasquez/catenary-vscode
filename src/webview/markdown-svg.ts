@@ -11,7 +11,7 @@ const MARGIN = 8;
  * The export copies computed styles: the root also gets the size of the canvas (block-size, width, height) and every CSS
  * custom property of the window (about 100 KB). Computed values do not use custom properties, so they are removed on all
  * elements. The size goes to the width and height attributes, so that the page CSS can scale the figure down. Edit controls
- * and violation badges are removed (the validation classes are removed before the style copy, MeasuringSvgExporter.createSvg). Each foreignObject (card and note contents, HTML) becomes SVG text at the positions measured in the export canvas (text-measure.ts), so
+ * and validation badges are removed (red and amber card/row states are removed before the style copy, MeasuringSvgExporter.createSvg). Each foreignObject (card and note contents, HTML) becomes SVG text at the positions measured in the export canvas (text-measure.ts), so
  * that viewers without HTML in SVG (librsvg, imv) draw the same lines.
  */
 export function forDocument(svg: string, lines: Map<string, TextLine[]> = new Map(), fonts: (list: string) => string = list => list): string {
