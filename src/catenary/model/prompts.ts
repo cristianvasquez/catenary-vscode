@@ -20,7 +20,7 @@ export interface Choices {
 }
 
 /**
- * Halo expand button of an instance card: related instances (dir 'in': subjects; 'out': objects) that are not shown, or have a hidden
+ * Halo expand button of a card: related IRIs (dir 'in': subjects; 'out': objects) that are not shown, or have a hidden
  * relation to `from`. Each item: the relations to show. Undefined: no hidden neighbour or relation.
  */
 export function neighborChoices(doc: Doc, meta: Classes, viewId: string, from: string, dir: 'out' | 'in'): Choices | undefined {
@@ -31,8 +31,8 @@ export function neighborChoices(doc: Doc, meta: Classes, viewId: string, from: s
     if (!hidden.length) return undefined;
     const names = (rs: Relation[]) => [...new Set(rs.map(r => predicateName(meta, r.predicate)))].sort().map(n => dir === 'out' ? `${n} →` : `← ${n}`).join(', ');
     return {
-        title: `${self.label}: ${dir === 'out' ? 'outgoing' : 'incoming'} (${hidden.length} hidden)`,
-        items: hidden.map(n => ({ label: n.instance.label, description: names(n.relations) + (boxShowing(doc, view, n.instance.id) !== undefined ? ' (in the view)' : ''), ids: n.relations.map(r => r.id) }))
+        title: `${self.label}: ${dir === 'out' ? 'outgoing' : 'incoming'} (${hidden.length} hidden${hidden.length > 200 ? ', 200 listed' : ''})`,
+        items: hidden.slice(0, 200).map(n => ({ label: n.instance.label, description: names(n.relations) + (boxShowing(doc, view, n.instance.id) !== undefined ? ' (in the view)' : ''), ids: n.relations.map(r => r.id) }))
     };
 }
 
