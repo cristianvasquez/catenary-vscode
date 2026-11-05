@@ -54,7 +54,7 @@ const web = {
         b.onLoad({ filter: /.*/, namespace: 'catenary' }, async args => {
             const files = args.path === 'catenary:notations'
                 ? await textFiles('src/catenary/rdf/notations', rel => !rel.endsWith('.ttl'))
-                : await textFiles('test/fixtures/shapes');
+                : { ...await textFiles('test/fixtures/shapes'), ...Object.fromEntries(Object.entries(await textFiles('test/fixtures/no-shacl')).map(([rel, text]) => [`no-shacl/${rel}`, text])) };
             return { contents: `export default ${JSON.stringify(files)};`, loader: 'js' };
         });
     }
