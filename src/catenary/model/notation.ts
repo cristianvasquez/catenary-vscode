@@ -203,7 +203,7 @@ function targets(D: TripleIndex, fs: FigureShape): TermJSON[] {
         ...fs.targets.subjectsOf.flatMap(p => D.subjectsOfP(p.value)),
         ...fs.targets.objectsOf.flatMap(p => D.objectsOfP(p.value)),
         ...fs.targets.node,
-        ...(fs.targets.any ? [...D.out.keys(), ...D.inv.keys()].filter(k => k.startsWith('<')).map(k => iri(k.slice(1, -1))).filter(anyTarget) : [])
+        ...(fs.targets.any ? [...D.out.keys(), ...D.inv.keys()].filter(k => k.startsWith('<') && !k.startsWith('<<')).map(k => iri(k.slice(1, -1))).filter(anyTarget) : [])
     ]).filter((t): t is TermJSON => t.termType === 'NamedNode');
 }
 

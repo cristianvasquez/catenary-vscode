@@ -3,7 +3,7 @@
 import type { Quad, Term } from '@rdfjs/types';
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import { TripleIndex, iri, type NQuad, type NTerm } from '../src/catenary/model/notation-graph';
+import { TripleIndex, iri, triple, type NQuad, type NTerm } from '../src/catenary/model/notation-graph';
 import { deriveFigures, notations } from '../src/catenary/model/notation';
 import { termToJSON, type TermJSON } from '../src/catenary/model/terms';
 import { parseNotationFiles } from '../src/catenary/rdf/notations';
@@ -47,6 +47,16 @@ test.each(['View', 'Placement', 'Note', 'Frame', 'EntityGroup', 'Pill', 'FileRef
     const data = new TripleIndex([{ subject: focus, predicate: TYPE, object: iri(VIEW_NS + name) }]);
     const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view', [focus]);
     expect(got.figures.some(f => f.fs.node.value.endsWith('/instances#Card'))).toBe(false);
+});
+
+test('whole-model derivation does not turn a reified triple term into an IRI card', () => {
+    const subject = iri('urn:test:subject');
+    const data = new TripleIndex([{
+        subject, predicate: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies',
+        object: triple(iri('urn:test:alice'), 'urn:test:knows', iri('urn:test:bob'))
+    }]);
+    const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view');
+    expect(got.figures.map(f => f.focus)).toEqual([subject]);
 });
 
 test.each(['urn:name:model', 'urn:skolem:blank:abc'])('the catch-all Card excludes %s', value => {
