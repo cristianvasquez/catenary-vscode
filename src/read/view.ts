@@ -131,8 +131,8 @@ export interface ViewDocOptions {
 /**
  * The Doc of the view `viewIri` (readView of view-read.ts): the view, the instances it places (and the SKOS vocabulary when it shows shapes),
  * their relations, and the views it names. It sends no query: the view statements come from `view` (the view text, or its quads), the model
- * statements from `answer` (the kept answer of the view, KeptPrefetch); what the answer has not read goes to `options.misses`, and a placed
- * IRI among them gets a box from the IRI (or from `answer.records`). An empty Doc when `viewIri` is not a view of `ctx.views`.
+ * statements from `answer` (the kept answer of the view, KeptPrefetch); what the answer has not read goes to `options.misses`. A placed
+ * IRI without statements gets a box from the IRI (or, for a miss, from `answer.records`). An empty Doc when `viewIri` is not a view of `ctx.views`.
  * The labels of the other views come from `ctx.viewLabels`.
  */
 export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest' | 'viewLabels'>, viewIri: string, view: string | Quad[], answer: KeptPrefetch, options: ViewDocOptions = {}): Doc {
@@ -166,7 +166,11 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
 
     // The model statements of the answer; a subject of a view file (a view, a mark, a placement) is not a model subject.
     const bySubject = answerRows(answer.quads);
-    for (const [s, rows] of bySubject) if (views.has(s) || rows.some(r => r.p.value === TYPE && isViewType(r.o))) bySubject.delete(s);
+    const viewSubjects = new Set([...vq.values()].filter(e => (e.props.get(TYPE) ?? []).some(isViewType)).map(e => e.s.value));
+    for (const [s, rows] of bySubject) if (views.has(s) || rows.some(r => r.p.value === TYPE && isViewType(r.o))) {
+        viewSubjects.add(s);
+        bySubject.delete(s);
+    }
     /** The statements of `iri` as subject; an IRI that the answer has not read is a miss. */
     const rowsOf = (iri: string): Row[] => {
         if (!iri.startsWith(BLANK) && !answer.covered.read.has(iri)) misses.add(iri);
@@ -270,7 +274,9 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
         const skos = new Set(skosRows.filter(r => r.p.value === TYPE && skosTypes.has(r.o.value)).map(r => r.s.value));
         for (const r of skosRows) if (skos.has(r.s.value)) push(r);
     }
-    const subjects = [...statements.values()].filter(e => e.s.termType === 'NamedNode' && e.s.value !== UNION_GRAPH && e.rows.some(r => r.p.value === TYPE || r.p.value === LABEL));
+    const subjects = [...statements.values()].filter(e => e.s.termType === 'NamedNode' && e.s.value !== UNION_GRAPH
+        && ((placed.has(e.s.value) && !isShape(e.s.term) && !e.s.value.startsWith('urn:trellis:list:') && !viewSubjects.has(e.s.value))
+            || e.rows.some(r => r.p.value === TYPE || r.p.value === LABEL)));
 
     /** The statements of SKOS subjects of the shapes, by document (sorted by file) and subject. */
     const vocabularyHomes = (rows: Row[]) => {
@@ -311,15 +317,26 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
             files.set(iri, home[0]);
         }
     }
+    // Include statement-free endpoints before classifying references as fields or relations.
+    const subjectValues = new Set(subjects.map(e => e.s.value));
+    const emptySubjects: string[] = [];
+    const placedIris = new Set([...vq.values()].flatMap(e => [...e.props.get(ELEMENT) ?? [], ...(groups.includes(e.s.value) ? e.props.get(MEMBER) ?? [] : [])]
+        .filter(t => t.termType === 'NamedNode').map(t => t.value)));
+    for (const iri of wanted) {
+        if (!placedIris.has(iri) || !placed.has(iri) || subjectValues.has(iri) || isShape(rdf.namedNode(iri))
+            || iri === UNION_GRAPH || viewSubjects.has(iri) || iri.startsWith('urn:trellis:list:')) continue;
+        subjects.push({ s: plain(rdf.namedNode(iri)), rows: [] });
+        subjectValues.add(iri);
+        emptySubjects.push(iri);
+    }
     const { instanceIds, relationIds } = instanceRecords(doc, subjects, files, warnings, language);
+    // Only unread placeholders may reuse their instance from the last complete draw.
+    for (const iri of emptySubjects) {
+        const id = instanceIds.get(iri)!;
+        const cached = misses.has(iri) && answer.records?.instances[id];
+        if (cached) doc.instances[id] = cached;
+    }
     if (misses.size) {
-        // Before the answer has them: a box for each placed IRI from the last complete draw (answer.records), else from the IRI.
-        for (const iri of wanted) {
-            if (!misses.has(iri) || instanceIds.has(iri) || isShape(rdf.namedNode(iri)) || iri.startsWith('urn:trellis:list:') || !placed.has(iri)) continue;
-            const id = elementId(rdf.namedNode(iri));
-            doc.instances[id] = answer.records?.instances[id] ?? { id, uri: iri, label: iri.replace(/^.*[#/:]/, ''), types: [], fields: {} };
-            instanceIds.set(iri, id);
-        }
         for (const e of vq.values()) for (const t of e.props.get(REIFIES) ?? []) {
             if (t.termType !== 'Quad' || [t.subject, t.predicate, t.object].some(x => x.termType !== 'NamedNode') || t.predicate.value === ARROW) continue;
             if (!misses.has(t.subject.value) && !misses.has(t.object.value)) continue;

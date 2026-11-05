@@ -18,7 +18,7 @@ Catenary sets the default of `turtle.query.maxRows` to 5000 (turtle-lsp: 1000); 
 ## Features
 
 - Open a view file (`.trig`) in a custom editor with node shape cards, attribute rows, associations, collections, value sets, instance cards, entity groups, notes, frames and arrows.
-- Place, remove, move, resize and color view elements; switch cards between simple and detailed display.
+- Place, remove, move, resize and color view elements; switch cards between simple and detailed display. Instance cards need no type or label.
 - Remove relation edges from a view, route edges with bends, and change property rows to lines or back to rows.
 - Collect instance cards into entity groups and expand them back into cards.
 - Edit group labels and note Markdown, add note arrows, and apply Layered or Force layout.
@@ -31,7 +31,7 @@ Catenary sets the default of `turtle.query.maxRows` to 5000 (turtle-lsp: 1000); 
 
 Run Catenary: New View… from the explorer context menu to create a view file, or open an existing view file.
 
-- Open a view file (`.trig`) to display its canvas.
+- Open a view file (`.trig`) to display its canvas. A placed model IRI with no statements has a card with its title from the IRI, class line “no type” and no rows.
 - Click TriG at the right end of the canvas toolbar to open the view file as text. Unsaved canvas edits stay in the document; no save is needed.
 - Click Catenary: Open in Canvas in the TriG editor title to return to the canvas. Unsaved text stays unsaved and shows on the canvas.
 - Choose Insert… in the palette or Catenary: Insert Element… in the editor title to place workspace elements that the view does not show.
