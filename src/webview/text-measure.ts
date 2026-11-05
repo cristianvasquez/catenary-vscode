@@ -14,7 +14,7 @@ const VALIDATION_CLASSES = ['invalid', 'warning', 'unknown'];
 
 /**
  * Remove the validation classes from the elements of `svg`. The result puts them back. The export calls it on the export canvas
- * around the style copy: the copy inlines computed styles, so a class removed after it keeps its red or dashed stroke.
+ * around text measurement and the style copy: both capture computed colors, so removing a class afterward is too late.
  */
 function hideValidationClasses(svg: Element): () => void {
     const removed: [Element, string][] = [];
@@ -34,8 +34,13 @@ export class MeasuringSvgExporter extends GLSPSvgExporter {
     lines = new Map<string, TextLine[]>();
 
     protected override prepareSvgElement(svg: SVGSVGElement, root: GModelRoot, request?: RequestAction<ExportSvgAction>): SVGSVGElement {
-        this.lines = measureText(svg);
-        return super.prepareSvgElement(svg, root, request);
+        const restore = hideValidationClasses(svg);
+        try {
+            this.lines = measureText(svg);
+            return super.prepareSvgElement(svg, root, request);
+        } finally {
+            restore();
+        }
     }
 
     /** The sprotty SvgExporter copies the computed styles here (copyStyles). Without the validation classes during the copy, nothing on the canvas changes after it. */
