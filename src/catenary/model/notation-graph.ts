@@ -243,7 +243,7 @@ export const classesOf = (D: TripleIndex, n: NTerm): NTerm[] =>
 // The one place where the conditions of the notations (nt:when) are tested. Plain checks for the SHACL terms that the notations
 // use; any other term is an error, so a new term in a notation shows here first. It is not validation and writes nothing.
 
-const CHECKED = new Set(['property', 'not', 'or', 'class', 'closed', 'ignoredProperties', 'path', 'minCount', 'maxCount', 'node', 'hasValue']);
+const CHECKED = new Set(['property', 'not', 'or', 'class', 'closed', 'ignoredProperties', 'path', 'minCount', 'maxCount', 'node', 'hasValue', 'pattern']);
 
 
 /** `N`: the notation triples (the condition). `D`: the data triples (the focus). */
@@ -251,6 +251,7 @@ export function conforms(D: TripleIndex, N: TripleIndex, shape: NTerm, focus: NT
     for (const p of N.out.get(nkey(shape))?.keys() ?? []) {
         if (p.startsWith(NS.sh) && !CHECKED.has(p.slice(NS.sh.length))) throw new Error(`nt:when uses ${p}: not supported by conforms()`);
     }
+    for (const pattern of N.objects(shape, SH('pattern'))) if (!new RegExp(pattern.value).test(focus.value)) return false;
     for (const x of N.objects(shape, SH('not'))) if (conforms(D, N, x, focus)) return false;
     for (const l of N.objects(shape, SH('or'))) if (!N.list(l).some(x => conforms(D, N, x, focus))) return false;
     for (const c of N.objects(shape, SH('class'))) if (!classesOf(D, focus).some(k => nkey(k) === nkey(c))) return false;

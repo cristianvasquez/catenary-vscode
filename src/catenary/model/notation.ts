@@ -3,6 +3,7 @@ import { NTerm, NQuad, NT, Path, RDF, SH, TripleIndex, TripleTerm, classesOf, co
 import { formatPath, shortIri } from './shapes-doc';
 import { sha256Hex } from './sha256';
 import { NS, TermJSON, localName } from './terms';
+import { UNION_GRAPH } from '../rdf/files';
 
 
 type FigureKind = 'Box' | 'Line' | 'Hub';
@@ -37,7 +38,7 @@ interface FigureShape {
     keptByLines: boolean;
     openEnd?: string;
     inline?: { open: string; separator: string; close: string };
-    targets: { class: NTerm[]; subjectsOf: NTerm[]; objectsOf: NTerm[]; node: NTerm[] };
+    targets: { any: boolean; class: NTerm[]; subjectsOf: NTerm[]; objectsOf: NTerm[]; node: NTerm[] };
     props: RoleShape[];
 }
 
@@ -177,6 +178,7 @@ function figureShapes(N: TripleIndex, D: TripleIndex, view: TermJSON): FigureSha
             keptByLines: N.one(f, NT('keptByLines'))?.value === 'true', openEnd: N.one(f, NT('openEnd'))?.value,
             inline: sep && { open: N.one(f, NT('inlineOpen'))?.value ?? '', separator: sep.value, close: N.one(f, NT('inlineClose'))?.value ?? '' },
             targets: {
+                any: N.one(f, NT('targetAny'))?.value === 'true',
                 class: N.objects(f, SH('targetClass')), subjectsOf: N.objects(f, SH('targetSubjectsOf')),
                 objectsOf: N.objects(f, SH('targetObjectsOf')), node: N.objects(f, SH('targetNode'))
             },
@@ -200,7 +202,8 @@ function targets(D: TripleIndex, fs: FigureShape): TermJSON[] {
         ...fs.targets.class.flatMap(instances),
         ...fs.targets.subjectsOf.flatMap(p => D.subjectsOfP(p.value)),
         ...fs.targets.objectsOf.flatMap(p => D.objectsOfP(p.value)),
-        ...fs.targets.node
+        ...fs.targets.node,
+        ...(fs.targets.any ? [...D.out.keys(), ...D.inv.keys()].filter(k => k.startsWith('<')).map(k => iri(k.slice(1, -1))).filter(anyTarget) : [])
     ]).filter((t): t is TermJSON => t.termType === 'NamedNode');
 }
 
@@ -392,9 +395,15 @@ const LINKING: Role[] = ['part', 'from', 'to', 'anchor', 'link'];
  * A focus is a target of a figure shape: the membership test of `targets`, without the enumeration of the workspace. `classes`: the
  * keys of the classes of `t` (classesOf), computed once for all figure shapes.
  */
+/** nt:targetAny accepts model IRIs, not blank-node skolem names or the union graph. */
+function anyTarget(t: NTerm): boolean {
+    return t.termType === 'NamedNode' && t.value !== UNION_GRAPH && !t.value.startsWith('urn:skolem:blank:');
+}
+
 function isTarget(D: TripleIndex, fs: FigureShape, t: TermJSON, classes: () => ReadonlySet<string>): boolean {
     if (t.termType !== 'NamedNode') return false;
     const k = nkey(t);
+    if (fs.targets.any && anyTarget(t)) return true;
     if (fs.targets.node.some(n => nkey(n) === k)) return true;
     if (fs.targets.subjectsOf.some(p => D.objects(t, p.value).length)) return true;
     if (fs.targets.objectsOf.some(p => D.subjects(p.value, t).length)) return true;

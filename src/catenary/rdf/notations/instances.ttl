@@ -15,10 +15,12 @@ inn:notation a nt:Notation ;
 # ex:m1 ex:husband ex:john comes from ex:Marriage-husband with role nt:link:
 # a line when the view places that statement. Unplaced, it is hidden when ex:john is shown (dashed while an end is selected),
 # else the row "husband: John".
+# nt:targetAny true targets each model IRI requested by the derivation, including IRIs without statements.
+# Keep this catch-all after the specific figures in the notation cascade.
 inn:Card a nt:Figure ;
     nt:kind nt:Box ;
-    sh:targetSubjectsOf rdf:type ;
-    nt:when [ sh:not [ sh:class view:Placement ] ] ;
+    nt:targetAny true ;
+    nt:when [ sh:property [ sh:path rdf:type ; sh:node [ sh:not [ sh:pattern "^https://cristianvasquez[.]github[.]io/catenary/vocab/view#" ] ] ] ] ;
     sh:property
         [ sh:path rdfs:label ; nt:role nt:title ] ,
         [ sh:path rdf:type ;   nt:role nt:text ] ;
