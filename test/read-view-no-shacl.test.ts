@@ -36,6 +36,7 @@ describe('placed IRIs without SHACL', () => {
             expect(card.lineStates).toBeUndefined();
             const rendered = renderCard({ ...card, width: 450, height: 300 } as unknown as CardProps, []);
             expect(rendered.data?.class).toMatchObject({ invalid: false, warning: false });
+            expect(rendered.data?.class).not.toHaveProperty('unknown');
         }
     });
 

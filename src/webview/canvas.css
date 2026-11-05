@@ -28,7 +28,6 @@
 .catenary-card.warning.selected > .body { stroke: var(--catenary-accent); }
 .catenary-card.invalid > .body { stroke: var(--catenary-danger); stroke-dasharray: 6 4; }
 .catenary-card.invalid.selected > .body { stroke: var(--catenary-accent); }
-.catenary-card.unknown > .body { stroke-dasharray: 3 4; }
 .catenary-card .card-fo { pointer-events: none; }
 /* --catenary-card-scale and --catenary-group-font-size: font preferences (font-preferences.ts). */
 .card-body { width: 100%; height: 100%; box-sizing: border-box; overflow: hidden; padding: 12px 14px; font-size: calc(16px * var(--catenary-card-scale, 1)); line-height: 1.4; color: var(--catenary-fg); user-select: none; }

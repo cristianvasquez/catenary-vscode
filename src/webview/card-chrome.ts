@@ -185,7 +185,7 @@ export function renderCard(p: CardProps, handles: VNode[]): VNode {
         : [];
     return s('g', {
         class: {
-            'catenary-card': true, colored: !!p.color, selected: p.selected, mouseover: p.hover, invalid: p.violations > 0, warning, unknown: !p.known
+            'catenary-card': true, colored: !!p.color, selected: p.selected, mouseover: p.hover, invalid: p.violations > 0, warning
         },
         style: vars({ ...colorVars(p.color), '--k': colorValue(p.classColor) })
     }, [
