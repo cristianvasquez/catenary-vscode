@@ -51,7 +51,7 @@ describe('placed IRIs without SHACL', () => {
                 expect('display' in placement ? placement.display : undefined).toBe(display === 'detailed' ? undefined : display);
                 const card = drawn.schema.children!.find(c => c.element === id)!;
                 expect(card.display).toBe(display);
-                expect(card.lines).toHaveLength(display === 'detailed' ? 6 : 0);
+                expect(card.lines).toHaveLength(display === 'detailed' ? 3 : 0);
                 expect(docs.text(VIEW).includes('"shaped"')).toBe(display === 'shaped');
             }
         } finally {
@@ -79,14 +79,21 @@ describe('placed IRIs without SHACL', () => {
         expect(figure!.rows.map(r => r.text)).toEqual(name === 'paris' ? ['population: 2000000'] : name === 'eve' ? ['knows: Alice'] : []);
     });
 
-    test('Alice shows every non-title statement once, including known unplaced bob and the address blank node', async () => {
+    test('Alice shows blank values and unplaced IRIs, hiding rows to placed IRIs', async () => {
         const drawn = await diagramOf(ctx, VIEW);
         const card = drawn.schema.children!.find(c => c.element === iriId(iri('alice')))!;
         const lines = card.lines as string[];
-        expect(lines).toHaveLength(6);
-        expect(lines[0]).toMatch(/^address: /);
-        expect(lines.slice(1)).toEqual(['age: 30', 'knows: bob', 'knows: Carol', 'livesIn: paris', 'worksAt: acme']);
+        expect(lines).toEqual(['address: []', 'age: 30', 'knows: bob']);
+        expect(card.hiddenOut).toBe(4);
         expect(drawn.doc.instances[iriId(iri('alice'))].fields[iri('knows')]).toContainEqual({ termType: 'NamedNode', value: iri('bob') });
+    });
+
+    test('a blank address has no connector in the port derivation', async () => {
+        const got = await viewFiguresOf(ctx.port, VIEW, ctx.views.get(VIEW)!, ctx.shapes, ctx.modelFiles);
+        const alice = got.derivation.figures.find(f => f.focus.value === iri('alice'))!;
+        expect(alice.rows.find(r => r.path === iri('address'))).toMatchObject({ text: 'address: []' });
+        expect(alice.rows.find(r => r.path === iri('address'))!.connector).toBeUndefined();
+        expect(alice.connectors).toHaveLength(4);
     });
 
     test('placing bob and the explicit alice-to-bob edge removes only its row', async () => {

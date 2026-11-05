@@ -100,6 +100,27 @@ test('shaped rows stay first and unchanged; title and type statements are not un
     expect(card().rows[2].shaped).toBe(false);
 });
 
+test.each([false, true])('a blank value in a gathered row (shaped: %s) is [] without a connector', shaped => {
+    const focus = iri('urn:test:subject'), shape = iri('urn:test:shape'), ps = iri('urn:test:property');
+    const sh = 'http://www.w3.org/ns/shacl#';
+    const data = new TripleIndex([
+        { subject: focus, predicate: TYPE, object: iri('urn:test:Class') },
+        { subject: focus, predicate: 'urn:test:address', object: iri('urn:skolem:blank:port-id') },
+        ...(shaped ? [
+            { subject: shape, predicate: sh + 'targetClass', object: iri('urn:test:Class') },
+            { subject: shape, predicate: sh + 'property', object: ps },
+            { subject: ps, predicate: sh + 'path', object: iri('urn:test:address') }
+        ] : [])
+    ]);
+    const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view', [focus]);
+    const card = got.figures.find(f => f.focus.value === focus.value)!;
+    const row = card.rows.find(r => r.path === 'urn:test:address')!;
+    expect(row.text).toBe('address: []');
+    expect(row.connector).toBeUndefined();
+    expect(row.gathered).toEqual(shaped ? ps : undefined);
+    expect(card.connectors).toEqual([]);
+});
+
 test.each(['simple', 'shaped', 'detailed'] as const)('%s joins property-shape rows and capped unshaped rows correctly', display => {
     const focus = iri('urn:test:subject'), shape = iri('urn:test:shape'), ps = iri('urn:test:property');
     const view = 'urn:test:view', placement = iri('urn:test:placement'), sh = 'http://www.w3.org/ns/shacl#';
