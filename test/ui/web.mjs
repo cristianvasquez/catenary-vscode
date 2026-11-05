@@ -89,6 +89,9 @@ try {
   check("3 labeled edges", first && EDGES.every((e) => first.edges.includes(e)) && first.edges.length === 3, JSON.stringify(first?.edges))
   const status = await until(() => page.locator("#status").textContent(), (t) => /[1-9]\d* errors · [1-9]\d* warnings/.test(t), 60000)
   check("turtle-lsp diagnostics reach the status bar", /[1-9]\d* errors · [1-9]\d* warnings · \d+ statements/.test(status), status)
+  // The diagnostics reach the canvas in a later model update (a red card). A drag that starts while that update is on its way is lost.
+  const red = await until(() => svgOf().locator(".catenary-card.invalid").count(), (n) => n > 0, 30000)
+  check("turtle-lsp diagnostics reach the canvas", red > 0, `${red} red cards`)
 
   // ------------------------------------------------------------------ move, undo, redo: each writes the view file
   const name = "model.trig"
@@ -227,7 +230,8 @@ try {
 
   // ------------------------------------------------------------------ the instance view
   await page.locator("#files .file", { hasText: "instances.trig" }).click()
-  const instances = await until(state, (s) => s.boxes.includes("Animal Farm") && s.boxes.includes("George Orwell"), 30000)
+  // The first draw (phase 1) can title a card from its IRI before its label is read: wait for the label.
+  const instances = await until(state, (s) => s.boxes.includes("Animal Farm") && s.boxes.includes("George Orwell") && s.boxes.includes("Little corner Bookshop"), 30000)
   await page.screenshot({ path: path.join(out, "web-bookshop.png") })
   check("the instance view opens in a second canvas tab", (await page.locator("#tabs .tab").count()) === 2 && instances?.boxes.includes("Little corner Bookshop"), JSON.stringify(instances?.boxes))
   await svgOf().locator(".catenary-card", { hasText: "Animal Farm" }).first().locator(".badge text").click()
