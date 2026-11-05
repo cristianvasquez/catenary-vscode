@@ -317,17 +317,24 @@ export function viewDocOf(ctx: Pick<ModelContext, 'views' | 'shapes' | 'manifest
             files.set(iri, home[0]);
         }
     }
-    const { instanceIds, relationIds } = instanceRecords(doc, subjects, files, warnings, language);
-    // A placed IRI without model statements still has a card. Only misses may reuse the last complete draw.
+    // Include statement-free endpoints before classifying references as fields or relations.
+    const subjectValues = new Set(subjects.map(e => e.s.value));
+    const emptySubjects: string[] = [];
     const placedIris = new Set([...vq.values()].flatMap(e => [...e.props.get(ELEMENT) ?? [], ...(groups.includes(e.s.value) ? e.props.get(MEMBER) ?? [] : [])]
         .filter(t => t.termType === 'NamedNode').map(t => t.value)));
     for (const iri of wanted) {
-        if (!placedIris.has(iri) || !placed.has(iri) || instanceIds.has(iri) || isShape(rdf.namedNode(iri))
+        if (!placedIris.has(iri) || !placed.has(iri) || subjectValues.has(iri) || isShape(rdf.namedNode(iri))
             || iri === UNION_GRAPH || viewSubjects.has(iri) || iri.startsWith('urn:trellis:list:')) continue;
-        const id = elementId(rdf.namedNode(iri));
-        doc.instances[id] = (misses.has(iri) ? answer.records?.instances[id] : undefined)
-            ?? { id, uri: iri, label: labelFromIri(iri), types: [], fields: {} };
-        instanceIds.set(iri, id);
+        subjects.push({ s: plain(rdf.namedNode(iri)), rows: [] });
+        subjectValues.add(iri);
+        emptySubjects.push(iri);
+    }
+    const { instanceIds, relationIds } = instanceRecords(doc, subjects, files, warnings, language);
+    // Only unread placeholders may reuse their instance from the last complete draw.
+    for (const iri of emptySubjects) {
+        const id = instanceIds.get(iri)!;
+        const cached = misses.has(iri) && answer.records?.instances[id];
+        if (cached) doc.instances[id] = cached;
     }
     if (misses.size) {
         for (const e of vq.values()) for (const t of e.props.get(REIFIES) ?? []) {
