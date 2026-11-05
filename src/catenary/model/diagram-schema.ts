@@ -131,14 +131,6 @@ export function dataElements(doc: Doc, meta: Classes, view: View, opts: GraphOpt
                 lines.push(r.text, ...(r.sub ?? []).map(s => `  ${s.text}`));
                 lineTitles.push(also(r.names), ...(r.sub ?? []).map(s => also(s.names)));
             }
-        } else {
-            const shownPaths = new Set<string>();
-            for (const f of cls?.fields ?? []) {
-                if (shownPaths.has(f.path)) continue;
-                shownPaths.add(f.path);
-                const values = inst.fields[f.path];
-                if (values?.length) { lines.push(`${f.name}: ${values.map(v => v.termType === 'NamedNode' ? localName(v.value) : v.value).join(', ')}`); lineTitles.push(''); }
-            }
         }
         return {
             type: TYPES.CARD, id: n.id, element: inst.id,

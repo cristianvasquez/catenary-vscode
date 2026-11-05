@@ -3,12 +3,15 @@
 import type { Quad, Term } from '@rdfjs/types';
 import { createHash } from 'node:crypto';
 import { expect, test } from 'vitest';
-import type { NQuad, NTerm } from '../src/catenary/model/notation-graph';
+import { TripleIndex, iri, triple, type NQuad, type NTerm } from '../src/catenary/model/notation-graph';
+import { deriveFigures, notations } from '../src/catenary/model/notation';
 import { termToJSON, type TermJSON } from '../src/catenary/model/terms';
 import { parseNotationFiles } from '../src/catenary/rdf/notations';
 import { json, recorded } from './expected';
 
 const R = recorded('notations');
+const VIEW_NS = 'https://cristianvasquez.github.io/catenary/vocab/view#';
+const TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type';
 
 /**
  * Engine triples with each blank node named by its place: the name of its holder, the predicate and its own statements, so that the
@@ -38,6 +41,28 @@ function canonical(quads: Quad[]): NQuad[] {
     expect(new Set(names.values()).size, 'one name per blank node').toBe(names.size);
     return triples;
 }
+
+test.each(['View', 'Placement', 'Note', 'Frame', 'EntityGroup', 'Pill', 'FileRef', 'FutureMark'])('the catch-all Card excludes view:%s', name => {
+    const focus = iri('urn:test:subject');
+    const data = new TripleIndex([{ subject: focus, predicate: TYPE, object: iri(VIEW_NS + name) }]);
+    const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view', [focus]);
+    expect(got.figures.some(f => f.fs.node.value.endsWith('/instances#Card'))).toBe(false);
+});
+
+test('whole-model derivation does not turn a reified triple term into an IRI card', () => {
+    const subject = iri('urn:test:subject');
+    const data = new TripleIndex([{
+        subject, predicate: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies',
+        object: triple(iri('urn:test:alice'), 'urn:test:knows', iri('urn:test:bob'))
+    }]);
+    const got = deriveFigures(data, notations(canonical(parseNotationFiles())), 'urn:test:view');
+    expect(got.figures.map(f => f.focus)).toEqual([subject]);
+});
+
+test.each(['urn:name:model', 'urn:skolem:blank:abc'])('the catch-all Card excludes %s', value => {
+    const got = deriveFigures(new TripleIndex(), notations(canonical(parseNotationFiles())), 'urn:test:view', [iri(value)]);
+    expect(got.figures).toEqual([]);
+});
 
 test('the notation files give the recorded statements of the Oxigraph parser', () => {
     const now = canonical(parseNotationFiles());
