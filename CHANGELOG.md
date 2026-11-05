@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.0.5
+
+- An instance card shows any instance: every placed IRI gets a card, also with no `rdf:type`, no label or no statements (title from the IRI, class line "no type"). SHACL is an overlay, not a condition.
+- Card rows: the rows of property shapes first, then every other statement of the subject (at most 20, then "… +k more"). A blank-node value shows as `[]`. A row whose other end the view shows is hidden; the halo counts it.
+- Card display: Simple (no rows), Shaped rows (property shapes only) or All rows (default), in halo … .
+- Halo in/out counters and the expand list include every related IRI; blank nodes, `rdf:type` objects and view-file subjects are excluded. The list shows at most 200 neighbours; its title gives the exact count.
+- Insert…, "+ member" and add by name list every IRI subject of a model statement.
+- Edit commands place and connect cards of IRIs with no type or label.
+- SHACL results on rows: a Violation colors its row red, a Warning amber; a card with Warnings and no Violation has an amber border. A card with no class has a solid border.
+- `turtle.query.maxRows` defaults to 5000 (turtle-lsp: 1000); the browser page starts its engine with 5000.
+- Browser page: a second sample folder `no-shacl/` (a model without SHACL).
+- Release workflow: a push of the tag `v<version>` verifies, publishes to the VS Code Marketplace by trusted publishing and attaches the `.vsix` file to a GitHub release.
+
 ## 0.0.4
 
 - Requires turtle-lsp 0.14.0 or later (the `turtle/query` request). Catenary keeps no copy of the model: every question about the model is a `turtle/query` request.

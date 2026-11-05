@@ -2,7 +2,7 @@
   "name": "catenary",
   "displayName": "Catenary: RDF, SHACL & SKOS Diagrams",
   "description": "Draw and edit diagrams of RDF, OWL, SHACL and SKOS models from Turtle files. View files in TriG, export to Markdown with SVG. Uses the Turtle RDF language server.",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "cvasquezpaulus",
   "license": "AGPL-3.0-or-later",
   "repository": {

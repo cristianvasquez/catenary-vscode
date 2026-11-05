@@ -113,6 +113,12 @@ function ask(question: string, value = ''): string | undefined {
 // The text patch of a canvas command (src/edit/text-patch.ts) fetches its parser next to the page (scripts/build-web.mjs copies it).
 locateParserFiles(name => new URL(name, location.href).href);
 const files = new FileStore(samples);
+// Monaco 0.52.2: editor.setModel disposes the word highlighter, whose Delayer rejects a pending promise with a CancellationError that no
+// code awaits. Drop exactly that rejection (name and message "Canceled", thrown from the Monaco bundle); every other one stays reported.
+window.addEventListener('unhandledrejection', e => {
+    const r = e.reason as { name?: unknown; message?: unknown; stack?: unknown } | undefined;
+    if (r?.name === 'Canceled' && r.message === 'Canceled' && typeof r.stack === 'string' && /\/vendor\/monaco\/vs\/editor\/editor\.main\.js:/.test(r.stack.split('\n')[1] ?? '')) e.preventDefault();
+});
 let monaco: Monaco, editor: Monaco;
 const lsp = new LspClient(new URL('turtle-lsp/lsp-worker.js', location.href));
 let hooks: { refresh(method: string): void; shown(): void } | undefined;
