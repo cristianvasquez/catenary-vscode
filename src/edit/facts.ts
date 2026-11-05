@@ -9,7 +9,7 @@ export interface Facts {
     shapes: ShapesIndex;
     /** The language of the labels (the manifest). */
     language?: string;
-    /** An instance of the model (vocabulary.ts `isInstance`): an IRI with rdf:type or rdfs:label in a model file, or a SKOS subject of a shapes file. */
+    /** A card IRI, with or without statements: not UNION_GRAPH, a blank/skolem node, a view-file subject or a subject with only shapes-closure statements. */
     isInstance(iri: string): boolean;
     /** The label of an instance or another element of the model. */
     label(iri: string): string;
@@ -21,7 +21,7 @@ export interface Facts {
     has(s: string, p: string, o: string): boolean;
     /** The shape card of an id (the old shapesCardTerm) when the IRI of the id has a statement in a shapes file. */
     shapesCard(id: string): NamedNode | undefined;
-    /** The relations among `iris`: statements of the model whose subject and object are both in `iris` and are instances (type or label), not rdf:type or rdfs:label. */
+    /** The relations among `iris`: model statements whose subject and object are both eligible card IRIs in `iris`, not rdf:type or rdfs:label. */
     statementsAmong(iris: string[]): Quad[];
     /** The statements of the shapes part of the model files that match (IRIs; null matches every term), each with its graph. */
     shapesMatch(s: string | null, p: string | null, o?: string | null): Quad[];
