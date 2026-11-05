@@ -7,6 +7,11 @@
     --catenary-border: var(--vscode-panel-border, #8888);
     --catenary-accent: var(--vscode-focusBorder);
     --catenary-danger: var(--vscode-errorForeground);
+    --catenary-warning: var(--vscode-editorWarning-foreground, #b77900);
+}
+
+.vscode-dark, .vscode-high-contrast {
+    --catenary-warning: var(--vscode-editorWarning-foreground, #cca700);
 }
 
 /* ---------------------------------------------------------------- view editor */
@@ -19,6 +24,8 @@
 .catenary-card:not(.colored) > .body { stroke: color-mix(in srgb, var(--k) 55%, var(--catenary-border)); }
 .catenary-card.mouseover > .body { stroke-width: 2.5; }
 .catenary-card.selected > .body { stroke: var(--catenary-accent); stroke-width: 2.5; }
+.catenary-card.warning > .body { stroke: var(--catenary-warning); stroke-dasharray: 6 4; }
+.catenary-card.warning.selected > .body { stroke: var(--catenary-accent); }
 .catenary-card.invalid > .body { stroke: var(--catenary-danger); stroke-dasharray: 6 4; }
 .catenary-card.invalid.selected > .body { stroke: var(--catenary-accent); }
 .catenary-card.unknown > .body { stroke-dasharray: 3 4; }
@@ -28,8 +35,12 @@
 .card-class { font-size: calc(12px * var(--catenary-card-scale, 1)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--k); }
 .card-name { font-size: calc(22px * var(--catenary-card-scale, 1)); font-weight: 700; line-height: 1.2; margin: 4px 0 8px; overflow-wrap: anywhere; }
 .card-line { font-size: calc(14px * var(--catenary-card-scale, 1)); color: var(--catenary-muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; margin-bottom: 4px; }
+.card-line.invalid { color: var(--catenary-danger); }
+.card-line.warning { color: var(--catenary-warning); }
 .catenary-card .badge { cursor: pointer; }
 .catenary-card .badge circle { fill: var(--catenary-danger); }
+.catenary-card .badge.warning circle { fill: var(--catenary-warning); }
+.catenary-card .badge.warning text { fill: #000; }
 .catenary-card .badge text { fill: #fff; font-size: 16px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; }
 /* Halo (card-chrome.ts): icon buttons around the only selected element, as in Reactodia: half transparent until hovered. */
 /* Opaque background: a button stays legible over an edge label or another element. */

@@ -56,6 +56,8 @@ export interface Connector {
 
 
 interface Row {
+    /** Predicate IRI for a simple-path statement row. */
+    path?: string;
     order: number;
     rank: number;
     text: string;
@@ -534,7 +536,7 @@ function gather(D: TripleIndex, f: Figure, warnings: string[], titlePaths: strin
             return !statements.has(k) && !!statements.add(k);
         });
         return values.map(v => {
-            const row: Row = { order: 0, rank: 0, text: `${name}: ${label(D, v)}`, gathered: ps, ...(names.length ? { names } : {}) };
+            const row: Row = { order: 0, rank: 0, text: `${name}: ${label(D, v)}`, path: path.value, gathered: ps, ...(names.length ? { names } : {}) };
             if (v.termType === 'NamedNode') {
                 row.connector = { statement: triple(f.focus, path.value, v), gathered: ps, unplaced: unplacedOf(f.fs.unplaced), text: row.text };
                 f.connectors.push(row.connector);
@@ -551,7 +553,7 @@ function gather(D: TripleIndex, f: Figure, warnings: string[], titlePaths: strin
         .flatMap(p => D.objects(f.focus, p).filter(v => !statements.has(nkey(triple(f.focus, p, v)))).map(v => ({ p, v })))
         .sort((a, b) => localName(a.p).localeCompare(localName(b.p)) || nkey(a.v).localeCompare(nkey(b.v)) || a.p.localeCompare(b.p));
     for (const { p, v } of remaining.slice(0, 20)) {
-        const row: Row = { order: 0, rank: 0, shaped: false, text: `${localName(p)}: ${label(D, v)}` };
+        const row: Row = { order: 0, rank: 0, shaped: false, path: p, text: `${localName(p)}: ${label(D, v)}` };
         if (v.termType === 'NamedNode') {
             row.connector = { statement: triple(f.focus, p, v), unplaced: 'AsRow', text: row.text };
             f.connectors.push(row.connector);

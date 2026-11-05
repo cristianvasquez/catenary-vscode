@@ -52,6 +52,10 @@ export interface CardProps {
     lines: string[];
     /** The tooltip of each line (same index), '' for none. */
     lineTitles?: string[];
+    /** Same index as lines; empty entries are neutral. */
+    lineStates?: ('' | 'invalid' | 'warning')[];
+    warnings?: number;
+    warningMessage?: string;
     color: string;
     classColor: string;
     selected: boolean;
@@ -170,17 +174,18 @@ export function renderCard(p: CardProps, handles: VNode[]): VNode {
     const content = h('div', { class: { 'card-body': true, simple } }, [
         h('div', { class: { 'card-class': true } }, p.className),
         h('div', { class: { 'card-name': true } }, p.name),
-        ...(simple ? [] : p.lines.map((l, i) => h('div', { class: { 'card-line': true }, ...(p.lineTitles?.[i] ? { attrs: { title: p.lineTitles[i] } } : {}) }, l)))
+        ...(simple ? [] : p.lines.map((l, i) => h('div', { class: { 'card-line': true, invalid: p.lineStates?.[i] === 'invalid', warning: p.lineStates?.[i] === 'warning' }, ...(p.lineTitles?.[i] ? { attrs: { title: p.lineTitles[i] } } : {}) }, l)))
     ]);
-    const badge = p.violations > 0
-        ? [s('g', { class: { badge: true } }, [
-            s('title', {}, [badgeTitle(p.violationMessage)]),
+    const warning = p.violations === 0 && (p.warnings ?? 0) > 0;
+    const badge = p.violations > 0 || warning
+        ? [s('g', { class: { badge: true, warning } }, [
+            s('title', {}, [badgeTitle(warning ? p.warningMessage : p.violationMessage)]),
             s('circle', { attrs: { cx: width - 4, cy: 4, r: 16 } }),
-            s('text', { attrs: { x: width - 4, y: 5 } }, [String(p.violations)])])]
+            s('text', { attrs: { x: width - 4, y: 5 } }, [String(warning ? p.warnings : p.violations)])])]
         : [];
     return s('g', {
         class: {
-            'catenary-card': true, colored: !!p.color, selected: p.selected, mouseover: p.hover, invalid: p.violations > 0, unknown: !p.known
+            'catenary-card': true, colored: !!p.color, selected: p.selected, mouseover: p.hover, invalid: p.violations > 0, warning, unknown: !p.known
         },
         style: vars({ ...colorVars(p.color), '--k': colorValue(p.classColor) })
     }, [

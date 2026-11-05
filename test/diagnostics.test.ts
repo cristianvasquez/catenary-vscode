@@ -9,6 +9,7 @@ import { diagramOf, type ModelContext, modelContextOf } from '../src/read/diagra
 import { diagnosticsOf as portDiagnosticsOf, SHACL_CODE } from '../src/read/diagnostics';
 import { json, recorded } from './expected';
 import { FIXTURE, startServer } from './server';
+import { renderCard, type CardProps } from '../src/webview/card-chrome';
 
 const R = recorded('diagnostics');
 
@@ -32,6 +33,32 @@ test('literal range gives focus, path, count and badge message', async () => {
     const violations = await diagnosticsOf({ [value.uri]: [diagnostic()] });
     expect(violations).toEqual([{ focus: animal, instance: iriId(animal), path: edge.predicate, shape: iriId('urn:name:Book%20shape-publicationYear'), severity: 'Violation', component: '', message: 'expected at most 1 value(s)', uri: value.uri, range: value.range }]);
     expect(await card(violations)).toMatchObject({ violations: 1, violationMessage: 'expected at most 1 value(s)' });
+});
+
+test('publicationYear maxCount diagnostic marks its row invalid and keeps the card red', async () => {
+    const violations = await diagnosticsOf({ [value.uri]: [diagnostic()] });
+    const drawn = await card(violations);
+    const row = (drawn.lines as string[]).findIndex(l => l.startsWith('publication year:'));
+    expect(row).toBeGreaterThanOrEqual(0);
+    expect((drawn.lineStates as string[])[row]).toBe('invalid');
+    const rendered = renderCard({ ...drawn, width: 450, height: 300 } as unknown as CardProps, []);
+    expect(rendered.data?.class).toMatchObject({ invalid: true, warning: false });
+});
+
+test('a Violation takes precedence over Warning on the same focus and path', async () => {
+    const [v] = await diagnosticsOf({ [value.uri]: [diagnostic()] });
+    const drawn = await card([{ ...v, severity: 'Warning' }, v]);
+    expect(drawn).toMatchObject({ violations: 1, warnings: 1 });
+    expect(drawn.lineStates).toContain('invalid');
+    expect(drawn.lineStates).not.toContain('warning');
+    expect(renderCard({ ...drawn, width: 450, height: 300 } as unknown as CardProps, []).data?.class).toMatchObject({ invalid: true, warning: false });
+});
+
+test('a focus-only diagnostic colors the card but not a row', async () => {
+    const [v] = await diagnosticsOf({ [value.uri]: [diagnostic()] });
+    const drawn = await card([{ ...v, path: undefined }]);
+    expect(drawn.violations).toBe(1);
+    expect(drawn.lineStates).toBeUndefined();
 });
 
 test('predicate-only diagnostic range maps the next literal when only whitespace separates them', async () => {

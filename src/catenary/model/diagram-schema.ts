@@ -107,9 +107,6 @@ export function edgeLanes(ends: readonly (readonly [string, string])[]): (a: str
  * instance with the same IRI); they get no instance card and no relation edges.
  */
 export function dataElements(doc: Doc, meta: Classes, view: View, opts: GraphOptions, skip: ReadonlySet<string>): { edges: ElementSchema[]; cards: ElementSchema[]; collections: ElementSchema[] } {
-    const count = new Map<string, number>();
-    for (const v of opts.violations) if (v.instance && v.severity === 'Violation') count.set(v.instance, (count.get(v.instance) ?? 0) + 1);
-
     // A member of a collection has no card: its edges go to the collection (`box`). Else the edges go to the card (its placement id).
     const collected = new Map(boxes(view, 'collection').flatMap(c => c.members.map(m => [m, c.id] as const)));
     const box = (instance: string) => collected.get(instance) ?? cardOf(view, instance)?.id ?? instance;
@@ -124,12 +121,18 @@ export function dataElements(doc: Doc, meta: Classes, view: View, opts: GraphOpt
         const lines: string[] = [];
         // The tooltip of each line (same index): the other sh:name values of a gathered row.
         const lineTitles: string[] = [];
+        const lineStates: ('' | 'invalid' | 'warning')[] = [];
+        const diagnostics = opts.violations.filter(v => v.focus === inst.uri);
+        const violations = diagnostics.filter(v => v.severity === 'Violation');
+        const warnings = diagnostics.filter(v => v.severity === 'Warning');
+        const state = (path?: string) => !path ? '' : violations.some(v => v.path === path) ? 'invalid' : warnings.some(v => v.path === path) ? 'warning' : '';
         const also = (names?: string[]) => names?.length ? `Also named: ${names.join(', ')}` : '';
         const rows = engineRows.get(inst.uri);
         if (rows) {
             for (const r of rows.filter(r => !r.text.startsWith('rdf:type: '))) {
                 lines.push(r.text, ...(r.sub ?? []).map(s => `  ${s.text}`));
                 lineTitles.push(also(r.names), ...(r.sub ?? []).map(s => also(s.names)));
+                lineStates.push(state(r.path), ...(r.sub ?? []).map(s => state(s.path)));
             }
         }
         return {
@@ -138,8 +141,9 @@ export function dataElements(doc: Doc, meta: Classes, view: View, opts: GraphOpt
             name: inst.label,
             className: className(inst.types),
             classColor: cls?.color ?? '', color: n.color ?? '', display: n.display ?? 'detailed',
-            lines, lineTitles, violations: count.get(inst.id) ?? 0,
-            violationMessage: opts.violations.filter(v => v.instance === inst.id && v.severity === 'Violation').map(v => v.message).join('\n'), known: !!cls,
+            lines, lineTitles, ...(lineStates.some(Boolean) ? { lineStates } : {}), violations: violations.length,
+            ...(warnings.length ? { warnings: warnings.length, warningMessage: warnings.map(v => v.message).join('\n') } : {}),
+            violationMessage: violations.map(v => v.message).join('\n'), known: !!cls,
             hiddenIn: opts.hidden?.neighbors(inst.id)?.in ?? 0, hiddenOut: opts.hidden?.neighbors(inst.id)?.out ?? 0,
             hiddenTargets: opts.hidden?.neighbors(inst.id)?.targets ?? 0
         };

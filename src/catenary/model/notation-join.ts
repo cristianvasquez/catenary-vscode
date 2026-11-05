@@ -89,7 +89,7 @@ function joinState(figs: Figure[], placed: ReadonlyMap<string, unknown>) {
 // --- the join ---------------------------------------------------------------------------------------
 
 /** A row of a box. `connector`: the row stands for a link that is not drawn as a line. */
-interface JoinRow { shaped?: boolean; text: string; part?: Figure; connector?: Connector; sub?: JoinRow[]; names?: string[] }
+interface JoinRow { path?: string; shaped?: boolean; text: string; part?: Figure; connector?: Connector; sub?: JoinRow[]; names?: string[] }
 
 export interface JoinBox { figure: Figure; simple: boolean; rows: JoinRow[] }
 
@@ -131,10 +131,10 @@ function join(d: Derivation, placed: Placements): Join {
         const simple = Boolean(placement?.simple), shaped = placement?.display === 'shaped';
         const rows: JoinRow[] = simple ? [] : [
             ...f.rows.filter(r => visible(r) && (!shaped || r.shaped !== false)).map(r => ({
-                text: r.text, part: r.part, connector: r.connector, ...(r.shaped === false ? { shaped: false } : {}), ...(r.names ? { names: r.names } : {}),
-                ...(r.sub ? { sub: r.sub.filter(visible).map(s => ({ text: s.text, part: s.part, connector: s.connector, ...(s.names ? { names: s.names } : {}) })) } : {})
+                text: r.text, path: r.path ?? r.connector?.statement.predicate.value, part: r.part, connector: r.connector, ...(r.shaped === false ? { shaped: false } : {}), ...(r.names ? { names: r.names } : {}),
+                ...(r.sub ? { sub: r.sub.filter(visible).map(s => ({ text: s.text, path: s.path ?? s.connector?.statement.predicate.value, part: s.part, connector: s.connector, ...(s.names ? { names: s.names } : {}) })) } : {})
             })),
-            ...f.connectors.filter(c => !shaped && !c.gathered && !f.rows.some(r => r.connector === c) && !lineOf(c)).map(c => ({ text: c.text, connector: c }))
+            ...f.connectors.filter(c => !shaped && !c.gathered && !f.rows.some(r => r.connector === c) && !lineOf(c)).map(c => ({ text: c.text, path: c.statement.predicate.value, connector: c }))
         ];
         boxes.push({ figure: f, simple, rows });
     }

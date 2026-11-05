@@ -11,6 +11,7 @@ import { rdf } from '../src/catenary/rdf/terms';
 import { startServer } from './server';
 import { viewFiguresOf } from '../src/read/figures';
 import { viewDocuments } from './views';
+import { renderCard, type CardProps } from '../src/webview/card-chrome';
 
 const VIEW = 'urn:name:People';
 const PEOPLE = ['alice', 'carol', 'paris', 'acme', 'eve'];
@@ -24,6 +25,19 @@ describe('placed IRIs without SHACL', () => {
         ({ ctx } = await modelContextOf(server.port(), ['data.ttl', 'view.trig'].map(f => resolve(dir, f))));
     }, 20000);
     afterAll(async () => { await server?.stop(); });
+
+    test('without SHACL every card and row is neutral, including unknown classes', async () => {
+        const drawn = await diagramOf(ctx, VIEW);
+        const cards = drawn.schema.children!.filter(c => c.type === TYPES.CARD);
+        expect(cards).toHaveLength(5);
+        for (const card of cards) {
+            expect(card.violations).toBe(0);
+            expect(card.warnings ?? 0).toBe(0);
+            expect(card.lineStates).toBeUndefined();
+            const rendered = renderCard({ ...card, width: 450, height: 300 } as unknown as CardProps, []);
+            expect(rendered.data?.class).toMatchObject({ invalid: false, warning: false });
+        }
+    });
 
     test('display edits round-trip shaped, simple and the detailed default without SHACL', async () => {
         const docs = viewDocuments(server, () => ctx, { [VIEW]: ctx.views.get(VIEW)! });

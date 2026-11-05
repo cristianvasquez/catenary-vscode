@@ -1,0 +1,11 @@
+@prefix ex: <http://ex.org/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+ex:alice a ex:Person ; rdfs:label "Alice" ; ex:age 12 ; ex:score 1 .
+ex:bob a ex:Person ; rdfs:label "Bob" ; ex:age 25 .
+ex:PersonShape a sh:NodeShape ; sh:targetClass ex:Person ; sh:property ex:AgeShape .
+ex:AgeShape a sh:PropertyShape ; sh:path ex:age ; sh:minInclusive 18 ; sh:severity sh:Warning .
+# A targetSubjectsOf shape supplies an unshaped statement's diagnostic path.
+ex:ScoreShape a sh:NodeShape ; sh:targetSubjectsOf ex:score ; sh:property ex:ScoreProperty .
+ex:ScoreProperty sh:path ex:score ; sh:minInclusive 2 ; sh:severity sh:Warning .

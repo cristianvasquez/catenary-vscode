@@ -1,0 +1,8 @@
+@prefix ex: <http://ex.org/> .
+@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+
+<urn:name:Warnings> {
+    <urn:name:Warnings> a view:View .
+    <urn:warning:alice> a view:Placement ; view:element ex:alice ; view:view <urn:name:Warnings> .
+    <urn:warning:bob> a view:Placement ; view:element ex:bob ; view:view <urn:name:Warnings> .
+}
