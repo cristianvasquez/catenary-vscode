@@ -106,10 +106,9 @@ export function neighborMisses(shapes: ShapesModelRecords, view: View, answer: K
 }
 
 /**
- * For each instance card of `view`: the number of instances related to it ('in': subjects of its relations, 'out': objects) that the
- * view does not show, or whose relation is hidden; from `answer`, the kept answer of the view (it sends no query). The instance test and
- * the home of a subject come from the answer: rdf:type or rdfs:label outside the shapes closure (model), else SKOS statements of a shape
- * subject in the closure (shapes); a statement of a shape subject in the closure belongs to the shapes. `badges` (viewBadges): the targets
+ * For each IRI card of `view`: the number of related IRIs ('in': subjects, 'out': objects) that the view does not show, or whose relation
+ * is hidden; from `answer`, the kept answer of the view (it sends no query). Blank nodes and view-file subjects are excluded.
+ * A statement of a shape subject in the closure belongs to the shapes. `badges` (viewBadges): the targets
  * of each placed node shape and the shapes of each card that the view does not show.
  */
 export function hiddenNeighborCounts(ctx: Pick<ModelContext, 'shapes' | 'views'>, view: View, answer: KeptPrefetch, badges?: TargetBadges): Map<string, NeighborCount> {
@@ -119,16 +118,16 @@ export function hiddenNeighborCounts(ctx: Pick<ModelContext, 'shapes' | 'views'>
     // The statements of the answer by subject, without the subjects of a view file (a view, a placement, a mark).
     const bySubject = new Map<string, NQuad[]>();
     for (const q of answer.quads) (bySubject.get(q.subject.value) ?? bySubject.set(q.subject.value, []).get(q.subject.value)!).push(q);
-    for (const [s, qs] of bySubject) if (views.has(s) || qs.some(q => q.predicate === TYPE && isView(q.object.value))) bySubject.delete(s);
+    const viewSubjects = new Set(views.keys());
+    for (const [s, qs] of bySubject) if (qs.some(q => q.predicate === TYPE && isView(q.object.value))) viewSubjects.add(s);
+    for (const s of viewSubjects) bySubject.delete(s);
     const inModel = (s: string) => (bySubject.get(s) ?? []).some(q => (q.predicate === TYPE || q.predicate === LABEL) && !shapesPart(q));
     const vocabulary = (s: string) => (bySubject.get(s) ?? []).some(q => shapesPart(q) && ((q.predicate === TYPE && SKOS_TYPES.has(q.object.value)) || SKOS_MEMBERSHIP.has(q.predicate)));
-    const known = (s: string) => (bySubject.get(s) ?? []).some(q => q.predicate === TYPE || q.predicate === LABEL);
-    const instance = (s: string) => s.startsWith(BLANK) ? known(s) : inModel(s) || vocabulary(s);
 
     const cards = new Map<string, string>();
     for (const b of boxes(view, 'card')) {
         const t = elementTerm(b.element);
-        if (t?.termType === 'NamedNode' && !t.value.startsWith(BLANK) && instance(t.value)) cards.set(t.value, b.element);
+        if (t?.termType === 'NamedNode' && !t.value.startsWith(BLANK) && t.value !== UNION_GRAPH && !viewSubjects.has(t.value)) cards.set(t.value, b.element);
     }
     const shownIris = new Set(placedOf(shapes, view).placedIris);
     for (const b of boxes(view, 'card')) for (const m of model.valueSets[b.element]?.members ?? []) shownIris.add(m.uri);
@@ -141,7 +140,7 @@ export function hiddenNeighborCounts(ctx: Pick<ModelContext, 'shapes' | 'views'>
         const s = q.subject.value, shapesHome = !s.startsWith(BLANK) && !inModel(s) && vocabulary(s);
         if (shapesHome !== shapesPart(q)) return;
         if (shownIris.has(other.value) && placedEdges.has(relationIdOf(s, q.predicate, q.object.value))) return;
-        if (!instance(other.value)) return;
+        if (other.value.startsWith(BLANK) || viewSubjects.has(other.value)) return;
         const o = neighbors.get(self.value) ?? neighbors.set(self.value, { in: new Set(), out: new Set() }).get(self.value)!;
         o[dir].add(other.value);
     };

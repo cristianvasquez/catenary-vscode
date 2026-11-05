@@ -38,7 +38,7 @@ Run Catenary: New View… from the explorer context menu to create a view file, 
 - Choose Insert… → Link to a file… or Link to a view… to place a file or view reference without dragging.
 - Drag a box to move it; drag its resize handle to resize it.
 - Click × or press Delete to remove selected elements from the view, not the model.
-- Use halo expansion buttons to place hidden neighbours, applicable shapes or checked instances.
+- Halo in/out counters include all related IRIs, even without a type or label; they exclude blank nodes, `rdf:type` objects and view-file subjects. A placed neighbour still counts if its relation edge is hidden. Use halo expansion buttons to place hidden neighbours, applicable shapes or checked instances.
 - Use a card's halo expand button to show a deleted relation edge again.
 - Use halo … → Color to set or clear the selected elements' view color.
 - Use halo … → Simple cards or Show details to change selected cards' display.

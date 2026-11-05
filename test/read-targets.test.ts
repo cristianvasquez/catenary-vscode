@@ -1,6 +1,6 @@
 // Kata w1pm: shape targets and hidden neighbours from turtle/query (turtle-lsp binary over stdio), against the values of the old functions
 // (recorded before K11 deleted them: test/fixtures/expected/read-targets.json).
-import { mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
@@ -96,6 +96,49 @@ describe('shapeTargetMatches and hiddenNeighborCounts on test/fixtures/shapes', 
     });
 });
 
+describe('hidden neighbours without SHACL', () => {
+    let dir: string, server: Awaited<ReturnType<typeof startServer>>, now: ShapesModelRecords;
+    let viewFiles: Map<string, string>;
+    const EX = 'http://ex.org/';
+    beforeAll(async () => {
+        dir = mkdtempSync(join(tmpdir(), 'catenary-no-shacl-'));
+        for (const name of ['data.ttl', 'view.trig']) writeFileSync(join(dir, name), readFileSync(join('test/fixtures/no-shacl', name)));
+        // A second view places only alice. The source fixture is unchanged.
+        writeFileSync(join(dir, 'alice.trig'), `@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#> .
+<urn:name:Alice> { <urn:name:Alice> a view:View .
+<urn:name:Alice/p/1> a view:Placement ; view:element <${EX}alice> ; view:view <urn:name:Alice> ; view:x 0 ; view:y 0 ; view:width 450 ; view:height 300 . }`);
+        server = await startServer(dir, 61);
+        now = await shapesModelOf(server.port(), [join(dir, 'data.ttl')], {});
+        viewFiles = new Map([['urn:name:People', join(dir, 'view.trig')], ['urn:name:Alice', join(dir, 'alice.trig')]]);
+    }, 20000);
+    afterAll(async () => { await server?.stop(); if (dir) rmSync(dir, { recursive: true, force: true }); });
+
+    test('alice counts all four outgoing and two incoming IRIs, not its type or blank address', async () => {
+        const result = await hiddenOf(server.port(), viewFiles, 'urn:name:Alice', now);
+        expect([...result]).toEqual([[iriId(`${EX}alice`), { in: 2, out: 4 }]]);
+    });
+
+    test('People counts placed neighbours while their relation edges are not shown', async () => {
+        const ctx: ModelContext = { port: server.port(), modelFiles: now.files, shapes: now, manifest: {}, views: viewFiles, viewLabels: await viewGraphsOf(server.port(), viewFiles) };
+        const drawn = await diagramOf(ctx, 'urn:name:People');
+        const view = drawn.doc.views[iriId('urn:name:People')];
+        // Read every placement directly: card admission in view.ts belongs to parallel kata K1.
+        // Count from the source view's empty edge placements, not the draw's generated edges.
+        const placements = await server.port().select(`SELECT ?placement ?element WHERE {
+            ?placement <https://cristianvasquez.github.io/catenary/vocab/view#element> ?element }`, [join(dir, 'view.trig')]);
+        const allCards: View = { ...view, edges: [], boxes: placements.map(r => ({ kind: 'card', id: iriId(r.placement.value), element: iriId(r.element.value), x: 0, y: 0, width: 450, height: 300 })) };
+        expect(allCards.boxes).toHaveLength(5);
+        expect(allCards.edges).toHaveLength(0);
+        const result = hiddenNeighborCounts(ctx, allCards, drawn.kept as KeptPrefetch);
+        // No edges are placed: alice still counts bob, carol, paris, acme out and dan, eve in.
+        // Carol, paris and acme each count alice in; eve counts alice out, despite being untyped.
+        expect(Object.fromEntries(result)).toEqual(Object.fromEntries([
+            ['alice', { in: 2, out: 4 }], ['carol', { in: 1, out: 0 }],
+            ['paris', { in: 1, out: 0 }], ['acme', { in: 1, out: 0 }], ['eve', { in: 0, out: 1 }],
+        ].map(([name, count]) => [iriId(`${EX}${name}`), count])));
+    });
+});
+
 describe('blank-node intermediates (temp folder)', () => {
     const EX = 'http://example.org/';
     const prefixes = `@prefix sh: <http://www.w3.org/ns/shacl#> . @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> . @prefix ex: <${EX}> .\n`;
@@ -158,7 +201,7 @@ ex:leaf rdfs:label "leaf" .
         expect(json(result)).toEqual(recordedBlank(name));
     });
 
-    test('hiddenNeighborCounts keeps blank neighbours in different files distinct', async () => {
+    test('hiddenNeighborCounts excludes typed blank neighbours in different files', async () => {
         const folder = mkdtempSync(join(tmpdir(), 'catenary-neighbours-'));
         let otherServer: Awaited<ReturnType<typeof startServer>> | undefined;
         try {
@@ -168,16 +211,16 @@ ex:leaf rdfs:label "leaf" .
             otherServer = await startServer(folder, 22);
             const otherShapes = await shapesModelOf(otherServer.port(), modelFiles, {});
             const result = await hiddenOf(otherServer.port(), new Map([[viewIri, join(folder, 'view.trig')]]), viewIri, otherShapes);
-            expect(result.get(iriId(`${EX}root`))?.out).toBe(2);
+            expect(result.has(iriId(`${EX}root`))).toBe(false);
         } finally {
             await otherServer?.stop();
             rmSync(folder, { recursive: true, force: true });
         }
     });
 
-    test('hiddenNeighborCounts counts the blank neighbour as the old one did', async () => {
+    test('hiddenNeighborCounts excludes the typed blank neighbour', async () => {
         const result = await hiddenOf(server.port(), new Map([[viewIri, join(dir, 'view.trig')]]), viewIri, now);
-        expect(result.get(iriId(`${EX}root`))?.out).toBe(1);
+        expect(result.get(iriId(`${EX}root`))).toEqual({ in: 0, out: 0, targets: 1 });
         expect(json([...result])).toEqual(recordedBlank('hidden blank'));
     });
 });

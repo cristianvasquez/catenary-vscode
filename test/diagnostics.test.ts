@@ -55,6 +55,15 @@ test('predicate-only diagnostic on an IRI-valued predicate does not take the nex
     expect(violation).not.toHaveProperty('shape');
 });
 
+test.each(['urn:name:UntypedFocus', 'urn:skolem:blank:test-focus'])('diagnostic focus %s gets a card ID only when it is not blank', async focus => {
+    const node = result.nodes[edge.source];
+    const graph = { nodes: [{ ...node, id: focus }], edges: [] } as unknown as GraphResult;
+    const [violation] = await portDiagnosticsOf(ctx, graph, { [node.uri]: [diagnostic(node.range)] }, textOf);
+    expect(violation.focus).toBe(focus);
+    if (focus.startsWith('urn:skolem:blank:')) expect(violation).not.toHaveProperty('instance');
+    else expect(violation.instance).toBe(iriId(focus));
+});
+
 test('non-SHACL and other-file diagnostics do not map', async () => {
     expect(await diagnosticsOf({ [value.uri]: [diagnostic(value.range, 'unknown-term')] })).toEqual([]);
     expect(await diagnosticsOf({ 'file:///elsewhere.ttl': [diagnostic()] })).toEqual([]);

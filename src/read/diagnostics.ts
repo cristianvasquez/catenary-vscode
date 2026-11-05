@@ -1,5 +1,5 @@
 // Map turtle-lsp diagnostic ranges to diagram elements and violation records; VS Code severities are zero-based (LSP: one-based).
-// Positions come from turtle/graph (GraphResult.nodes); the classes and the instance test of the focus terms from one turtle/query.
+// Positions come from turtle/graph (GraphResult.nodes); the classes of the focus terms from one turtle/query.
 import type { Diagnostic } from 'vscode';
 import type { Violation } from '../catenary/model/validation';
 import { elementId } from '../catenary/rdf/ids';
@@ -75,11 +75,11 @@ function violationOf(index: ShapesIndex, site: DiagnosticSite, classes: string[]
     };
 }
 
-/** diagnosticsOf of node/diagnostics.ts over the port: the rdf:type statements and the instance test of every focus IRI from one query (factsOf). */
+/** diagnosticsOf over the port: types from factsOf; every non-blank focus IRI can have a card. */
 export async function diagnosticsOf(ctx: Pick<ModelContext, 'port' | 'modelFiles' | 'shapes'>, result: GraphResult, byUri: Record<string, Diagnostic[]>,
     textOf: (uri: string) => string): Promise<Violation[]> {
     const sites = diagnosticSites(result, byUri, textOf);
     if (!sites.length) return [];
     const facts = await factsOf(ctx.port, ctx.modelFiles, inShapesOf(ctx.shapes), sites.map(s => s.focus));
-    return sites.map(s => violationOf(ctx.shapes.index, s, facts.types.get(s.focus) ?? [], facts.instance.has(s.focus)));
+    return sites.map(s => violationOf(ctx.shapes.index, s, facts.types.get(s.focus) ?? [], !s.focus.startsWith('urn:skolem:blank:')));
 }
