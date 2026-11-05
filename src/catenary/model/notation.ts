@@ -2,8 +2,7 @@
 import { NTerm, NQuad, NT, Path, RDF, SH, TripleIndex, TripleTerm, classesOf, conforms, evalPath, inversePath, iri, nkey, parseShaclPath, pathJSON, triple, uniq } from './notation-graph';
 import { formatPath, shortIri } from './shapes-doc';
 import { sha256Hex } from './sha256';
-import { NS, TermJSON, localName } from './terms';
-import { UNION_GRAPH } from '../rdf/files';
+import { NS, TermJSON, UNION_GRAPH, localName } from './terms';
 
 
 type FigureKind = 'Box' | 'Line' | 'Hub';

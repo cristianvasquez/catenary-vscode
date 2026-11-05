@@ -194,7 +194,7 @@
     "vscode:prepublish": "pnpm build",
     "build": "node scripts/build.mjs",
     "test": "vitest run",
-    "verify": "tsc --noEmit && knip && pnpm test && ! grep -rn \"ui-manifest\\|ADR [0-9]\\|claude-attempt\\|law_\" src",
+    "verify": "tsc --noEmit && knip && pnpm build && pnpm test && ! grep -rn \"ui-manifest\\|ADR [0-9]\\|claude-attempt\\|law_\" src",
     "ui": "node test/ui/run.mjs",
     "ui:markdown": "node test/ui/markdown.mjs",
     "package": "vsce package --no-dependencies",

@@ -1,5 +1,11 @@
 // JSON terms, namespaces and IRI helpers; adapted from Catenary packages/model/src/terms.ts.
 
+/**
+ * The model resource (subject of dct:conformsTo and the label of the model, in the data file), and the graph name of the data in TriG text
+ * (workspace files, test fixtures). Files contain this value: do not change it.
+ */
+export const UNION_GRAPH = 'urn:name:model';
+
 export const NS = {
     rdf: 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
     rdfs: 'http://www.w3.org/2000/01/rdf-schema#',

@@ -1,0 +1,50 @@
+name: publish
+
+# A push of the tag v<version> (the version of package.json) verifies, packages and publishes the extension to the VS Code
+# Marketplace, and attaches the .vsix file to a GitHub release. Secret VSCE_PAT: an Azure DevOps token with the scope
+# Marketplace > Manage for the publisher cvasquezpaulus.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag equals package.json version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} is not v${version} (package.json)"; exit 1
+          fi
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The unit tests start a turtle-lsp binary (test/server.ts, TURTLE_LSP): the tag that Catenary requires. Cloned outside
+      # the workspace, so vitest, tsc and knip do not see its files.
+      - run: git clone --depth 1 --branch v0.14.0 https://github.com/abhishekkundu25/turtle-lsp "$RUNNER_TEMP/turtle-lsp"
+      - run: cargo build --release --locked
+        working-directory: ${{ runner.temp }}/turtle-lsp
+      - run: pnpm verify
+        env:
+          TURTLE_LSP: ${{ runner.temp }}/turtle-lsp/target/release/turtle-lsp
+      - run: pnpm package
+      - name: Publish to the VS Code Marketplace
+        run: pnpm exec vsce publish --no-dependencies --packagePath "catenary-${GITHUB_REF_NAME#v}.vsix"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      - name: GitHub release with the .vsix
+        run: gh release create "${GITHUB_REF_NAME}" "catenary-${GITHUB_REF_NAME#v}.vsix" --title "${GITHUB_REF_NAME}" --notes "See CHANGELOG.md."
+        env:
+          GH_TOKEN: ${{ github.token }}

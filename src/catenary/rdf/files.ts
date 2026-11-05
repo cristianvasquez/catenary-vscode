@@ -13,11 +13,8 @@ function resolveStored(dir: string, stored: string, p: PathApi = path): string {
     return p.resolve(dir, stored.replace(/\\/g, '/'));
 }
 
-/**
- * The model resource (subject of dct:conformsTo and the label of the model, in the data file), and the graph name of the data in TriG text
- * (workspace files, test fixtures). Files contain this value: do not change it.
- */
-export const UNION_GRAPH = 'urn:name:model';
+/** UNION_GRAPH lives in model/terms.ts: browser bundles import it without node:url and path. */
+export { UNION_GRAPH } from '../model/terms';
 
 /** The graph of a model document as turtle-lsp names it: its file URI. */
 export const dataGraphIri = (file: string) => pathToFileURL(file).href;
