@@ -1,0 +1,27 @@
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#>.
+@prefix view: <https://cristianvasquez.github.io/catenary/vocab/view#>.
+
+<urn:name:People> {
+  <urn:name:People> a view:View;
+    rdfs:label "People".
+
+  <urn:name:People/p/alice> a view:Placement;
+    view:element <http://ex.org/alice>;
+    view:height 300; view:view <urn:name:People>; view:width 450; view:x 0; view:y 0.
+
+  <urn:name:People/p/carol> a view:Placement;
+    view:element <http://ex.org/carol>;
+    view:height 300; view:view <urn:name:People>; view:width 450; view:x 600; view:y 0.
+
+  <urn:name:People/p/paris> a view:Placement;
+    view:element <http://ex.org/paris>;
+    view:height 300; view:view <urn:name:People>; view:width 450; view:x 1200; view:y 0.
+
+  <urn:name:People/p/acme> a view:Placement;
+    view:element <http://ex.org/acme>;
+    view:height 300; view:view <urn:name:People>; view:width 450; view:x 0; view:y 600.
+
+  <urn:name:People/p/eve> a view:Placement;
+    view:element <http://ex.org/eve>;
+    view:height 300; view:view <urn:name:People>; view:width 450; view:x 600; view:y 600.
+}

@@ -1,0 +1,13 @@
+# A model with no SHACL (kata fixture): neighbours with a type, with a label only, with neither, only as an object, and a blank node.
+@prefix ex: <http://ex.org/> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+ex:alice a ex:Person ; rdfs:label "Alice" ; ex:age 30 ;
+  ex:knows ex:bob , ex:carol ;
+  ex:livesIn ex:paris ;
+  ex:worksAt ex:acme ;
+  ex:address [ a ex:Address ; ex:city "Lyon" ] .
+ex:bob a ex:Person .
+ex:carol rdfs:label "Carol" .
+ex:paris ex:population 2000000 .
+ex:dan a ex:Person ; ex:knows ex:alice .
+ex:eve ex:knows ex:alice .
